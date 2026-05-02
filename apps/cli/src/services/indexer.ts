@@ -27,7 +27,7 @@ const extractNote = (content: string, filePath: string): { title: string; body: 
       const frontmatter = content.slice(3, end);
       const titleMatch = frontmatter.match(/^title:\s*["']?(.+?)["']?\s*$/m);
       if (titleMatch) {
-        return { title: titleMatch[1].trim(), body: content.slice(end + 4).trim() };
+        return { title: titleMatch[1].trim(), body: content };
       }
     }
   }
@@ -43,11 +43,12 @@ const indexFile = async (
   embedder: Embedder,
   filePath: string,
   stats: IndexStats,
+  force = false,
 ): Promise<void> => {
   const mtime = statSync(filePath).mtimeMs;
   const existing = getNoteByFilePath(client, filePath);
 
-  if (existing && existing.updatedAt >= mtime) {
+  if (!force && existing && existing.updatedAt >= mtime) {
     stats.skipped++;
     return;
   }
@@ -90,10 +91,10 @@ export const indexDirectory = async (
   embedder: Embedder,
   dirPath: string,
   onProgress?: (file: string) => void,
+  force = false,
 ): Promise<IndexStats> => {
   const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0 };
 
-  const excludePattern = `{${IGNORE_DIRS.join(',')}}`;
   const files: string[] = [];
   for await (const file of glob('**/*.md', { cwd: dirPath, exclude: (f) => IGNORE_DIRS.includes(f) })) {
     files.push(join(dirPath, file));
@@ -101,7 +102,7 @@ export const indexDirectory = async (
 
   for (const filePath of files) {
     onProgress?.(filePath);
-    await indexFile(client, embedder, filePath, stats);
+    await indexFile(client, embedder, filePath, stats, force);
   }
 
   // Remove notes whose files no longer exist on disk

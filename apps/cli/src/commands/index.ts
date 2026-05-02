@@ -10,7 +10,8 @@ export const registerIndex = (program: Command) => {
   program
     .command('index')
     .description('Scan vault and all sources, index new or changed notes')
-    .action(async () => {
+    .option('-f, --force', 'Re-index all files regardless of modification time')
+    .action(async ({ force }: { force?: boolean }) => {
       const s = spinner();
       s.start('Loading embedder...');
 
@@ -27,7 +28,7 @@ export const registerIndex = (program: Command) => {
           s.message(`Indexing ${dir}...`);
           const stats = await indexDirectory(client, embedder, dir, (file) => {
             s.message(`Indexing ${file.split('/').slice(-2).join('/')}`);
-          });
+          }, force);
           total.added += stats.added;
           total.updated += stats.updated;
           total.removed += stats.removed;

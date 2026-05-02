@@ -40,19 +40,30 @@ export const searchNotes = (
     )
     .all(Buffer.from(vec.buffer), limit * 2) as SearchResult[];
 
-  const term = `%${query}%`;
-  const keywordResults = client.sqlite
-    .prepare('SELECT * FROM notes WHERE lower(title) LIKE lower(?) OR lower(content) LIKE lower(?) LIMIT ?')
-    .all(term, term, limit) as Note[];
+  const tokens = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => `%${t}%`);
 
   const seen = new Map<number, SearchResult>();
   for (const r of vectorResults) seen.set(r.id, r);
 
-  for (const r of keywordResults) {
-    const titleMatch = r.title.toLowerCase().includes(query.toLowerCase());
-    const synthetic = titleMatch ? 0.1 : 0.4;
-    if (!seen.has(r.id) || seen.get(r.id)!.distance > synthetic) {
-      seen.set(r.id, { ...r, distance: synthetic });
+  if (tokens.length > 0) {
+    const conditions = tokens
+      .map(() => '(lower(title) LIKE ? OR lower(content) LIKE ?)')
+      .join(' AND ');
+    const bindings = tokens.flatMap((t) => [t, t]);
+    const keywordResults = client.sqlite
+      .prepare(`SELECT * FROM notes WHERE ${conditions} LIMIT ?`)
+      .all(...bindings, limit) as Note[];
+
+    for (const r of keywordResults) {
+      const titleMatch = tokens.every((t) => r.title.toLowerCase().includes(t.slice(1, -1)));
+      const synthetic = titleMatch ? 0.1 : 0.4;
+      if (!seen.has(r.id) || seen.get(r.id)!.distance > synthetic) {
+        seen.set(r.id, { ...r, distance: synthetic });
+      }
     }
   }
 
