@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { openDb, listNotes } from '@memex/db';
+import { openDb, listNotes, countNotes } from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
 
 export const registerList = (program: Command) => {
@@ -10,6 +10,7 @@ export const registerList = (program: Command) => {
     .option('-l, --limit <n>', 'Max results', '10')
     .action((opts: { limit: string }) => {
       const client = openDb(CONFIG_DIR);
+      const total = countNotes(client);
       const notes = listNotes(client, Number(opts.limit));
 
       if (notes.length === 0) {
@@ -17,6 +18,7 @@ export const registerList = (program: Command) => {
         return;
       }
 
+      console.log(pc.dim(`${total} notes total — showing ${notes.length}\n`));
       for (const note of notes) {
         const date = formatDate(new Date(note.createdAt));
         console.log(`${pc.dim(`[${note.id}]`)} ${note.title} ${pc.dim(date)}`);

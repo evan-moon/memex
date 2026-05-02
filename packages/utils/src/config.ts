@@ -13,7 +13,6 @@ export type MemexSource = {
 export type MemexConfig = {
   vault_path: string;
   sources: MemexSource[];
-  aliases: Record<string, string[]>;
 };
 
 export const MODEL_CACHE_DIR = join(CONFIG_DIR, 'models');
@@ -21,7 +20,7 @@ export const MODEL_CACHE_DIR = join(CONFIG_DIR, 'models');
 export const expandPath = (p: string): string =>
   p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
 
-const DEFAULT_CONFIG: MemexConfig = { vault_path: DEFAULT_VAULT_PATH, sources: [], aliases: {} };
+const DEFAULT_CONFIG: MemexConfig = { vault_path: DEFAULT_VAULT_PATH, sources: [] };
 
 export const loadConfig = (): MemexConfig => {
   if (!existsSync(CONFIG_PATH)) return DEFAULT_CONFIG;

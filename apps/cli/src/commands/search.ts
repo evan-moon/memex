@@ -3,7 +3,7 @@ import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
+import { loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { semanticSearch } from '../services/note.ts';
 
 export const registerSearch = (program: Command) => {
@@ -11,17 +11,18 @@ export const registerSearch = (program: Command) => {
     .command('search <query>')
     .description('Semantically search the second brain')
     .option('-l, --limit <n>', 'Max results', '5')
-    .action(async (query: string, opts: { limit: string }) => {
+    .option('-c, --category <category>', 'Filter by top-level folder (e.g. conversations)')
+    .option('-t, --tag <tag>', 'Filter by tag (e.g. typescript)')
+    .action(async (query: string, opts: { limit: string; category?: string; tag?: string }) => {
       const s = spinner();
       s.start('Loading embedder...');
 
       const config = loadConfig();
-      const vaultPath = expandPath(config.vault_path);
       const client = openDb(CONFIG_DIR);
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
       s.message('Searching...');
-      const results = await semanticSearch(client, embedder, query, Number(opts.limit), config.aliases);
+      const results = await semanticSearch(client, embedder, query, Number(opts.limit), opts.category, opts.tag);
       s.stop(`Found ${results.length} result(s)`);
 
       if (results.length === 0) {

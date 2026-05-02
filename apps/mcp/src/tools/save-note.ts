@@ -21,17 +21,22 @@ export const registerSaveNote = (
         .string()
         .optional()
         .describe('Subfolder within the vault (e.g. "projects/memex"). Created if it does not exist.'),
+      tags: z
+        .array(z.string())
+        .optional()
+        .describe('Semantic tags for cross-category relationship mapping (e.g. ["typescript", "architecture", "evan"]). Extract 3–7 tags covering technologies, people, topics, and concepts — independent of folder.'),
       source: z
         .enum(['manual', 'herald', 'claude-code'])
         .optional()
         .default('claude-code')
         .describe('Origin of the note'),
     },
-    async ({ title, content, folder, source }) => {
+    async ({ title, content, folder, tags, source }) => {
       const note = await saveNote(client, embedder, vaultPath, {
         title,
         content,
         folder,
+        tags,
         source: source as NoteSource,
       });
       return {

@@ -53,7 +53,7 @@ export const registerEdit = (program: Command) => {
 
       try {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
-        const updated = await editNote(client, embedder, Number(id), {
+        const updated = await editNote(client, embedder, vaultPath, Number(id), {
           title: title || undefined,
           content: content || undefined,
         });

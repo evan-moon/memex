@@ -9,7 +9,6 @@ export const registerSearchNotes = (
   server: McpServer,
   client: MemexClient,
   embedder: Embedder,
-  aliases: Record<string, string[]> = {},
 ) => {
   server.tool(
     'search_notes',
@@ -17,9 +16,14 @@ export const registerSearchNotes = (
     {
       query: z.string().describe('Search query in any language'),
       limit: z.number().int().min(1).max(20).optional().default(5),
+      category: z
+        .string()
+        .optional()
+        .describe('Filter by top-level folder (e.g. "conversations", "decisions", "learning")'),
+      tag: z.string().optional().describe('Filter by a single tag (e.g. "typescript")'),
     },
-    async ({ query, limit }) => {
-      const results = await semanticSearch(client, embedder, query, limit, aliases);
+    async ({ query, limit, category, tag }) => {
+      const results = await semanticSearch(client, embedder, query, limit, category, tag);
       if (results.length === 0) {
         return { content: [{ type: 'text', text: 'No notes found.' }] };
       }

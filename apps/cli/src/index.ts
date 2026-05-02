@@ -9,6 +9,9 @@ import { registerEdit } from './commands/edit.ts';
 import { registerConfig } from './commands/config.ts';
 import { registerSource } from './commands/source.ts';
 import { registerIndex } from './commands/index.ts';
+import { registerReembed } from './commands/reembed.ts';
+import { registerTags } from './commands/tags.ts';
+import { registerRelated } from './commands/related.ts';
 import { registerMcp } from './commands/mcp.ts';
 
 const program = new Command();
@@ -27,6 +30,9 @@ registerEdit(program);
 registerConfig(program);
 registerSource(program);
 registerIndex(program);
+registerReembed(program);
+registerTags(program);
+registerRelated(program);
 registerMcp(program);
 
 program.parse();

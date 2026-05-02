@@ -1,10 +1,12 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
-import { basename, extname, join } from 'node:path';
+import { basename, dirname, extname, join, relative } from 'node:path';
+import { buildEmbeddingText, extractCategory } from '@memex/utils';
 import {
   getNoteByFilePath,
   insertNote,
   listNotesByPathPrefix,
+  parseTags,
   saveEmbedding,
   updateNote,
   deleteNote,
@@ -42,6 +44,7 @@ const indexFile = async (
   client: MemexClient,
   embedder: Embedder,
   filePath: string,
+  dirPath: string,
   stats: IndexStats,
   force = false,
 ): Promise<void> => {
@@ -55,16 +58,22 @@ const indexFile = async (
 
   const content = readFileSync(filePath, 'utf8');
   const { title, body } = extractNote(content, filePath);
-  const embedding = await embedder(`${title}\n\n${body}`);
+
+  const relDir = relative(dirPath, dirname(filePath));
+  const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
+  const category = extractCategory(folder);
 
   if (existing) {
-    updateNote(client, existing.id, { title, content: body });
+    updateNote(client, existing.id, { title, content: body, category: category ?? undefined });
+    const tags = parseTags(existing.tags);
+    const embedding = await embedder(buildEmbeddingText(title, body, folder, tags));
     client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(existing.id));
     saveEmbedding(client, existing.id, embedding);
     stats.updated++;
   } else {
     try {
-      const note = insertNote(client, { title, content: body, filePath, source: 'index' });
+      const note = insertNote(client, { title, content: body, filePath, source: 'index', category: category ?? undefined });
+      const embedding = await embedder(buildEmbeddingText(title, body, folder));
       saveEmbedding(client, note.id, embedding);
       stats.added++;
     } catch {
@@ -86,6 +95,9 @@ const IGNORE_DIRS = [
   '.cache',
 ];
 
+const isIgnoredPath = (filePath: string): boolean =>
+  filePath.split('/').some((segment) => IGNORE_DIRS.includes(segment));
+
 export const indexDirectory = async (
   client: MemexClient,
   embedder: Embedder,
@@ -105,15 +117,15 @@ export const indexDirectory = async (
     await Promise.all(
       files.slice(i, i + CONCURRENCY).map((filePath) => {
         onProgress?.(filePath);
-        return indexFile(client, embedder, filePath, stats, force);
+        return indexFile(client, embedder, filePath, dirPath, stats, force);
       }),
     );
   }
 
-  // Remove notes whose files no longer exist on disk
+  // Remove notes that no longer exist on disk OR whose paths are now ignored
   const fileSet = new Set(files);
   for (const note of listNotesByPathPrefix(client, dirPath)) {
-    if (!fileSet.has(note.filePath) && !existsSync(note.filePath)) {
+    if (isIgnoredPath(note.filePath) || (!fileSet.has(note.filePath) && !existsSync(note.filePath))) {
       client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(note.id));
       deleteNote(client, note.id);
       stats.removed++;

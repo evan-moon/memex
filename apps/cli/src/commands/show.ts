@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { openDb, getNote } from '@memex/db';
-import { loadConfig, expandPath, formatDate } from '@memex/utils';
+import { loadConfig, expandPath, formatDate, CONFIG_DIR } from '@memex/utils';
 
 export const registerShow = (program: Command) => {
   program

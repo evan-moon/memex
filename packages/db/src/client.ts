@@ -32,6 +32,8 @@ export const openDb = (dbDir: string): MemexClient => {
       title      TEXT    NOT NULL,
       content    TEXT    NOT NULL,
       file_path  TEXT    NOT NULL UNIQUE,
+      category   TEXT,
+      tags       TEXT    NOT NULL DEFAULT '[]',
       source     TEXT    NOT NULL DEFAULT 'manual',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -42,6 +44,10 @@ export const openDb = (dbDir: string): MemexClient => {
       embedding FLOAT[${EMBEDDING_DIM}]
     );
   `);
+
+  // Idempotent migrations for pre-existing DBs
+  try { sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT'); } catch { /* already exists */ }
+  try { sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch { /* already exists */ }
 
   return { db: drizzle(sqlite, { schema }), sqlite };
 };

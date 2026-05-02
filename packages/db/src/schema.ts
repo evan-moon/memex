@@ -5,6 +5,8 @@ export const notes = sqliteTable('notes', {
   title: text('title').notNull(),
   content: text('content').notNull(),
   filePath: text('file_path').notNull().unique(),
+  category: text('category'),
+  tags: text('tags').notNull().default('[]'),
   source: text('source', { enum: ['manual', 'herald', 'claude-code', 'index'] })
     .notNull()
     .default('manual'),

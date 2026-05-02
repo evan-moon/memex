@@ -4,6 +4,12 @@ import { notes, type NewNote, type Note } from './schema.ts';
 
 type SearchResult = Note & { distance: number };
 
+export const parseTags = (raw: string): string[] => {
+  try { return JSON.parse(raw) as string[]; } catch { return []; }
+};
+
+export const serializeTags = (tags: string[]): string => JSON.stringify(tags);
+
 export const insertNote = (client: MemexClient, note: NewNote): Note => {
   const now = Date.now();
   const [inserted] = client.db
@@ -27,9 +33,13 @@ export const searchNotes = (
   query: string,
   embedding: number[],
   limit = 10,
-  aliases: Record<string, string[]> = {},
+  category?: string,
+  tag?: string,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
+  const categoryFilter = category ? 'AND n.category = ?' : '';
+  const tagFilter = tag ? "AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)" : '';
+  const extraArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
   const vectorResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
@@ -37,56 +47,65 @@ export const searchNotes = (
        JOIN notes n ON n.id = e.note_id
        WHERE e.embedding MATCH ?
        AND k = ?
+       ${categoryFilter}
+       ${tagFilter}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), limit * 2) as SearchResult[];
+    .all(Buffer.from(vec.buffer), limit * 5, ...extraArgs) as SearchResult[];
 
-  const expandToken = (token: string): string[] => [token, ...(aliases[token] ?? [])];
+  // Strip Korean postpositions: "토스에서" → "토스", "면접을" → "면접"
+  const JOSA = /(에서는|에서도|에서만|에서|에게서|에게|한테서|한테|로부터|으로부터|께서|부터|까지|에서의|에는|에도|에만|의|을|를|은|는|이|가|와|과|로|으로|도|만)$/;
+  const normalize = (t: string) => t.replace(JOSA, '');
 
   const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const expandedTokenGroups = rawTokens.map(expandToken);
+  const normTokens = [...new Set(rawTokens.map(normalize).filter((t) => t.length >= 2))];
 
   const seen = new Map<number, SearchResult>();
   for (const r of vectorResults) seen.set(r.id, r);
 
-  if (expandedTokenGroups.length > 0) {
-    // Each token group is OR'd (original + aliases), groups are AND'd together
-    const conditions = expandedTokenGroups
-      .map((group) => {
-        const clauses = group.flatMap(() => ['lower(title) LIKE ?', 'lower(content) LIKE ?']);
-        return `(${clauses.join(' OR ')})`;
-      })
-      .join(' AND ');
-    const bindings = expandedTokenGroups.flatMap((group) =>
-      group.flatMap((t) => [`%${t}%`, `%${t}%`]),
-    );
-    const keywordResults = client.sqlite
-      .prepare(`SELECT * FROM notes WHERE ${conditions} LIMIT ?`)
-      .all(...bindings, limit * 5) as Note[];
+  if (normTokens.length > 0) {
+    const categoryClause = category ? ' AND category = ?' : '';
+    const tagClause = tag ? " AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)" : '';
+    const extraArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
 
-    for (const r of keywordResults) {
-      const lowerTitle = r.title.toLowerCase();
-      const lowerContent = r.content.toLowerCase();
-      const titleMatch = rawTokens.every((t) =>
-        expandToken(t).some((alias) => lowerTitle.includes(alias)),
-      );
-      // Cross-language alias match: query token matched only via alias (not directly)
-      const crossLangMatch =
-        !titleMatch &&
-        rawTokens.every((t) => {
-          const direct = lowerTitle.includes(t) || lowerContent.includes(t);
-          const viaAlias = aliases[t]?.some(
-            (alias) => lowerTitle.includes(alias) || lowerContent.includes(alias),
-          );
-          return direct || viaAlias;
-        }) &&
-        rawTokens.some((t) => {
-          const direct = lowerTitle.includes(t) || lowerContent.includes(t);
-          return !direct;
-        });
-      const synthetic = titleMatch ? 0.1 : crossLangMatch ? 0.2 : 0.4;
-      if (!seen.has(r.id) || seen.get(r.id)!.distance > synthetic) {
-        seen.set(r.id, { ...r, distance: synthetic });
+    // Pass 1: tag-exact match — order by match_count DESC so multi-tag matches
+    // (e.g. "토스" + "면접") surface before single-tag matches (e.g. just "토스")
+    const tagPlaceholders = normTokens.map(() => '?').join(', ');
+    const tagMatchResults = client.sqlite
+      .prepare(
+        `SELECT *, (
+           SELECT COUNT(*) FROM json_each(tags)
+           WHERE lower(value) IN (${tagPlaceholders})
+         ) as match_count
+         FROM notes
+         WHERE EXISTS (
+           SELECT 1 FROM json_each(tags)
+           WHERE lower(value) IN (${tagPlaceholders})
+         )
+         ${categoryClause}${tagClause}
+         ORDER BY match_count DESC
+         LIMIT ?`,
+      )
+      .all(...normTokens, ...normTokens, ...extraArgs, limit * 3) as Note[];
+
+    for (const r of tagMatchResults) {
+      const tagsArr = parseTags(r.tags);
+      const matchingTags = normTokens.filter((t) => tagsArr.some((tag) => tag.toLowerCase() === t));
+      const score = matchingTags.length >= 2 ? 0.05 : 0.10;
+      if (!seen.has(r.id) || seen.get(r.id)!.distance > score) {
+        seen.set(r.id, { ...r, distance: score });
+      }
+    }
+
+    // Pass 2: title keyword match (AND — precise)
+    const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
+    const titleResults = client.sqlite
+      .prepare(`SELECT * FROM notes WHERE ${titleConditions}${categoryClause}${tagClause} LIMIT ?`)
+      .all(...normTokens.map((t) => `%${t}%`), ...extraArgs, limit) as Note[];
+
+    for (const r of titleResults) {
+      if (!seen.has(r.id) || seen.get(r.id)!.distance > 0.01) {
+        seen.set(r.id, { ...r, distance: 0.01 });
       }
     }
   }
@@ -96,6 +115,9 @@ export const searchNotes = (
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>
   client.db.select().from(notes).orderBy(desc(notes.createdAt)).limit(limit).all();
+
+export const countNotes = (client: MemexClient): number =>
+  (client.sqlite.prepare('SELECT COUNT(*) as n FROM notes').get() as { n: number }).n;
 
 export const getNote = (client: MemexClient, id: number): Note | undefined =>
   client.db.select().from(notes).where(eq(notes.id, id)).get();
@@ -114,7 +136,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
 export const updateNote = (
   client: MemexClient,
   id: number,
-  patch: Partial<Pick<NewNote, 'title' | 'content'>>,
+  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags'>>,
 ): Note => {
   const [updated] = client.db
     .update(notes)
@@ -123,4 +145,51 @@ export const updateNote = (
     .returning()
     .all();
   return updated;
+};
+
+export type RelatedNote = Note & { sharedTags: string[]; score: number };
+
+export const findRelatedNotes = (
+  client: MemexClient,
+  noteId: number,
+  limit = 10,
+): RelatedNote[] => {
+  const embRow = client.sqlite
+    .prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?')
+    .get(BigInt(noteId)) as { embedding: Buffer } | undefined;
+
+  if (!embRow) return [];
+
+  const source = client.db.select().from(notes).where(eq(notes.id, noteId)).get();
+  if (!source) return [];
+
+  const sourceTags = parseTags(source.tags);
+
+  const candidates = client.sqlite
+    .prepare(
+      `SELECT n.*, e.distance
+       FROM note_embeddings e
+       JOIN notes n ON n.id = e.note_id
+       WHERE e.embedding MATCH ?
+       AND k = ?
+       AND n.id != ?
+       ORDER BY e.distance`,
+    )
+    .all(embRow.embedding, limit * 3, noteId) as (Note & { distance: number })[];
+
+  return candidates
+    .map((r) => {
+      const rTags = parseTags(r.tags);
+      const sharedTags = sourceTags.filter((t) => rTags.includes(t));
+      // vecScore: 1/(1+d) → [0,1], higher = closer
+      const vecScore = 1 / (1 + r.distance);
+      const tagScore =
+        sourceTags.length + rTags.length > 0
+          ? sharedTags.length / Math.max(sourceTags.length, rTags.length)
+          : 0;
+      const score = 0.7 * vecScore + 0.3 * tagScore;
+      return { ...r, sharedTags, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 };

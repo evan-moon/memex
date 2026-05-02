@@ -1,5 +1,7 @@
 # Memex
 
+# Memex
+
 Evan's second brain — semantic search over personal notes, powered by SQLite + vector embeddings.
 
 ## Architecture
