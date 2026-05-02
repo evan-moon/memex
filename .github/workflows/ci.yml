@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install build tools (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y build-essential python3
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build packages
+        run: yarn turbo run build --filter='./packages/*'
+
+      - name: Build CLI
+        run: yarn workspace @evan-moon/memex build
+
+      - name: Pack tarball
+        run: npm pack
+        working-directory: apps/cli
+
+      - name: Install globally from tarball
+        run: npm install -g apps/cli/evan-moon-memex-*.tgz
+
+      - name: memex --version
+        run: memex --version
+
+      - name: memex --help
+        run: memex --help
+
+      - name: memex list (empty DB)
+        run: memex list
+
+      - name: memex search (empty DB)
+        run: memex search "test"
+
+      - name: memex-mcp initialize handshake
+        run: node apps/cli/test/mcp-smoke.mjs
