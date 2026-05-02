@@ -53,12 +53,7 @@ export const searchNotes = (
     )
     .all(Buffer.from(vec.buffer), limit * 5, ...extraArgs) as SearchResult[];
 
-  // Strip Korean postpositions: "토스에서" → "토스", "면접을" → "면접"
-  const JOSA = /(에서는|에서도|에서만|에서|에게서|에게|한테서|한테|로부터|으로부터|께서|부터|까지|에서의|에는|에도|에만|의|을|를|은|는|이|가|와|과|로|으로|도|만)$/;
-  const normalize = (t: string) => t.replace(JOSA, '');
-
-  const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const normTokens = [...new Set(rawTokens.map(normalize).filter((t) => t.length >= 2))];
+  const normTokens = [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))];
 
   const seen = new Map<number, SearchResult>();
   for (const r of vectorResults) seen.set(r.id, r);
