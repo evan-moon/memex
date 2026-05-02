@@ -9,6 +9,7 @@ export const registerSearchNotes = (
   server: McpServer,
   client: MemexClient,
   embedder: Embedder,
+  aliases: Record<string, string[]> = {},
 ) => {
   server.tool(
     'search_notes',
@@ -18,7 +19,7 @@ export const registerSearchNotes = (
       limit: z.number().int().min(1).max(20).optional().default(5),
     },
     async ({ query, limit }) => {
-      const results = await semanticSearch(client, embedder, query, limit);
+      const results = await semanticSearch(client, embedder, query, limit, aliases);
       if (results.length === 0) {
         return { content: [{ type: 'text', text: 'No notes found.' }] };
       }

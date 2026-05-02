@@ -49,9 +49,10 @@ export const semanticSearch = async (
   embedder: Embedder,
   query: string,
   limit: number,
+  aliases: Record<string, string[]> = {},
 ) => {
   const embedding = await embedder(query);
-  return dbSearchNotes(client, query, embedding, limit);
+  return dbSearchNotes(client, query, embedding, limit, aliases);
 };
 
 export const editNote = async (

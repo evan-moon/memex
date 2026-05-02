@@ -27,6 +27,7 @@ export const searchNotes = (
   query: string,
   embedding: number[],
   limit = 10,
+  aliases: Record<string, string[]> = {},
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
   const vectorResults = client.sqlite
@@ -40,22 +41,7 @@ export const searchNotes = (
     )
     .all(Buffer.from(vec.buffer), limit * 2) as SearchResult[];
 
-  const ALIASES: Record<string, string[]> = {
-    토스: ['toss'],
-    toss: ['토스'],
-    면접: ['interview'],
-    interview: ['면접', '인터뷰'],
-    인터뷰: ['interview'],
-    대화: ['memory', 'chat'],
-    memory: ['대화', '메모리'],
-    아이디어: ['idea'],
-    idea: ['아이디어'],
-  };
-
-  const expandToken = (token: string): string[] => {
-    const aliases = ALIASES[token] ?? [];
-    return [token, ...aliases];
-  };
+  const expandToken = (token: string): string[] => [token, ...(aliases[token] ?? [])];
 
   const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   const expandedTokenGroups = rawTokens.map(expandToken);
@@ -89,7 +75,7 @@ export const searchNotes = (
         !titleMatch &&
         rawTokens.every((t) => {
           const direct = lowerTitle.includes(t) || lowerContent.includes(t);
-          const viaAlias = ALIASES[t]?.some(
+          const viaAlias = aliases[t]?.some(
             (alias) => lowerTitle.includes(alias) || lowerContent.includes(alias),
           );
           return direct || viaAlias;

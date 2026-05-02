@@ -23,7 +23,7 @@ const embedder = await createEmbedder(MODEL_CACHE_DIR);
 const server = new McpServer({ name: 'memex', version: '0.1.0' });
 
 registerSaveNote(server, client, embedder, vaultPath);
-registerSearchNotes(server, client, embedder);
+registerSearchNotes(server, client, embedder, config.aliases);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);

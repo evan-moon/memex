@@ -21,7 +21,7 @@ export const registerSearch = (program: Command) => {
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
       s.message('Searching...');
-      const results = await semanticSearch(client, embedder, query, Number(opts.limit));
+      const results = await semanticSearch(client, embedder, query, Number(opts.limit), config.aliases);
       s.stop(`Found ${results.length} result(s)`);
 
       if (results.length === 0) {
