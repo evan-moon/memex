@@ -14,9 +14,9 @@ Works as an **MCP server** for Claude Code and Claude Desktop, and as a standalo
 
 - **Semantic search** — multilingual embeddings via [`paraphrase-multilingual-MiniLM-L12-v2`](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2) (Korean + English, runs fully offline)
 - **Obsidian-compatible** — notes saved as `.md` files in your vault directory
-- **MCP server** — Claude can save and search your second brain mid-conversation
-- **CLI** — add, search, list, show, delete notes from the terminal
-- **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) stored inside the vault at `.memex/memex.db`
+- **MCP server** — Claude can save and search your second brain mid-conversation, with built-in instructions for proactive search and save behavior
+- **CLI** — add, search, list, show, edit, delete, and index notes from the terminal
+- **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) stored at `~/.memex/memex.db`
 
 ---
 
@@ -33,24 +33,38 @@ On first run the embedding model (~120MB) is downloaded once to `~/.memex/models
 ## CLI
 
 ```bash
+# Add notes
 memex add                                   # interactive prompt
-memex add --title "Note title" --content "..." 
+memex add --title "Note title" --content "..."
 memex add --title "Note title" --file ./note.md
 memex add --title "Note title" --content "..." --folder "projects/memex"
 
+# Browse
 memex list                                  # recent 10 notes
 memex list --limit 20
+memex show <id>
 
+# Search
 memex search "semantic search query"        # multilingual
 memex search "지식 관리" --limit 10
 
-memex show <id>
+# Edit / delete
+memex edit <id>
 memex delete <id>
 memex delete --yes <id>                     # skip confirmation
 
+# Index external directories
+memex source add ~/Documents/My\ Notes      # register a directory
+memex source list
+memex source remove ~/Documents/My\ Notes
+memex index                                 # scan vault + all sources
+memex index --force                         # re-index everything
+
+# Config
 memex config show
 memex config set vault-path ~/Documents/Second\ Brain
 
+# MCP
 memex mcp install                           # register with Claude Code
 memex mcp path                              # print MCP binary path
 ```
@@ -94,7 +108,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `search_notes` | Semantic search across all notes |
 | `list_notes` | List recent notes |
 | `get_note` | Get full content of a note by ID |
+| `update_note` | Update title or content of an existing note |
 | `delete_note` | Delete a note by ID |
+
+The MCP server includes built-in instructions that tell Claude to search before answering and save proactively at the end of conversations — no extra CLAUDE.md setup needed.
 
 ---
 
@@ -105,6 +122,8 @@ Config is stored at `~/.memex/config.json`.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `vault_path` | `~/Documents/Second Brain` | Directory where `.md` files are saved |
+| `sources` | `[]` | Additional directories to index (e.g. existing Obsidian vaults) |
+| `aliases` | `{}` | Search alias map, e.g. `{ "js": ["javascript", "자바스크립트"] }` |
 
 ```bash
 memex config set vault-path ~/my-vault
@@ -116,13 +135,12 @@ memex config set vault-path ~/my-vault
 
 ```
 ~/.memex/
-  config.json       — vault path and settings
+  config.json       — vault path, sources, and aliases
+  memex.db          — SQLite DB (notes + sqlite-vec embeddings)
   models/           — cached embedding model
 
 <vault>/
   *.md              — notes (Obsidian-compatible)
-  .memex/
-    memex.db        — SQLite DB (notes table + sqlite-vec embeddings)
 ```
 
 Monorepo packages:

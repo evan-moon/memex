@@ -23,7 +23,10 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsup && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "yarn build",
+    "prepack": "cp ../../README.md . && cp ../../LICENSE .",
+    "postpack": "rm -f README.md LICENSE"
   },
   "engines": {
     "node": ">=22"
