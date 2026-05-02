@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { mkdirSync } from 'node:fs';
 import { openDb } from '@memex/db';
-import { createEmbedder } from '@memex/embed';
+import { createEmbedder } from './embed.js';
 import { expandPath, loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from './config.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
@@ -36,15 +36,17 @@ SAVE: At the end of any conversation that contains valuable context, call save_n
 UPDATE: Prefer update_note over creating a duplicate when new content belongs with an existing note. Search first.
 
 Folder convention: conversations/<name>, decisions/<project>, learning/<topic>, ideas/
+
+TAGS: Always include tags when saving or updating a note. Extract 3–7 semantic tags that capture technologies, people, topics, and concepts — independent of the folder. Tags are the primary mechanism for cross-category relationship mapping (e.g. a "typescript" tag connects a conversation with Alice to a decision in decisions/memex).
 `.trim(),
 });
 
 registerSaveNote(server, client, embedder, vaultPath);
-registerSearchNotes(server, client, embedder, config.aliases);
+registerSearchNotes(server, client, embedder);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);
-registerUpdateNote(server, client, embedder);
+registerUpdateNote(server, client, embedder, vaultPath);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

@@ -15,7 +15,6 @@
   },
   "devDependencies": {
     "@memex/db": "workspace:*",
-    "@memex/embed": "workspace:*",
     "@memex/utils": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",
