@@ -4,19 +4,41 @@
 [![license](https://img.shields.io/github/license/evan-moon/memex?color=black)](./LICENSE)
 [![node](https://img.shields.io/node/v/@evan-moon/memex?color=black)](https://nodejs.org)
 
-Local-first second brain with semantic search. Stores notes as Markdown files and indexes them with a local ML model — no cloud, no API keys.
+> Claude has no memory between sessions. memex gives it one.
 
-Works as an **MCP server** for Claude Code and Claude Desktop, and as a standalone **CLI**.
+Local-first second brain that connects to Claude via MCP. Notes are stored as plain Markdown and indexed with a local ML model — fully offline, no API keys, nothing leaves your machine.
 
 ---
 
-## Features
+## The problem
 
-- **Semantic search** — multilingual embeddings via [`paraphrase-multilingual-MiniLM-L12-v2`](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2) (Korean + English, runs fully offline)
-- **Obsidian-compatible** — notes saved as `.md` files in your vault directory
-- **MCP server** — Claude can save and search your second brain mid-conversation, with built-in instructions for proactive search and save behavior
-- **CLI** — add, search, list, show, edit, delete, tag, and index notes from the terminal
-- **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) stored at `~/.memex/memex.db`
+Every time you close Claude, it forgets. Your decisions, your context, your thinking — gone. You end up re-explaining the same background over and over.
+
+```
+You:    What did we decide about the auth approach last sprint?
+Claude: I don't have context from previous conversations...
+```
+
+## The fix
+
+```
+You:    What did we decide about the auth approach last sprint?
+
+Claude: [memex · search_notes · "auth approach decision"]
+
+        Found 2 notes:
+
+        Auth Architecture Decision  Apr 14  #auth #backend
+        ─────────────────────────────────────────────────────
+        Chose JWT + refresh tokens over sessions. Rationale:
+        stateless design fits horizontal scaling plan.
+
+        Based on your April 14th note: you went with JWT +
+        refresh tokens. Tom also flagged keeping auth decoupled
+        from payment logic — separate bounded contexts.
+```
+
+Claude searches your notes before answering and saves insights at the end of every conversation — automatically, without being asked.
 
 ---
 
@@ -26,7 +48,24 @@ Works as an **MCP server** for Claude Code and Claude Desktop, and as a standalo
 npm install -g @evan-moon/memex
 ```
 
-On first run the embedding model (~120MB) is downloaded once to `~/.memex/models/`.
+Connect to Claude Code:
+
+```bash
+memex mcp install
+```
+
+That's it. On first run, the embedding model (~450MB) downloads once to `~/.memex/models/`.
+
+---
+
+## Features
+
+- **Semantic search** — finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
+- **Hybrid retrieval** — vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
+- **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
+- **CLI** — add, search, tag, browse, and index notes from the terminal
+- **Obsidian-compatible** — notes saved as `.md` files; works alongside existing vaults
+- **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) at `~/.memex/memex.db`
 
 ---
 
@@ -34,46 +73,44 @@ On first run the embedding model (~120MB) is downloaded once to `~/.memex/models
 
 ```bash
 # Add notes
-memex add                                   # interactive prompt
+memex add                                    # interactive prompt
 memex add --title "Note title" --content "..."
 memex add --title "Note title" --file ./note.md
-memex add --title "Note title" --content "..." --folder "projects/memex"
+memex add --title "Note title" --content "..." --folder conversations/tom
 memex add --title "Note title" --content "..." -T typescript -T architecture
 
+# Search
+memex search "semantic search query"         # multilingual
+memex search "지식 관리" --limit 10
+memex search "query" --tag typescript        # filter by tag
+
 # Browse
-memex list                                  # recent 10 notes
+memex list                                   # recent 10 notes
 memex list --limit 20
 memex show <id>
-
-# Search
-memex search "semantic search query"        # multilingual
-memex search "지식 관리" --limit 10
-memex search "query" --tag typescript       # filter by tag
-
-# Discover
-memex tags                                  # all tags with note counts
-memex related <id>                          # semantically related notes
+memex tags                                   # all tags with counts
+memex related <id>                           # semantically related notes
 
 # Edit / delete
 memex edit <id>
 memex delete <id>
-memex delete --yes <id>                     # skip confirmation
+memex delete --yes <id>                      # skip confirmation
 
 # Index external directories
-memex source add ~/Documents/My\ Notes      # register a directory
+memex source add ~/Documents/My\ Notes       # register a vault
 memex source list
 memex source remove ~/Documents/My\ Notes
-memex index                                 # scan vault + all sources
-memex index --force                         # re-index everything
-memex reembed                               # re-embed all notes with current model
+memex index                                  # scan vault + all sources
+memex index --force                          # re-index everything
+memex reembed                                # re-embed with current model
 
 # Config
 memex config show
 memex config set vault-path ~/Documents/Second\ Brain
 
 # MCP
-memex mcp install                           # register with Claude Code
-memex mcp path                              # print MCP binary path
+memex mcp install                            # register with Claude Code
+memex mcp path                               # print MCP binary path
 ```
 
 ---
@@ -111,20 +148,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note (title + markdown content + optional folder) |
+| `save_note` | Save a note with title, content, folder, and tags |
 | `search_notes` | Semantic search across all notes |
 | `list_notes` | List recent notes |
 | `get_note` | Get full content of a note by ID |
 | `update_note` | Update title or content of an existing note |
 | `delete_note` | Delete a note by ID |
 
-The MCP server includes built-in instructions that tell Claude to search before answering and save proactively at the end of conversations — no extra CLAUDE.md setup needed.
-
 ---
 
 ## Configuration
 
-Config is stored at `~/.memex/config.json`.
+Config lives at `~/.memex/config.json`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -143,33 +178,28 @@ memex config set vault-path ~/my-vault
 ```
 ~/.memex/
   config.json       — vault path, sources, and aliases
-  memex.db          — SQLite DB (notes + sqlite-vec embeddings)
+  memex.db          — SQLite DB (notes + vec embeddings + FTS5 index)
   models/           — cached embedding model
 
 <vault>/
   *.md              — notes (Obsidian-compatible)
 ```
 
-Monorepo packages:
-
 | Package | Role |
 |---------|------|
-| `@memex/db` | SQLite schema, drizzle queries, sqlite-vec integration |
+| `@memex/db` | SQLite schema, drizzle queries, sqlite-vec + FTS5 integration |
 | `@memex/embed` | Local embedder via @huggingface/transformers |
 | `@memex/utils` | Config, path helpers, shared utilities |
 | `@memex/mcp` | MCP server (bundled into CLI dist) |
 
 ---
 
-## Works with Herald
+## Part of a personal AI stack
 
-Memex is the memory layer of the [Herald](https://ai-herald.vercel.app) ambient voice assistant stack. When connected, Herald can:
+memex is the memory layer of the [Herald](https://ai-herald.vercel.app) ambient voice assistant stack.
 
-- recall past conversations and decisions by voice
-- save new insights mid-conversation without typing
-- answer "what did I think about X?" with context from your second brain
-
-Herald + Memex + [Firma](https://github.com/evan-moon/firma) — ambient voice, persistent memory, and financial intelligence in one personal AI stack.
+**Herald + memex + [Firma](https://github.com/evan-moon/firma)**
+— ambient voice, persistent memory, and financial intelligence.
 
 ---
 
