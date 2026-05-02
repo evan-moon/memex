@@ -20,7 +20,24 @@ mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 const client = openDb(CONFIG_DIR);
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
-const server = new McpServer({ name: 'memex', version: '0.1.0' });
+const server = new McpServer({ name: 'memex', version: '0.1.0' }, {
+  instructions: `
+You are connected to the user's second brain (memex). Follow these rules at all times:
+
+SEARCH: Before answering any question that could relate to past conversations, people, projects, or decisions, call search_notes first. Always search first, then answer.
+
+SAVE: At the end of any conversation that contains valuable context, call save_note without asking the user. Save when:
+- A technical decision was made and the rationale matters
+- Key points from a conversation with a specific person (1-on-1, coffee chat, interview, etc.)
+- A new insight or concept worth recalling later
+- Project context: background, constraints, or goals
+- The user explicitly says "remember this" or "save this"
+
+UPDATE: Prefer update_note over creating a duplicate when new content belongs with an existing note. Search first.
+
+Folder convention: conversations/<name>, decisions/<project>, learning/<topic>, ideas/
+`.trim(),
+});
 
 registerSaveNote(server, client, embedder, vaultPath);
 registerSearchNotes(server, client, embedder, config.aliases);
