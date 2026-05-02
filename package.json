@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "yarn workspace @evan-moon/memex dev",
-    "dev:web": "yarn workspace @memex/web dev",
+    "dev:docs": "yarn workspace @memex/docs dev",
     "typecheck": "turbo typecheck",
     "build": "turbo build",
     "lint": "biome lint .",
