@@ -3,3 +3,8 @@ dist
 .turbo
 *.db
 .yarn/install-state.gz
+.next/
+.vercel
+.env
+.env.local
+.DS_Store
