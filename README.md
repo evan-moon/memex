@@ -156,7 +156,7 @@ Monorepo packages:
 
 ## Works with Herald
 
-Memex is the memory layer of the [Herald](https://github.com/evan-moon/herald-releases) ambient voice assistant stack. When connected, Herald can:
+Memex is the memory layer of the [Herald](https://ai-herald.vercel.app) ambient voice assistant stack. When connected, Herald can:
 
 - recall past conversations and decisions by voice
 - save new insights mid-conversation without typing
