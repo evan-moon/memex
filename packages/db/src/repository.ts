@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
 import { notes, type NewNote, type Note } from './schema.ts';
 
@@ -104,7 +104,7 @@ export const getNoteByFilePath = (client: MemexClient, filePath: string): Note |
   client.db.select().from(notes).where(eq(notes.filePath, filePath)).get();
 
 export const listNotesByPathPrefix = (client: MemexClient, prefix: string): Note[] =>
-  client.db.select().from(notes).all().filter((n) => n.filePath.startsWith(prefix));
+  client.db.select().from(notes).where(like(notes.filePath, `${prefix}%`)).all();
 
 export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));

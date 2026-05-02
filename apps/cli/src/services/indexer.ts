@@ -100,9 +100,14 @@ export const indexDirectory = async (
     files.push(join(dirPath, file));
   }
 
-  for (const filePath of files) {
-    onProgress?.(filePath);
-    await indexFile(client, embedder, filePath, stats, force);
+  const CONCURRENCY = 4;
+  for (let i = 0; i < files.length; i += CONCURRENCY) {
+    await Promise.all(
+      files.slice(i, i + CONCURRENCY).map((filePath) => {
+        onProgress?.(filePath);
+        return indexFile(client, embedder, filePath, stats, force);
+      }),
+    );
   }
 
   // Remove notes whose files no longer exist on disk

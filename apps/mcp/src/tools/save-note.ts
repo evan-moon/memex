@@ -13,7 +13,7 @@ export const registerSaveNote = (
 ) => {
   server.tool(
     'save_note',
-    'Save a note to the second brain. Stores as a markdown file and indexes for semantic search.',
+    'Save a note to the second brain. Use proactively — without asking the user — at the end of any conversation that contains: technical decisions and their rationale, key points from meetings or 1-on-1s with specific people, newly learned concepts or insights, or project context worth recalling later. Prefer updating an existing note over creating a duplicate.',
     {
       title: z.string().describe('Title of the note'),
       content: z.string().describe('Content of the note in markdown'),

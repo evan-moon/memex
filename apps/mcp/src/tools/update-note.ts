@@ -8,7 +8,7 @@ type Embedder = (text: string) => Promise<number[]>;
 export const registerUpdateNote = (server: McpServer, client: MemexClient, embedder: Embedder) => {
   server.tool(
     'update_note',
-    'Update the title or content of an existing note. Re-indexes the embedding automatically.',
+    'Extend or correct an existing note. Use when new information belongs with an existing note rather than standing alone. Search first to find related notes, then update rather than creating a duplicate.',
     {
       id: z.number().int().describe('Note ID'),
       title: z.string().optional().describe('New title'),

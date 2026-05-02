@@ -19,6 +19,14 @@ export const openDb = (dbDir: string): MemexClient => {
   sqliteVec.load(sqlite);
 
   sqlite.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous  = NORMAL;
+    PRAGMA cache_size   = -32000;
+    PRAGMA temp_store   = MEMORY;
+    PRAGMA mmap_size    = 134217728;
+  `);
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS notes (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       title      TEXT    NOT NULL,

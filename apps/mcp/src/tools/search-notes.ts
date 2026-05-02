@@ -13,7 +13,7 @@ export const registerSearchNotes = (
 ) => {
   server.tool(
     'search_notes',
-    'Semantically search the second brain. Returns notes ranked by relevance to the query.',
+    'Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose.',
     {
       query: z.string().describe('Search query in any language'),
       limit: z.number().int().min(1).max(20).optional().default(5),
