@@ -10,6 +10,7 @@ import { registerSearchNotes } from './tools/search-notes.ts';
 import { registerListNotes } from './tools/list-notes.ts';
 import { registerGetNote } from './tools/get-note.ts';
 import { registerDeleteNote } from './tools/delete-note.ts';
+import { registerUpdateNote } from './tools/update-note.ts';
 
 const config = loadConfig();
 const vaultPath = expandPath(config.vault_path);
@@ -26,6 +27,7 @@ registerSearchNotes(server, client, embedder);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);
+registerUpdateNote(server, client, embedder);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

@@ -2,9 +2,11 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   deleteNote,
+  getNote,
   insertNote,
   saveEmbedding,
   searchNotes as dbSearchNotes,
+  updateNote,
   type MemexClient,
   type NoteSource,
 } from '@memex/db';
@@ -50,6 +52,28 @@ export const semanticSearch = async (
 ) => {
   const embedding = await embedder(query);
   return dbSearchNotes(client, embedding, limit);
+};
+
+export const editNote = async (
+  client: MemexClient,
+  embedder: Embedder,
+  id: number,
+  patch: { title?: string; content?: string },
+) => {
+  const note = getNote(client, id);
+  if (!note) return null;
+
+  const updated = updateNote(client, id, patch);
+  const title = patch.title ?? note.title;
+  const content = patch.content ?? note.content;
+
+  writeFileSync(updated.filePath, `# ${title}\n\n${content}`, 'utf8');
+
+  client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
+  const embedding = await embedder(`${title}\n\n${content}`);
+  saveEmbedding(client, id, embedding);
+
+  return updated;
 };
 
 export const removeNote = (client: MemexClient, id: number, filePath: string): void => {
