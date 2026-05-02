@@ -1,0 +1,27 @@
+import type { Command } from 'commander';
+import pc from 'picocolors';
+import { openDb, listNotes } from '@memex/db';
+import { loadConfig, expandPath, formatDate } from '@memex/utils';
+
+export const registerList = (program: Command) => {
+  program
+    .command('list')
+    .description('List recent notes')
+    .option('-l, --limit <n>', 'Max results', '10')
+    .action((opts: { limit: string }) => {
+      const config = loadConfig();
+      const vaultPath = expandPath(config.vault_path);
+      const client = openDb(vaultPath);
+      const notes = listNotes(client, Number(opts.limit));
+
+      if (notes.length === 0) {
+        console.log(pc.dim('No notes yet.'));
+        return;
+      }
+
+      for (const note of notes) {
+        const date = formatDate(new Date(note.createdAt));
+        console.log(`${pc.dim(`[${note.id}]`)} ${note.title} ${pc.dim(date)}`);
+      }
+    });
+};

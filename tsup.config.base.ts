@@ -5,5 +5,5 @@ export const baseConfig: Partial<Options> = {
   platform: 'node',
   target: 'node22',
   splitting: false,
-  external: ['better-sqlite3', /^drizzle-orm/],
+  external: ['better-sqlite3', /^drizzle-orm/, 'sqlite-vec', '@huggingface/transformers'],
 };

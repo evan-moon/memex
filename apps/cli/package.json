@@ -11,7 +11,10 @@
   },
   "license": "MIT",
   "author": "Evan Moon <bboydart91@gmail.com> (https://github.com/evan-moon)",
-  "bin": "./dist/index.js",
+  "bin": {
+    "memex": "./dist/index.js",
+    "memex-mcp": "./dist/mcp.js"
+  },
   "files": [
     "dist",
     "README.md",
@@ -19,7 +22,7 @@
   ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsup src/index.ts --format esm --no-splitting && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
+    "build": "tsup && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -27,9 +30,12 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
+    "@huggingface/transformers": "^3.5.1",
     "better-sqlite3": "^12.9.0",
     "commander": "^13.1.0",
-    "picocolors": "^1.1.1"
+    "drizzle-orm": "^0.45.2",
+    "picocolors": "^1.1.1",
+    "sqlite-vec": "^0.1.6"
   },
   "devDependencies": {
     "@memex/db": "workspace:*",
