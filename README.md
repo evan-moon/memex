@@ -154,6 +154,18 @@ Monorepo packages:
 
 ---
 
+## Works with Herald
+
+Memex is the memory layer of the [Herald](https://github.com/evan-moon/herald-releases) ambient voice assistant stack. When connected, Herald can:
+
+- recall past conversations and decisions by voice
+- save new insights mid-conversation without typing
+- answer "what did I think about X?" with context from your second brain
+
+Herald + Memex + [Firma](https://github.com/evan-moon/firma) — ambient voice, persistent memory, and financial intelligence in one personal AI stack.
+
+---
+
 ## License
 
 MIT
