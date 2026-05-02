@@ -20,9 +20,9 @@ export default function Home() {
         <section className="hero">
           <span className="logo">memex</span>
           <h1 className="hero-headline">
-            The memory layer<br />Claude doesn&apos;t have.
+            Make Claude smarter<br />about you.
           </h1>
-          <p className="hero-hook">Your second brain, always within reach.</p>
+          <p className="hero-hook">Your second brain, Claude&apos;s long-term memory.</p>
           <p className="hero-sub">
             memex gives Claude persistent memory across conversations — saving insights
             automatically and surfacing them semantically when you need them.

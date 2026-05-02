@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/github/license/evan-moon/memex?color=black)](./LICENSE)
 [![node](https://img.shields.io/node/v/@evan-moon/memex?color=black)](https://nodejs.org)
 
-> Claude has no memory between sessions. memex gives it one.
+> Make Claude smarter about you.
 
 Local-first second brain that connects to Claude via MCP. Notes are stored as plain Markdown and indexed with a local ML model — fully offline, no API keys, nothing leaves your machine.
 
@@ -12,7 +12,7 @@ Local-first second brain that connects to Claude via MCP. Notes are stored as pl
 
 ## The problem
 
-Every time you close Claude, it forgets. Your decisions, your context, your thinking — gone. You end up re-explaining the same background over and over.
+Claude is only as smart as what's in the conversation. Your decisions, your context, your thinking — invisible unless you paste them in every time.
 
 ```
 You:    What did we decide about the auth approach last sprint?
