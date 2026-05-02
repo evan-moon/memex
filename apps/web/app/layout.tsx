@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import "./globals.css";
+
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "memex",
+  description: "Local-first second brain with semantic search. MCP server for Claude Desktop and Claude Code.",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    title: "memex: The memory layer Claude doesn't have.",
+    description: "Local-first second brain with semantic search. Gives Claude persistent memory across conversations — all data stays on your machine.",
+    siteName: "memex",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "memex: The memory layer Claude doesn't have.",
+    description: "Local-first second brain · Claude MCP · Semantic search · Private by design.",
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} style={{ colorScheme: "dark" }}>
+      <body>
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
+    </html>
+  );
+}
