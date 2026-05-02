@@ -662,7 +662,6 @@ __metadata:
   resolution: "@memex/mcp@workspace:apps/mcp"
   dependencies:
     "@memex/db": "workspace:*"
-    "@memex/embed": "workspace:*"
     "@memex/utils": "workspace:*"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/better-sqlite3": "npm:^7.6.13"
