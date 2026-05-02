@@ -6,6 +6,8 @@ import { registerList } from './commands/list.ts';
 import { registerShow } from './commands/show.ts';
 import { registerDelete } from './commands/delete.ts';
 import { registerConfig } from './commands/config.ts';
+import { registerSource } from './commands/source.ts';
+import { registerIndex } from './commands/index.ts';
 import { registerMcp } from './commands/mcp.ts';
 
 const program = new Command();
@@ -21,6 +23,8 @@ registerList(program);
 registerShow(program);
 registerDelete(program);
 registerConfig(program);
+registerSource(program);
+registerIndex(program);
 registerMcp(program);
 
 program.parse();
