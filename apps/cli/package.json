@@ -1,0 +1,45 @@
+{
+  "name": "@evan-moon/memex",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local-first second brain with semantic search. MCP server for Claude Desktop and Claude Code.",
+  "homepage": "https://github.com/evan-moon/memex#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evan-moon/memex.git",
+    "directory": "apps/cli"
+  },
+  "license": "MIT",
+  "author": "Evan Moon <bboydart91@gmail.com> (https://github.com/evan-moon)",
+  "bin": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --no-splitting && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.1",
+    "better-sqlite3": "^12.9.0",
+    "commander": "^13.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@memex/db": "workspace:*",
+    "@memex/embed": "workspace:*",
+    "@memex/mcp": "workspace:*",
+    "@memex/utils": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

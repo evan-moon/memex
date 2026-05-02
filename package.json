@@ -1,0 +1,22 @@
+{
+  "name": "memex",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "yarn workspace @evan-moon/memex dev",
+    "typecheck": "turbo typecheck",
+    "build": "turbo build",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "yarn@4.14.1"
+}

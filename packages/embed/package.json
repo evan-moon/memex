@@ -1,0 +1,20 @@
+{
+  "name": "@memex/embed",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  }
+}
