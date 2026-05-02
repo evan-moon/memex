@@ -17,16 +17,21 @@ export const registerSaveNote = (
     {
       title: z.string().describe('Title of the note'),
       content: z.string().describe('Content of the note in markdown'),
+      folder: z
+        .string()
+        .optional()
+        .describe('Subfolder within the vault (e.g. "projects/memex"). Created if it does not exist.'),
       source: z
         .enum(['manual', 'herald', 'claude-code'])
         .optional()
         .default('claude-code')
         .describe('Origin of the note'),
     },
-    async ({ title, content, source }) => {
+    async ({ title, content, folder, source }) => {
       const note = await saveNote(client, embedder, vaultPath, {
         title,
         content,
+        folder,
         source: source as NoteSource,
       });
       return {

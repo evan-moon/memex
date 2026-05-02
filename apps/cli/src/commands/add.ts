@@ -13,8 +13,9 @@ export const registerAdd = (program: Command) => {
     .option('-t, --title <title>', 'Note title')
     .option('-c, --content <content>', 'Note content')
     .option('-f, --file <path>', 'Read content from a file')
+    .option('-d, --folder <folder>', 'Subfolder within the vault (e.g. projects/memex)')
     .option('-s, --source <source>', 'Source (manual|herald|claude-code)', 'manual')
-    .action(async (opts: { title?: string; content?: string; file?: string; source: string }) => {
+    .action(async (opts: { title?: string; content?: string; file?: string; folder?: string; source: string }) => {
       intro('memex add');
 
       let title = opts.title;
@@ -50,6 +51,7 @@ export const registerAdd = (program: Command) => {
           title,
           content,
           source: opts.source as NoteSource,
+          folder: opts.folder,
         });
 
         s.stop(`Saved note #${note.id}: "${note.title}"`);

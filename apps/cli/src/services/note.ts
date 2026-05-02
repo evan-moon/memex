@@ -1,4 +1,4 @@
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   deleteNote,
@@ -18,19 +18,21 @@ const sanitizeFilename = (title: string): string =>
     .toLowerCase()
     .trim();
 
-const generateFilePath = (vaultPath: string, title: string): string => {
-  const base = join(vaultPath, `${sanitizeFilename(title)}.md`);
+const generateFilePath = (vaultPath: string, title: string, folder?: string): string => {
+  const dir = folder ? join(vaultPath, folder) : vaultPath;
+  mkdirSync(dir, { recursive: true });
+  const base = join(dir, `${sanitizeFilename(title)}.md`);
   if (!existsSync(base)) return base;
-  return join(vaultPath, `${sanitizeFilename(title)}-${Date.now()}.md`);
+  return join(dir, `${sanitizeFilename(title)}-${Date.now()}.md`);
 };
 
 export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
-  params: { title: string; content: string; source: NoteSource },
+  params: { title: string; content: string; source: NoteSource; folder?: string },
 ) => {
-  const filePath = generateFilePath(vaultPath, params.title);
+  const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
 
   const note = insertNote(client, { ...params, filePath });
