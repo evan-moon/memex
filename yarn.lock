@@ -647,6 +647,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@memex/docs@workspace:apps/docs":
+  version: 0.0.0-use.local
+  resolution: "@memex/docs@workspace:apps/docs"
+  dependencies:
+    "@types/node": "npm:^20"
+    "@types/react": "npm:^19"
+    "@types/react-dom": "npm:^19"
+    "@vercel/analytics": "npm:^2.0.1"
+    "@vercel/speed-insights": "npm:^2.0.0"
+    next: "npm:16.2.4"
+    react: "npm:19.2.4"
+    react-dom: "npm:19.2.4"
+    typescript: "npm:^5"
+  languageName: unknown
+  linkType: soft
+
 "@memex/embed@workspace:*, @memex/embed@workspace:packages/embed":
   version: 0.0.0-use.local
   resolution: "@memex/embed@workspace:packages/embed"
@@ -684,22 +700,6 @@ __metadata:
     "@types/node": "npm:^22"
     tsup: "npm:^8.4.0"
     typescript: "npm:^5.8.3"
-  languageName: unknown
-  linkType: soft
-
-"@memex/web@workspace:apps/web":
-  version: 0.0.0-use.local
-  resolution: "@memex/web@workspace:apps/web"
-  dependencies:
-    "@types/node": "npm:^20"
-    "@types/react": "npm:^19"
-    "@types/react-dom": "npm:^19"
-    "@vercel/analytics": "npm:^2.0.1"
-    "@vercel/speed-insights": "npm:^2.0.0"
-    next: "npm:16.2.4"
-    react: "npm:19.2.4"
-    react-dom: "npm:19.2.4"
-    typescript: "npm:^5"
   languageName: unknown
   linkType: soft
 
