@@ -15,7 +15,7 @@ Works as an **MCP server** for Claude Code and Claude Desktop, and as a standalo
 - **Semantic search** — multilingual embeddings via [`paraphrase-multilingual-MiniLM-L12-v2`](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2) (Korean + English, runs fully offline)
 - **Obsidian-compatible** — notes saved as `.md` files in your vault directory
 - **MCP server** — Claude can save and search your second brain mid-conversation, with built-in instructions for proactive search and save behavior
-- **CLI** — add, search, list, show, edit, delete, and index notes from the terminal
+- **CLI** — add, search, list, show, edit, delete, tag, and index notes from the terminal
 - **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) stored at `~/.memex/memex.db`
 
 ---
@@ -38,6 +38,7 @@ memex add                                   # interactive prompt
 memex add --title "Note title" --content "..."
 memex add --title "Note title" --file ./note.md
 memex add --title "Note title" --content "..." --folder "projects/memex"
+memex add --title "Note title" --content "..." -T typescript -T architecture
 
 # Browse
 memex list                                  # recent 10 notes
@@ -47,6 +48,11 @@ memex show <id>
 # Search
 memex search "semantic search query"        # multilingual
 memex search "지식 관리" --limit 10
+memex search "query" --tag typescript       # filter by tag
+
+# Discover
+memex tags                                  # all tags with note counts
+memex related <id>                          # semantically related notes
 
 # Edit / delete
 memex edit <id>
@@ -59,6 +65,7 @@ memex source list
 memex source remove ~/Documents/My\ Notes
 memex index                                 # scan vault + all sources
 memex index --force                         # re-index everything
+memex reembed                               # re-embed all notes with current model
 
 # Config
 memex config show
