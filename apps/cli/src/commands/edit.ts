@@ -3,7 +3,7 @@ import { intro, outro, text, isCancel, cancel, spinner } from '@clack/prompts';
 import type { Command } from 'commander';
 import { openDb, getNote } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, MODEL_CACHE_DIR } from '@memex/utils';
+import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { editNote } from '../services/note.ts';
 import pc from 'picocolors';
 
@@ -17,7 +17,7 @@ export const registerEdit = (program: Command) => {
     .action(async (id: string, opts: { title?: string; content?: string; file?: string }) => {
       const config = loadConfig();
       const vaultPath = expandPath(config.vault_path);
-      const client = openDb(vaultPath);
+      const client = openDb(CONFIG_DIR);
       const note = getNote(client, Number(id));
 
       if (!note) {

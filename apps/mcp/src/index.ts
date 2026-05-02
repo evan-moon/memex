@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { mkdirSync } from 'node:fs';
 import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { expandPath, loadConfig, MODEL_CACHE_DIR } from './config.ts';
+import { expandPath, loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from './config.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
 import { registerListNotes } from './tools/list-notes.ts';
@@ -17,7 +17,7 @@ const vaultPath = expandPath(config.vault_path);
 
 mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
-const client = openDb(vaultPath);
+const client = openDb(CONFIG_DIR);
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
 const server = new McpServer({ name: 'memex', version: '0.1.0' });

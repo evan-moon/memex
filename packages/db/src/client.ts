@@ -12,8 +12,7 @@ export type MemexClient = {
   sqlite: Database.Database;
 };
 
-export const openDb = (vaultPath: string): MemexClient => {
-  const dbDir = join(vaultPath, '.memex');
+export const openDb = (dbDir: string): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
 
   const sqlite = new Database(join(dbDir, 'memex.db'));

@@ -3,7 +3,7 @@ import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, MODEL_CACHE_DIR } from '@memex/utils';
+import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { semanticSearch } from '../services/note.ts';
 
 export const registerSearch = (program: Command) => {
@@ -17,7 +17,7 @@ export const registerSearch = (program: Command) => {
 
       const config = loadConfig();
       const vaultPath = expandPath(config.vault_path);
-      const client = openDb(vaultPath);
+      const client = openDb(CONFIG_DIR);
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
       s.message('Searching...');

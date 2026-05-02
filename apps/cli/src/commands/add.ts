@@ -3,7 +3,7 @@ import { intro, outro, text, select, spinner, isCancel, cancel } from '@clack/pr
 import type { Command } from 'commander';
 import { openDb, type NoteSource } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, MODEL_CACHE_DIR } from '@memex/utils';
+import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { saveNote } from '../services/note.ts';
 
 export const registerAdd = (program: Command) => {
@@ -43,7 +43,7 @@ export const registerAdd = (program: Command) => {
       try {
         const config = loadConfig();
         const vaultPath = expandPath(config.vault_path);
-        const client = openDb(vaultPath);
+        const client = openDb(CONFIG_DIR);
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
         s.message('Saving note...');

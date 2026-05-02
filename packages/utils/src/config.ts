@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const CONFIG_DIR = join(homedir(), '.memex');
+export const CONFIG_DIR = join(homedir(), '.memex');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 const DEFAULT_VAULT_PATH = join(homedir(), 'Documents', 'Second Brain');
 

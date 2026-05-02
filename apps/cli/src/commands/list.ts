@@ -11,7 +11,7 @@ export const registerList = (program: Command) => {
     .action((opts: { limit: string }) => {
       const config = loadConfig();
       const vaultPath = expandPath(config.vault_path);
-      const client = openDb(vaultPath);
+      const client = openDb(CONFIG_DIR);
       const notes = listNotes(client, Number(opts.limit));
 
       if (notes.length === 0) {

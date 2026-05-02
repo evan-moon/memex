@@ -10,7 +10,7 @@ export const registerShow = (program: Command) => {
     .action((id: string) => {
       const config = loadConfig();
       const vaultPath = expandPath(config.vault_path);
-      const client = openDb(vaultPath);
+      const client = openDb(CONFIG_DIR);
       const note = getNote(client, Number(id));
 
       if (!note) {
