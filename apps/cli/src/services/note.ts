@@ -51,7 +51,7 @@ export const semanticSearch = async (
   limit: number,
 ) => {
   const embedding = await embedder(query);
-  return dbSearchNotes(client, embedding, limit);
+  return dbSearchNotes(client, query, embedding, limit);
 };
 
 export const editNote = async (

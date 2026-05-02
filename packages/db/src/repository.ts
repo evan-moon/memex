@@ -24,11 +24,12 @@ export const saveEmbedding = (client: MemexClient, noteId: number, embedding: nu
 
 export const searchNotes = (
   client: MemexClient,
+  query: string,
   embedding: number[],
   limit = 10,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
-  const rows = client.sqlite
+  const vectorResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
        FROM note_embeddings e
@@ -37,8 +38,25 @@ export const searchNotes = (
        AND k = ?
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), limit) as SearchResult[];
-  return rows;
+    .all(Buffer.from(vec.buffer), limit * 2) as SearchResult[];
+
+  const term = `%${query}%`;
+  const keywordResults = client.sqlite
+    .prepare('SELECT * FROM notes WHERE lower(title) LIKE lower(?) OR lower(content) LIKE lower(?) LIMIT ?')
+    .all(term, term, limit) as Note[];
+
+  const seen = new Map<number, SearchResult>();
+  for (const r of vectorResults) seen.set(r.id, r);
+
+  for (const r of keywordResults) {
+    const titleMatch = r.title.toLowerCase().includes(query.toLowerCase());
+    const synthetic = titleMatch ? 0.1 : 0.4;
+    if (!seen.has(r.id) || seen.get(r.id)!.distance > synthetic) {
+      seen.set(r.id, { ...r, distance: synthetic });
+    }
+  }
+
+  return [...seen.values()].sort((a, b) => a.distance - b.distance).slice(0, limit);
 };
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>
