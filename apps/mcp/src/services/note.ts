@@ -57,7 +57,7 @@ export const semanticSearch = async (
   category?: string,
   tag?: string,
 ) => {
-  const embedding = await embedder(query);
+  const embedding = await embedder(query, 'query');
   return dbSearchNotes(client, query, embedding, limit, category, tag);
 };
 

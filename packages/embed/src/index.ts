@@ -1,16 +1,17 @@
 import { pipeline, env } from '@huggingface/transformers';
 
-const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
+const MODEL = 'Xenova/multilingual-e5-base';
 
-type Embedder = (text: string) => Promise<number[]>;
+export type EmbedType = 'query' | 'passage';
+export type Embedder = (text: string, type?: EmbedType) => Promise<number[]>;
 
 export const createEmbedder = async (modelCacheDir: string): Promise<Embedder> => {
   env.cacheDir = modelCacheDir;
 
   const extractor = await pipeline('feature-extraction', MODEL, { dtype: 'q8' });
 
-  return async (text: string): Promise<number[]> => {
-    const output = await extractor(text, { pooling: 'mean', normalize: true });
+  return async (text: string, type: EmbedType = 'passage'): Promise<number[]> => {
+    const output = await extractor(`${type}: ${text}`, { pooling: 'mean', normalize: true });
     return Array.from(output.data as Float32Array);
   };
 };

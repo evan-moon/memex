@@ -28,6 +28,28 @@ export const saveEmbedding = (client: MemexClient, noteId: number, embedding: nu
     .run(BigInt(noteId), Buffer.from(vec.buffer));
 };
 
+const RRF_K = 60;
+
+const buildRrf = () => {
+  const scores = new Map<number, number>();
+  const cache = new Map<number, Note>();
+
+  const add = (items: Note[], weight = 1.0) => {
+    items.forEach((note, rank) => {
+      scores.set(note.id, (scores.get(note.id) ?? 0) + weight / (RRF_K + rank + 1));
+      if (!cache.has(note.id)) cache.set(note.id, note);
+    });
+  };
+
+  const topK = (k: number): SearchResult[] =>
+    [...scores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, k)
+      .map(([id], rank) => ({ ...cache.get(id)!, distance: rank / k }));
+
+  return { add, topK };
+};
+
 export const searchNotes = (
   client: MemexClient,
   query: string,
@@ -37,9 +59,15 @@ export const searchNotes = (
   tag?: string,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
-  const categoryFilter = category ? 'AND n.category = ?' : '';
-  const tagFilter = tag ? "AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)" : '';
-  const extraArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
+  const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
+  const aliasedCategoryFilter = category ? 'AND n.category = ?' : '';
+  const aliasedTagFilter = tag ? "AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)" : '';
+  const categoryFilter = category ? ' AND category = ?' : '';
+  const tagFilter = tag ? " AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)" : '';
+
+  const rrf = buildRrf();
+
+  // Source 1: Vector (dense semantic)
   const vectorResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
@@ -47,26 +75,44 @@ export const searchNotes = (
        JOIN notes n ON n.id = e.note_id
        WHERE e.embedding MATCH ?
        AND k = ?
-       ${categoryFilter}
-       ${tagFilter}
+       ${aliasedCategoryFilter}
+       ${aliasedTagFilter}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), limit * 5, ...extraArgs) as SearchResult[];
+    .all(Buffer.from(vec.buffer), limit * 5, ...filterArgs) as SearchResult[];
+  rrf.add(vectorResults);
 
   const normTokens = [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))];
 
-  const seen = new Map<number, SearchResult>();
-  for (const r of vectorResults) seen.set(r.id, r);
-
   if (normTokens.length > 0) {
-    const categoryClause = category ? ' AND category = ?' : '';
-    const tagClause = tag ? " AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)" : '';
-    const extraArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
+    // Source 2: FTS5 (BM25 over title + content body)
+    const ftsTokens = normTokens
+      .map((t) => t.replace(/["'*^()\[\]{}\\]/g, '').trim())
+      .filter((t) => t.length >= 2);
+    if (ftsTokens.length > 0) {
+      try {
+        const ftsQuery = ftsTokens.map((t) => `"${t}"`).join(' OR ');
+        const ftsResults = client.sqlite
+          .prepare(
+            `SELECT n.*
+             FROM notes_fts
+             JOIN notes n ON n.id = notes_fts.rowid
+             WHERE notes_fts MATCH ?
+             ${aliasedCategoryFilter}
+             ${aliasedTagFilter}
+             ORDER BY bm25(notes_fts)
+             LIMIT ?`,
+          )
+          .all(ftsQuery, ...filterArgs, limit * 3) as Note[];
+        rrf.add(ftsResults);
+      } catch {
+        // FTS5 query invalid or table unavailable — skip this source
+      }
+    }
 
-    // Pass 1: tag-exact match — order by match_count DESC so multi-tag matches
-    // (e.g. "토스" + "면접") surface before single-tag matches (e.g. just "토스")
+    // Source 3: Tag exact match (ordered by number of matching tags)
     const tagPlaceholders = normTokens.map(() => '?').join(', ');
-    const tagMatchResults = client.sqlite
+    const tagResults = client.sqlite
       .prepare(
         `SELECT *, (
            SELECT COUNT(*) FROM json_each(tags)
@@ -77,35 +123,24 @@ export const searchNotes = (
            SELECT 1 FROM json_each(tags)
            WHERE lower(value) IN (${tagPlaceholders})
          )
-         ${categoryClause}${tagClause}
+         ${categoryFilter}${tagFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
-      .all(...normTokens, ...normTokens, ...extraArgs, limit * 3) as Note[];
+      .all(...normTokens, ...normTokens, ...filterArgs, limit * 3) as Note[];
+    rrf.add(tagResults);
 
-    for (const r of tagMatchResults) {
-      const tagsArr = parseTags(r.tags);
-      const matchingTags = normTokens.filter((t) => tagsArr.some((tag) => tag.toLowerCase() === t));
-      const score = matchingTags.length >= 2 ? 0.05 : 0.10;
-      if (!seen.has(r.id) || seen.get(r.id)!.distance > score) {
-        seen.set(r.id, { ...r, distance: score });
-      }
-    }
-
-    // Pass 2: title keyword match (AND — precise)
+    // Source 4: Title keyword match (2× weight — strongest exact-match signal)
     const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
     const titleResults = client.sqlite
-      .prepare(`SELECT * FROM notes WHERE ${titleConditions}${categoryClause}${tagClause} LIMIT ?`)
-      .all(...normTokens.map((t) => `%${t}%`), ...extraArgs, limit) as Note[];
-
-    for (const r of titleResults) {
-      if (!seen.has(r.id) || seen.get(r.id)!.distance > 0.01) {
-        seen.set(r.id, { ...r, distance: 0.01 });
-      }
-    }
+      .prepare(
+        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter} LIMIT ?`,
+      )
+      .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, limit) as Note[];
+    rrf.add(titleResults, 2.0);
   }
 
-  return [...seen.values()].sort((a, b) => a.distance - b.distance).slice(0, limit);
+  return rrf.topK(limit);
 };
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>
