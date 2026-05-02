@@ -36,6 +36,7 @@ On first run the embedding model (~120MB) is downloaded once to `~/.memex/models
 memex add                                   # interactive prompt
 memex add --title "Note title" --content "..." 
 memex add --title "Note title" --file ./note.md
+memex add --title "Note title" --content "..." --folder "projects/memex"
 
 memex list                                  # recent 10 notes
 memex list --limit 20
@@ -89,7 +90,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note (title + markdown content) |
+| `save_note` | Save a note (title + markdown content + optional folder) |
 | `search_notes` | Semantic search across all notes |
 | `list_notes` | List recent notes |
 | `get_note` | Get full content of a note by ID |
