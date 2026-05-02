@@ -211,10 +211,10 @@ def get_category(path: Path) -> str | None:
         return None
     folder = parts[0]
     return {
-        'memory': '대화',
-        'interviews': '면접',
-        'idea': '아이디어',
-        'dev': '개발',
+        'memory': 'memory',
+        'interviews': 'interview',
+        'idea': 'idea',
+        'dev': 'dev',
     }.get(folder)
 
 

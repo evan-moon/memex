@@ -40,27 +40,65 @@ export const searchNotes = (
     )
     .all(Buffer.from(vec.buffer), limit * 2) as SearchResult[];
 
-  const tokens = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((t) => `%${t}%`);
+  const ALIASES: Record<string, string[]> = {
+    토스: ['toss'],
+    toss: ['토스'],
+    면접: ['interview'],
+    interview: ['면접', '인터뷰'],
+    인터뷰: ['interview'],
+    대화: ['memory', 'chat'],
+    memory: ['대화', '메모리'],
+    아이디어: ['idea'],
+    idea: ['아이디어'],
+  };
+
+  const expandToken = (token: string): string[] => {
+    const aliases = ALIASES[token] ?? [];
+    return [token, ...aliases];
+  };
+
+  const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const expandedTokenGroups = rawTokens.map(expandToken);
 
   const seen = new Map<number, SearchResult>();
   for (const r of vectorResults) seen.set(r.id, r);
 
-  if (tokens.length > 0) {
-    const conditions = tokens
-      .map(() => '(lower(title) LIKE ? OR lower(content) LIKE ?)')
+  if (expandedTokenGroups.length > 0) {
+    // Each token group is OR'd (original + aliases), groups are AND'd together
+    const conditions = expandedTokenGroups
+      .map((group) => {
+        const clauses = group.flatMap(() => ['lower(title) LIKE ?', 'lower(content) LIKE ?']);
+        return `(${clauses.join(' OR ')})`;
+      })
       .join(' AND ');
-    const bindings = tokens.flatMap((t) => [t, t]);
+    const bindings = expandedTokenGroups.flatMap((group) =>
+      group.flatMap((t) => [`%${t}%`, `%${t}%`]),
+    );
     const keywordResults = client.sqlite
       .prepare(`SELECT * FROM notes WHERE ${conditions} LIMIT ?`)
-      .all(...bindings, limit) as Note[];
+      .all(...bindings, limit * 5) as Note[];
 
     for (const r of keywordResults) {
-      const titleMatch = tokens.every((t) => r.title.toLowerCase().includes(t.slice(1, -1)));
-      const synthetic = titleMatch ? 0.1 : 0.4;
+      const lowerTitle = r.title.toLowerCase();
+      const lowerContent = r.content.toLowerCase();
+      const titleMatch = rawTokens.every((t) =>
+        expandToken(t).some((alias) => lowerTitle.includes(alias)),
+      );
+      // Cross-language alias match: query token matched only via alias (not directly)
+      const crossLangMatch =
+        !titleMatch &&
+        rawTokens.every((t) => {
+          const direct = lowerTitle.includes(t) || lowerContent.includes(t);
+          const viaAlias = ALIASES[t]?.some(
+            (alias) => lowerTitle.includes(alias) || lowerContent.includes(alias),
+          );
+          return direct || viaAlias;
+        }) &&
+        rawTokens.some((t) => {
+          const direct = lowerTitle.includes(t) || lowerContent.includes(t);
+          return !direct;
+        });
+      const synthetic = titleMatch ? 0.1 : crossLangMatch ? 0.2 : 0.4;
       if (!seen.has(r.id) || seen.get(r.id)!.distance > synthetic) {
         seen.set(r.id, { ...r, distance: synthetic });
       }
