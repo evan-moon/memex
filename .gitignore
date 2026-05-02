@@ -2,3 +2,4 @@ node_modules
 dist
 .turbo
 *.db
+.yarn/install-state.gz
