@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { openDb, listNotes } from '@memex/db';
-import { loadConfig, expandPath, formatDate } from '@memex/utils';
+import { CONFIG_DIR, formatDate } from '@memex/utils';
 
 export const registerList = (program: Command) => {
   program
@@ -9,8 +9,6 @@ export const registerList = (program: Command) => {
     .description('List recent notes')
     .option('-l, --limit <n>', 'Max results', '10')
     .action((opts: { limit: string }) => {
-      const config = loadConfig();
-      const vaultPath = expandPath(config.vault_path);
       const client = openDb(CONFIG_DIR);
       const notes = listNotes(client, Number(opts.limit));
 
