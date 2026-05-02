@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#0e0c1a"/>
+      <stop offset="100%" stop-color="#07060f"/>
+    </radialGradient>
+    <radialGradient id="cg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#a89cf5" stop-opacity="0.80"/>
+      <stop offset="45%"  stop-color="#7b6de0" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#07060f"  stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="0.7"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- ── Connection lines ── -->
+  <!-- Center → top-left -->
+  <line x1="15.5" y1="15" x2="6.5"  y2="8"   stroke="#8878d8" stroke-width="0.55" stroke-opacity="0.38"/>
+  <!-- Center → top-right -->
+  <line x1="15.5" y1="15" x2="25"   y2="7.5"  stroke="#8878d8" stroke-width="0.55" stroke-opacity="0.28"/>
+  <!-- Center → right -->
+  <line x1="15.5" y1="15" x2="26.5" y2="18"   stroke="#8878d8" stroke-width="0.55" stroke-opacity="0.32"/>
+  <!-- Center → bottom -->
+  <line x1="15.5" y1="15" x2="18"   y2="26.5" stroke="#8878d8" stroke-width="0.55" stroke-opacity="0.24"/>
+  <!-- Center → bottom-left -->
+  <line x1="15.5" y1="15" x2="6"    y2="23"   stroke="#8878d8" stroke-width="0.55" stroke-opacity="0.30"/>
+  <!-- Cross-links between outer nodes (sparse, very faint) -->
+  <line x1="6.5"  y1="8"  x2="25"   y2="7.5"  stroke="#8878d8" stroke-width="0.4"  stroke-opacity="0.12"/>
+  <line x1="26.5" y1="18" x2="18"   y2="26.5" stroke="#8878d8" stroke-width="0.4"  stroke-opacity="0.10"/>
+  <line x1="6"    y1="23" x2="18"   y2="26.5" stroke="#8878d8" stroke-width="0.4"  stroke-opacity="0.10"/>
+
+  <!-- ── Outer nodes ── -->
+  <!-- Top-left: medium, brightest outer -->
+  <circle cx="6.5"  cy="8"    r="1.55" fill="#a090e8" opacity="0.72"/>
+  <circle cx="6.5"  cy="8"    r="0.75" fill="#ccc0ff" opacity="0.90"/>
+
+  <!-- Top-right: small -->
+  <circle cx="25"   cy="7.5"  r="1.10" fill="#9080d8" opacity="0.55"/>
+  <circle cx="25"   cy="7.5"  r="0.50" fill="#c0b0f8" opacity="0.80"/>
+
+  <!-- Right: medium -->
+  <circle cx="26.5" cy="18"   r="1.30" fill="#9888e0" opacity="0.62"/>
+  <circle cx="26.5" cy="18"   r="0.60" fill="#c8bcff" opacity="0.85"/>
+
+  <!-- Bottom: tiny -->
+  <circle cx="18"   cy="26.5" r="0.90" fill="#8878d0" opacity="0.50"/>
+  <circle cx="18"   cy="26.5" r="0.40" fill="#b8aaf5" opacity="0.75"/>
+
+  <!-- Bottom-left: small -->
+  <circle cx="6"    cy="23"   r="1.15" fill="#9080d8" opacity="0.58"/>
+  <circle cx="6"    cy="23"   r="0.52" fill="#c0b2f8" opacity="0.82"/>
+
+  <!-- ── Centre node — the "query" / brain ── -->
+  <circle cx="15.5" cy="15"   r="6.5"  fill="url(#cg)"/>
+  <circle cx="15.5" cy="15"   r="3.0"  fill="#8878d8" opacity="0.22" filter="url(#glow)"/>
+  <circle cx="15.5" cy="15"   r="1.9"  fill="#9d8fe8" opacity="0.75" filter="url(#glow)"/>
+  <circle cx="15.5" cy="15"   r="1.05" fill="#d4ccff" opacity="0.95"/>
+</svg>
