@@ -1,8 +1,22 @@
-# memex
+<p align="center">
+  <img src="https://raw.githubusercontent.com/evan-moon/memex/main/assets/og-image.png" alt="memex" width="560" />
+</p>
 
-[![npm](https://img.shields.io/npm/v/@evan-moon/memex?color=black&label=npm)](https://www.npmjs.com/package/@evan-moon/memex)
-[![license](https://img.shields.io/github/license/evan-moon/memex?color=black)](./LICENSE)
-[![node](https://img.shields.io/node/v/@evan-moon/memex?color=black)](https://nodejs.org)
+<h1 align="center">memex</h1>
+
+<p align="center">
+  <strong>Make Claude smarter about you.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@evan-moon/memex"><img src="https://img.shields.io/npm/v/@evan-moon/memex?style=flat&color=black&label=npm" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/evan-moon/memex?style=flat&color=black" alt="License"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@evan-moon/memex?style=flat&color=black" alt="Node version"></a>
+</p>
+
+<p align="center">
+  <code>npm install -g @evan-moon/memex</code>
+</p>
 
 > Make Claude smarter about you.
 
