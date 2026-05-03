@@ -1,0 +1,69 @@
+---
+title: Semantic Search
+description: How memex finds notes — hybrid retrieval with vector search, BM25, and tag matching.
+---
+
+## How it works
+
+memex uses four search sources fused via Reciprocal Rank Fusion (RRF):
+
+1. **Vector search** — dense semantic similarity via `sqlite-vec`. Finds notes by meaning even if exact words don't match.
+2. **BM25 full-text search** — FTS5 over title and content. Strong on exact keyword matches.
+3. **Tag matching** — exact match against note tags. Notes with more matching tags rank higher.
+4. **Title keyword match** — `LIKE`-based title search, weighted 2× because title matches are a strong signal.
+
+All four sources are merged using RRF (k=60). The final ranking balances meaning, keywords, tags, and titles.
+
+## The embedding model
+
+memex uses [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base) — a 768-dimensional model that runs fully offline. It understands Korean and English in the same vector space, so Korean queries find English notes and vice versa.
+
+The model is downloaded once on first run (~450 MB) to `~/.memex/models/`.
+
+## Date filtering
+
+Narrow results to a time range:
+
+```bash
+memex search "auth decision" --from 2025-04-01
+memex search "auth decision" --from 2025-04-01 --to 2025-04-30
+```
+
+Via MCP, Claude passes `date_from` and `date_to` when you ask about a specific time period:
+
+> "What did we decide about auth last April?"
+
+## Search aliases
+
+Create shorthand aliases that expand at search time:
+
+```json
+{
+  "aliases": {
+    "js": ["javascript", "자바스크립트"],
+    "ts": ["typescript"]
+  }
+}
+```
+
+Set via `~/.memex/config.json`. Searching "js" will also match "javascript" and "자바스크립트" notes.
+
+## Duplicate detection
+
+When saving a new note, memex computes its embedding and checks for existing notes with cosine distance below 0.5. If similar notes exist, `save_note` returns a warning:
+
+```
+⚠️ Similar notes already exist — consider updating one instead:
+- #42 "Auth Architecture Decision" (distance: 0.312)
+```
+
+Claude is instructed to switch to `update_note` when this warning appears.
+
+## CLI search options
+
+```bash
+memex search "query"
+memex search "query" --limit 10
+memex search "query" --tag typescript
+memex search "query" --from 2025-01-01 --to 2025-03-31
+```

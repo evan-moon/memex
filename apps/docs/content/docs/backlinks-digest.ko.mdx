@@ -1,0 +1,73 @@
+---
+title: 백링크 & 다이제스트
+description: 위키링크로 노트를 연결하고 주기적인 요약을 확인하세요.
+---
+
+## 백링크
+
+memex는 `[[Title]]` 위키링크 문법을 해석합니다 — Obsidian, Roam, Logseq에서 사용하는 것과 동일한 형식입니다.
+
+노트를 저장하거나 수정할 때, memex는 내용에서 `[[Title]]` 패턴을 스캔하고 일치하는 노트로의 링크를 생성합니다. 이 링크들은 `note_links` 테이블에 저장되며 노트를 조회할 때 표시됩니다.
+
+### 실제 사용 예시
+
+노트에서 사람, 프로젝트, 개념을 자연스럽게 참조하세요:
+
+```markdown
+[[Tom]]과 auth 접근 방식에 대해 논의했다.
+이것은 4월의 [[Auth Architecture Decision]]을 기반으로 한다.
+```
+
+나중에 "Auth Architecture Decision" 노트를 `memex show <id>` 또는 `get_note`로 조회하면, 이 노트를 참조하는 모든 노트가 나열된 "Referenced by" 섹션을 볼 수 있습니다.
+
+### Claude + 백링크
+
+Claude는 노트를 저장할 때 `[[Title]]` 문법을 사용하도록 지시받습니다:
+
+> "노트가 자신의 노트를 가질 것 같은 사람, 프로젝트, 개념을 참조할 때 백링크 생성을 위해 `[[Title]]` 위키링크 문법을 사용하세요."
+
+따라서 "Alice"와 "Project X"에 대한 노트가 있고, Claude가 Alice와 Project X에 대한 대화 노트를 저장하면 다음처럼 작성합니다:
+
+```markdown
+[[Alice]]와 [[Project X]]에 대해 이야기했다 — 론칭을 연기하기로 결정.
+```
+
+### 백링크 조회
+
+```bash
+memex show <id>    # "Referenced by" 섹션 포함
+```
+
+Claude를 통해: `get_note` 사용 — 백링크는 하단에 표시됩니다.
+
+---
+
+## 다이제스트
+
+다이제스트 명령은 저장된 내용의 주기적인 요약을 제공합니다.
+
+```bash
+memex digest              # 최근 7일 (기본값)
+memex digest --days 14    # 최근 14일
+memex digest --days 30    # 최근 한 달
+```
+
+출력은 폴더별로 그룹화됩니다:
+
+```
+Digest — last 7 day(s) since 2025-04-27
+
+conversations/tom
+  #48 Auth approach follow-up  [auth, backend]  Apr 28
+  #51 Sprint planning          [planning]        Apr 30
+
+decisions/memex
+  #49 Switched to hybrid RRF   [search, architecture]  Apr 29
+
+3 note(s) across 2 folder(s)
+```
+
+다이제스트 활용:
+- **주간 회고** — 이번 주에 무엇을 기록했나?
+- **따라잡기** — 휴가나 휴식 후 복귀했을 때
+- **핸드오프 컨텍스트** — 미팅 전, 최근에 무엇이 기록됐는지 확인

@@ -1,0 +1,65 @@
+---
+title: Installation
+description: Get memex running in under 2 minutes.
+---
+
+## Install
+
+```bash
+npm install -g @evan-moon/memex
+```
+
+## Connect to Claude Code
+
+```bash
+memex mcp install
+```
+
+That's it. On first run, the embedding model (~450 MB) downloads once to `~/.memex/models/`. All subsequent runs are fully offline.
+
+## Connect to Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "memex": {
+      "command": "node",
+      "args": ["<path from `memex mcp path`>"]
+    }
+  }
+}
+```
+
+Get the path with:
+
+```bash
+memex mcp path
+```
+
+## What gets created
+
+```
+~/.memex/
+  config.json     — vault path and settings
+  memex.db        — SQLite database (notes + embeddings + FTS5)
+  models/         — cached multilingual-e5-base model
+```
+
+Notes are saved as plain Markdown files in your vault (default: `~/Documents/Second Brain`). They're fully Obsidian-compatible.
+
+## Change the vault path
+
+```bash
+memex config set vault-path ~/my-notes
+```
+
+## Verify the setup
+
+```bash
+memex list          # lists recent notes (empty on first run)
+memex config show   # shows current config
+```
+
+Once you've connected memex to Claude, try asking Claude about something you've worked on. If the topic could relate to a past conversation or decision, Claude will automatically search your notes before answering.

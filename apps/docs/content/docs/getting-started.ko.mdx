@@ -1,0 +1,65 @@
+---
+title: 설치 및 시작
+description: 2분 안에 memex를 시작하세요.
+---
+
+## 설치
+
+```bash
+npm install -g @evan-moon/memex
+```
+
+## Claude Code 연결
+
+```bash
+memex mcp install
+```
+
+끝입니다. 최초 실행 시 임베딩 모델(~450 MB)이 `~/.memex/models/`에 한 번만 다운로드됩니다. 이후 실행은 완전히 오프라인으로 동작합니다.
+
+## Claude Desktop 연결
+
+`~/Library/Application Support/Claude/claude_desktop_config.json`에 다음을 추가하세요:
+
+```json
+{
+  "mcpServers": {
+    "memex": {
+      "command": "node",
+      "args": ["<`memex mcp path` 결과>"]
+    }
+  }
+}
+```
+
+경로 확인:
+
+```bash
+memex mcp path
+```
+
+## 생성되는 파일
+
+```
+~/.memex/
+  config.json     — 볼트 경로 및 설정
+  memex.db        — SQLite DB (노트 + 임베딩 + FTS5)
+  models/         — multilingual-e5-base 모델 캐시
+```
+
+노트는 볼트 디렉토리(기본값: `~/Documents/Second Brain`)에 일반 Markdown 파일로 저장됩니다. Obsidian과 완벽하게 호환됩니다.
+
+## 볼트 경로 변경
+
+```bash
+memex config set vault-path ~/my-notes
+```
+
+## 설치 확인
+
+```bash
+memex list          # 최근 노트 목록 확인 (최초엔 비어 있음)
+memex config show   # 현재 설정 확인
+```
+
+Claude에 memex를 연결한 뒤, 과거에 작업했던 내용에 대해 물어보세요. 과거 대화나 결정과 관련될 수 있는 주제라면, Claude가 자동으로 노트를 검색한 뒤 답변합니다.

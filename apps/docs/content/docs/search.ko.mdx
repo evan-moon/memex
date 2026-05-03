@@ -1,0 +1,69 @@
+---
+title: 시맨틱 검색
+description: memex의 검색 방식 — 벡터 검색, BM25, 태그 매칭을 결합한 하이브리드 리트리벌.
+---
+
+## 동작 방식
+
+memex는 Reciprocal Rank Fusion(RRF)으로 융합된 4개의 검색 소스를 사용합니다:
+
+1. **벡터 검색** — `sqlite-vec`을 통한 밀집 시맨틱 유사도. 정확한 단어가 없어도 의미로 노트를 찾습니다.
+2. **BM25 전문 검색** — 제목과 내용에 대한 FTS5. 정확한 키워드 매칭에 강합니다.
+3. **태그 매칭** — 노트 태그에 대한 정확 매칭. 매칭 태그가 많을수록 높은 순위.
+4. **제목 키워드 매칭** — `LIKE` 기반 제목 검색, 2배 가중치(제목 매칭은 강한 신호).
+
+4개 소스는 RRF(k=60)로 병합됩니다. 최종 순위는 의미, 키워드, 태그, 제목을 균형 있게 반영합니다.
+
+## 임베딩 모델
+
+memex는 [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)를 사용합니다 — 완전 오프라인으로 동작하는 768차원 모델입니다. 한국어와 영어를 같은 벡터 공간에서 이해하므로, 한국어 쿼리로 영어 노트를 찾거나 반대도 가능합니다.
+
+최초 실행 시 `~/.memex/models/`에 한 번 다운로드됩니다(~450 MB).
+
+## 날짜 필터링
+
+특정 기간으로 결과를 좁힐 수 있습니다:
+
+```bash
+memex search "auth 결정" --from 2025-04-01
+memex search "auth 결정" --from 2025-04-01 --to 2025-04-30
+```
+
+MCP를 통해 특정 기간에 대해 질문하면 Claude가 `date_from`과 `date_to`를 자동으로 전달합니다:
+
+> "지난 4월에 auth에 대해 어떤 결정을 했었지?"
+
+## 검색 별칭
+
+검색 시 자동으로 확장되는 단축 별칭을 만들 수 있습니다:
+
+```json
+{
+  "aliases": {
+    "js": ["javascript", "자바스크립트"],
+    "ts": ["typescript"]
+  }
+}
+```
+
+`~/.memex/config.json`에서 설정합니다. "js"로 검색하면 "javascript"와 "자바스크립트" 노트도 함께 매칭됩니다.
+
+## 중복 감지
+
+새 노트를 저장할 때, memex는 임베딩을 계산하고 코사인 거리 0.5 미만인 기존 노트를 확인합니다. 유사한 노트가 있으면 `save_note`가 경고를 반환합니다:
+
+```
+⚠️ Similar notes already exist — consider updating one instead:
+- #42 "Auth Architecture Decision" (distance: 0.312)
+```
+
+이 경고가 표시되면 Claude는 `update_note`로 전환하도록 지시받습니다.
+
+## CLI 검색 옵션
+
+```bash
+memex search "쿼리"
+memex search "쿼리" --limit 10
+memex search "쿼리" --tag typescript
+memex search "쿼리" --from 2025-01-01 --to 2025-03-31
+```

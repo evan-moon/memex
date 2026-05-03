@@ -1,0 +1,80 @@
+---
+title: CLI Reference
+description: Full reference for the memex command-line interface.
+---
+
+## Add notes
+
+```bash
+memex add                                    # interactive prompt
+memex add --title "Note title" --content "..."
+memex add --title "Note title" --file ./note.md
+memex add --title "Note title" --content "..." --folder conversations/tom
+memex add --title "Note title" --content "..." -T typescript -T architecture
+```
+
+## Search
+
+```bash
+memex search "semantic search query"
+memex search "지식 관리" --limit 10          # multilingual
+memex search "auth" --tag backend            # filter by tag
+memex search "auth" --from 2025-04-01        # notes since a date
+memex search "auth" --from 2025-04-01 --to 2025-04-30
+```
+
+`--from` and `--to` accept any ISO 8601 date (`YYYY-MM-DD`). `--to` includes the full day (up to 23:59:59).
+
+## Browse
+
+```bash
+memex list                  # recent 10 notes
+memex list --limit 20
+memex show <id>             # full note content + backlinks
+memex tags                  # all tags with counts
+memex related <id>          # semantically related notes
+```
+
+## Digest
+
+```bash
+memex digest                # summary of notes saved in the last 7 days
+memex digest --days 30      # last 30 days
+```
+
+Digest groups notes by folder and prints them with tags and dates. Useful as a weekly review or to catch up after time away.
+
+## Edit & delete
+
+```bash
+memex edit <id>             # opens in $EDITOR
+memex delete <id>
+memex delete --yes <id>     # skip confirmation prompt
+```
+
+## External vaults (sources)
+
+```bash
+memex source add ~/Documents/My\ Notes    # register an existing vault
+memex source list
+memex source remove ~/Documents/My\ Notes
+memex index                               # scan vault + all sources
+memex index --force                       # re-index everything
+memex reembed                             # re-embed with current model
+```
+
+Use `source add` to index an existing Obsidian vault or any folder of Markdown files without moving them.
+
+## Config
+
+```bash
+memex config show
+memex config set vault-path ~/my-vault
+```
+
+## MCP
+
+```bash
+memex mcp install    # register with Claude Code
+memex mcp path       # print the MCP binary path (for Claude Desktop)
+```

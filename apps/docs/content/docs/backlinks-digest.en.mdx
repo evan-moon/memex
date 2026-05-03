@@ -1,0 +1,73 @@
+---
+title: Backlinks & Digest
+description: Connect your notes with wiki-links and get periodic summaries.
+---
+
+## Backlinks
+
+memex resolves `[[Title]]` wiki-link syntax — the same format used by Obsidian, Roam, and Logseq.
+
+When you save or update a note, memex scans the content for `[[Title]]` patterns and creates links to matching notes. These are stored in a `note_links` table and surfaced when you view a note.
+
+### Using backlinks in practice
+
+Reference people, projects, or concepts naturally in your notes:
+
+```markdown
+Discussed the auth approach with [[Tom]].
+This builds on the [[Auth Architecture Decision]] from April.
+```
+
+When you later view the "Auth Architecture Decision" note — via `memex show <id>` or `get_note` — you'll see a "Referenced by" section listing every note that links to it.
+
+### Claude + backlinks
+
+Claude is instructed to use `[[Title]]` syntax when saving notes:
+
+> "When a note refers to people, projects, or concepts that likely have their own notes, use `[[Title]]` wiki-link syntax in the content to create backlinks."
+
+So if you have notes on "Alice" and "Project X", and Claude saves a note about a conversation you had with Alice about Project X, it will write:
+
+```markdown
+Spoke with [[Alice]] about [[Project X]] — decided to delay the launch.
+```
+
+### Viewing backlinks
+
+```bash
+memex show <id>    # includes "Referenced by" section
+```
+
+Via Claude: use `get_note` — backlinks appear at the bottom.
+
+---
+
+## Digest
+
+The digest command gives you a periodic summary of what's been saved.
+
+```bash
+memex digest              # last 7 days (default)
+memex digest --days 14    # last 14 days
+memex digest --days 30    # last month
+```
+
+Output is grouped by folder:
+
+```
+Digest — last 7 day(s) since 2025-04-27
+
+conversations/tom
+  #48 Auth approach follow-up  [auth, backend]  Apr 28
+  #51 Sprint planning          [planning]        Apr 30
+
+decisions/memex
+  #49 Switched to hybrid RRF   [search, architecture]  Apr 29
+
+3 note(s) across 2 folder(s)
+```
+
+Use digest for:
+- **Weekly review** — what did I capture this week?
+- **Catch-up** — coming back from vacation or a break
+- **Handoff context** — before a meeting, see what's been logged recently

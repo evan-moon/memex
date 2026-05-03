@@ -1,0 +1,54 @@
+---
+title: MCP Tools
+description: The tools memex exposes to Claude via the Model Context Protocol.
+---
+
+When you connect memex to Claude, it gets access to 8 tools. Claude uses these automatically — you don't have to ask.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `save_note` | Save a note. Warns if a semantically similar note already exists. |
+| `search_notes` | Hybrid semantic search with optional filters. |
+| `list_notes` | List recent notes by creation date. |
+| `list_tags` | All tags with note counts. |
+| `list_folders` | All folders with note counts. |
+| `get_note` | Full note content + backlinks by ID. |
+| `update_note` | Update title, content, or tags of an existing note. |
+| `delete_note` | Delete a note by ID. |
+
+## search_notes parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | string | The search query (natural language) |
+| `limit` | number | Max results (default 10) |
+| `category` | string | Filter to a specific folder |
+| `tag` | string | Filter by tag |
+| `date_from` | string | ISO 8601 date — only notes on or after this date |
+| `date_to` | string | ISO 8601 date — only notes on or before this date |
+
+Example: _"What did we decide about auth last April?"_ → Claude calls `search_notes` with `query="auth decision"`, `date_from="2025-04-01"`, `date_to="2025-04-30"`.
+
+## save_note behavior
+
+Before saving, Claude is instructed to:
+
+1. Call `list_tags` and `list_folders` to see existing taxonomy
+2. Pick from existing tags/folders rather than inventing new ones
+3. Use `[[Title]]` wiki-link syntax for references to people, projects, or concepts
+
+If `save_note` returns a ⚠️ similar notes warning, Claude switches to `update_note` on the most relevant existing note instead of creating a duplicate.
+
+## get_note + backlinks
+
+`get_note` returns the full note content and a "Referenced by" section listing every note that links to this one via `[[Title]]` syntax. Backlinks are resolved at save/update time.
+
+## Claude's automatic behavior
+
+Claude is configured to:
+
+- **Always search before answering** any question that might relate to past conversations, decisions, or projects
+- **Save at end of conversation** when technical decisions were made, key insights emerged, or you explicitly said "remember this"
+- **Prefer update over save** when new content belongs with an existing note

@@ -1,0 +1,80 @@
+---
+title: CLI 레퍼런스
+description: memex 커맨드라인 인터페이스 전체 레퍼런스.
+---
+
+## 노트 추가
+
+```bash
+memex add                                       # 대화형 프롬프트
+memex add --title "노트 제목" --content "..."
+memex add --title "노트 제목" --file ./note.md
+memex add --title "노트 제목" --content "..." --folder conversations/tom
+memex add --title "노트 제목" --content "..." -T typescript -T architecture
+```
+
+## 검색
+
+```bash
+memex search "시맨틱 검색 쿼리"
+memex search "지식 관리" --limit 10           # 다국어 검색
+memex search "auth" --tag backend             # 태그로 필터링
+memex search "auth" --from 2025-04-01         # 특정 날짜 이후 노트
+memex search "auth" --from 2025-04-01 --to 2025-04-30
+```
+
+`--from`과 `--to`는 ISO 8601 날짜 형식(`YYYY-MM-DD`)을 받습니다. `--to`는 해당 날짜의 끝(23:59:59)까지 포함합니다.
+
+## 탐색
+
+```bash
+memex list                  # 최근 노트 10개
+memex list --limit 20
+memex show <id>             # 노트 전체 내용 + 백링크
+memex tags                  # 카운트 포함 전체 태그
+memex related <id>          # 의미적으로 연관된 노트
+```
+
+## 다이제스트
+
+```bash
+memex digest                # 최근 7일간 저장된 노트 요약
+memex digest --days 30      # 최근 30일
+```
+
+다이제스트는 노트를 폴더별로 그룹화하고 태그와 날짜와 함께 출력합니다. 주간 회고나 오래 쉰 뒤 따라잡을 때 유용합니다.
+
+## 편집 & 삭제
+
+```bash
+memex edit <id>             # $EDITOR로 엽니다
+memex delete <id>
+memex delete --yes <id>     # 확인 프롬프트 생략
+```
+
+## 외부 볼트 (소스)
+
+```bash
+memex source add ~/Documents/My\ Notes    # 기존 볼트 등록
+memex source list
+memex source remove ~/Documents/My\ Notes
+memex index                               # 볼트 + 모든 소스 스캔
+memex index --force                       # 전체 재인덱싱
+memex reembed                             # 현재 모델로 재임베딩
+```
+
+`source add`를 사용하면 기존 Obsidian 볼트나 Markdown 파일이 있는 폴더를 이동하지 않고 인덱싱할 수 있습니다.
+
+## 설정
+
+```bash
+memex config show
+memex config set vault-path ~/my-vault
+```
+
+## MCP
+
+```bash
+memex mcp install    # Claude Code에 등록
+memex mcp path       # MCP 바이너리 경로 출력 (Claude Desktop용)
+```

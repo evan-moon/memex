@@ -5,6 +5,7 @@ export default function Home() {
       <header className="nav">
         <span className="nav-logo">memex</span>
         <nav className="nav-links">
+          <a href="/en/docs/getting-started" className="nav-link">Docs</a>
           <a href="https://github.com/evan-moon/memex" target="_blank" rel="noopener noreferrer" className="nav-link">
             GitHub <span className="nav-arrow">↗</span>
           </a>
