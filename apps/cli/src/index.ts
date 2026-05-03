@@ -13,6 +13,7 @@ import { registerReembed } from './commands/reembed.ts';
 import { registerTags } from './commands/tags.ts';
 import { registerRelated } from './commands/related.ts';
 import { registerMcp } from './commands/mcp.ts';
+import { registerDigest } from './commands/digest.ts';
 
 const program = new Command();
 
@@ -34,5 +35,6 @@ registerReembed(program);
 registerTags(program);
 registerRelated(program);
 registerMcp(program);
+registerDigest(program);
 
 program.parse();

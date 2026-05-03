@@ -1,4 +1,4 @@
-import { desc, eq, like } from 'drizzle-orm';
+import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
 import { notes, type NewNote, type Note } from './schema.ts';
 
@@ -275,6 +275,9 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
        ORDER BY n.updated_at DESC`,
     )
     .all(targetId) as Note[];
+
+export const listNotesSince = (client: MemexClient, sinceMs: number): Note[] =>
+  client.db.select().from(notes).where(gte(notes.createdAt, sinceMs)).orderBy(desc(notes.createdAt)).all();
 
 export const findRelatedNotes = (
   client: MemexClient,
