@@ -177,6 +177,35 @@ export const updateNote = (
   return updated;
 };
 
+export type SimilarNote = Note & { distance: number };
+
+export const findSimilarByEmbedding = (
+  client: MemexClient,
+  embedding: number[],
+  threshold = 0.5,
+  limit = 3,
+  excludeId?: number,
+): SimilarNote[] => {
+  const vec = new Float32Array(embedding);
+  const excludeFilter = excludeId !== undefined ? 'AND n.id != ?' : '';
+  const excludeArgs = excludeId !== undefined ? [excludeId] : [];
+
+  const rows = client.sqlite
+    .prepare(
+      `SELECT n.*, e.distance
+       FROM note_embeddings e
+       JOIN notes n ON n.id = e.note_id
+       WHERE e.embedding MATCH ?
+       AND k = ?
+       ${excludeFilter}
+       AND e.distance < ?
+       ORDER BY e.distance`,
+    )
+    .all(Buffer.from(vec.buffer), limit * 2, ...excludeArgs, threshold) as SimilarNote[];
+
+  return rows.slice(0, limit);
+};
+
 export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
 export const findRelatedNotes = (

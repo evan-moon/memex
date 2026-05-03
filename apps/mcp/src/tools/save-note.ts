@@ -32,16 +32,24 @@ export const registerSaveNote = (
         .describe('Origin of the note'),
     },
     async ({ title, content, folder, tags, source }) => {
-      const note = await saveNote(client, embedder, vaultPath, {
+      const { note, similar } = await saveNote(client, embedder, vaultPath, {
         title,
         content,
         folder,
         tags,
         source: source as NoteSource,
       });
-      return {
-        content: [{ type: 'text', text: `Saved note #${note.id}: "${note.title}"` }],
-      };
+
+      let text = `Saved note #${note.id}: "${note.title}"`;
+
+      if (similar.length > 0) {
+        const list = similar
+          .map((s) => `- #${s.id} "${s.title}" (distance: ${s.distance.toFixed(3)})`)
+          .join('\n');
+        text += `\n\n⚠️ Similar notes already exist — consider updating one instead:\n${list}`;
+      }
+
+      return { content: [{ type: 'text', text }] };
     },
   );
 };

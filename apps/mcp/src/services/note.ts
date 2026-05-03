@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import {
   deleteNote,
+  findSimilarByEmbedding,
   getNote,
   insertNote,
   parseTags,
@@ -10,7 +11,9 @@ import {
   serializeTags,
   updateNote,
   type MemexClient,
+  type Note,
   type NoteSource,
+  type SimilarNote,
 } from '@memex/db';
 import { extractCategory, buildEmbeddingText } from '@memex/utils';
 
@@ -36,17 +39,20 @@ export const saveNote = async (
   embedder: Embedder,
   vaultPath: string,
   params: { title: string; content: string; source: NoteSource; folder?: string; tags?: string[] },
-) => {
+): Promise<{ note: Note; similar: SimilarNote[] }> => {
+  // Compute embedding first so we can reuse it for similarity check
+  const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
+  const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
+
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
   const note = insertNote(client, { ...params, filePath, category: category ?? undefined, tags });
-  const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
   saveEmbedding(client, note.id, embedding);
 
-  return note;
+  return { note, similar };
 };
 
 export const semanticSearch = async (
