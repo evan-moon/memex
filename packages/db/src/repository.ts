@@ -57,6 +57,8 @@ export const searchNotes = (
   limit = 10,
   category?: string,
   tag?: string,
+  dateFrom?: number,
+  dateTo?: number,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
   const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
@@ -64,6 +66,11 @@ export const searchNotes = (
   const aliasedTagFilter = tag ? "AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)" : '';
   const categoryFilter = category ? ' AND category = ?' : '';
   const tagFilter = tag ? " AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)" : '';
+  const dateFromFilterAliased = dateFrom ? ' AND n.created_at >= ?' : '';
+  const dateToFilterAliased = dateTo ? ' AND n.created_at <= ?' : '';
+  const dateFromFilter = dateFrom ? ' AND created_at >= ?' : '';
+  const dateToFilter = dateTo ? ' AND created_at <= ?' : '';
+  const dateArgs = [...(dateFrom ? [dateFrom] : []), ...(dateTo ? [dateTo] : [])];
 
   const rrf = buildRrf();
 
@@ -77,9 +84,11 @@ export const searchNotes = (
        AND k = ?
        ${aliasedCategoryFilter}
        ${aliasedTagFilter}
+       ${dateFromFilterAliased}
+       ${dateToFilterAliased}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), limit * 5, ...filterArgs) as SearchResult[];
+    .all(Buffer.from(vec.buffer), limit * 5, ...filterArgs, ...dateArgs) as SearchResult[];
   rrf.add(vectorResults);
 
   const normTokens = [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))];
@@ -100,10 +109,12 @@ export const searchNotes = (
              WHERE notes_fts MATCH ?
              ${aliasedCategoryFilter}
              ${aliasedTagFilter}
+             ${dateFromFilterAliased}
+             ${dateToFilterAliased}
              ORDER BY bm25(notes_fts)
              LIMIT ?`,
           )
-          .all(ftsQuery, ...filterArgs, limit * 3) as Note[];
+          .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Note[];
         rrf.add(ftsResults);
       } catch {
         // FTS5 query invalid or table unavailable — skip this source
@@ -123,20 +134,20 @@ export const searchNotes = (
            SELECT 1 FROM json_each(tags)
            WHERE lower(value) IN (${tagPlaceholders})
          )
-         ${categoryFilter}${tagFilter}
+         ${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
-      .all(...normTokens, ...normTokens, ...filterArgs, limit * 3) as Note[];
+      .all(...normTokens, ...normTokens, ...filterArgs, ...dateArgs, limit * 3) as Note[];
     rrf.add(tagResults);
 
     // Source 4: Title keyword match (2× weight — strongest exact-match signal)
     const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
     const titleResults = client.sqlite
       .prepare(
-        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter} LIMIT ?`,
+        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter} LIMIT ?`,
       )
-      .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, limit) as Note[];
+      .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, ...dateArgs, limit) as Note[];
     rrf.add(titleResults, 2.0);
   }
 

@@ -56,9 +56,11 @@ export const semanticSearch = async (
   limit: number,
   category?: string,
   tag?: string,
+  dateFrom?: number,
+  dateTo?: number,
 ) => {
   const embedding = await embedder(query, 'query');
-  return dbSearchNotes(client, query, embedding, limit, category, tag);
+  return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
 };
 
 export const editNote = async (

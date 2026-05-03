@@ -13,7 +13,9 @@ export const registerSearch = (program: Command) => {
     .option('-l, --limit <n>', 'Max results', '5')
     .option('-c, --category <category>', 'Filter by top-level folder (e.g. conversations)')
     .option('-t, --tag <tag>', 'Filter by tag (e.g. typescript)')
-    .action(async (query: string, opts: { limit: string; category?: string; tag?: string }) => {
+    .option('--from <date>', 'Filter notes created on or after date (YYYY-MM-DD)')
+    .option('--to <date>', 'Filter notes created on or before date (YYYY-MM-DD)')
+    .action(async (query: string, opts: { limit: string; category?: string; tag?: string; from?: string; to?: string }) => {
       const s = spinner();
       s.start('Loading embedder...');
 
@@ -22,7 +24,9 @@ export const registerSearch = (program: Command) => {
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
       s.message('Searching...');
-      const results = await semanticSearch(client, embedder, query, Number(opts.limit), opts.category, opts.tag);
+      const dateFrom = opts.from ? new Date(opts.from).getTime() : undefined;
+      const dateTo = opts.to ? new Date(opts.to).getTime() : undefined;
+      const results = await semanticSearch(client, embedder, query, Number(opts.limit), opts.category, opts.tag, dateFrom, dateTo);
       s.stop(`Found ${results.length} result(s)`);
 
       if (results.length === 0) {
