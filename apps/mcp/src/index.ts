@@ -11,6 +11,8 @@ import { registerListNotes } from './tools/list-notes.ts';
 import { registerGetNote } from './tools/get-note.ts';
 import { registerDeleteNote } from './tools/delete-note.ts';
 import { registerUpdateNote } from './tools/update-note.ts';
+import { registerListTags } from './tools/list-tags.ts';
+import { registerListFolders } from './tools/list-folders.ts';
 
 const config = loadConfig();
 const vaultPath = expandPath(config.vault_path);
@@ -47,6 +49,8 @@ registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);
 registerUpdateNote(server, client, embedder, vaultPath);
+registerListTags(server, client);
+registerListFolders(server, client);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

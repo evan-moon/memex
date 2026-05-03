@@ -217,6 +217,31 @@ export const findSimilarByEmbedding = (
   return rows.slice(0, limit);
 };
 
+export type TagCount = { tag: string; count: number };
+
+export const listAllTags = (client: MemexClient): TagCount[] =>
+  client.sqlite
+    .prepare(
+      `SELECT t.value AS tag, COUNT(*) AS count
+       FROM notes n, json_each(n.tags) t
+       GROUP BY t.value
+       ORDER BY count DESC, t.value ASC`,
+    )
+    .all() as TagCount[];
+
+export type FolderCount = { folder: string; count: number };
+
+export const listAllFolders = (client: MemexClient): FolderCount[] =>
+  client.sqlite
+    .prepare(
+      `SELECT category AS folder, COUNT(*) AS count
+       FROM notes
+       WHERE category IS NOT NULL
+       GROUP BY category
+       ORDER BY count DESC, category ASC`,
+    )
+    .all() as FolderCount[];
+
 export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
 export const findRelatedNotes = (
