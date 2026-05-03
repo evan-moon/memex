@@ -4,6 +4,7 @@ import LangToggle from '@/app/_components/LangToggle';
 import { LocaleProvider } from '@/app/_components/LocaleContext';
 import { isLocale, type Locale } from '@/app/_components/locale';
 import DocsSidebar from './_sidebar';
+import DocsMobileControls from './_mobile-controls';
 
 export default async function LocaleDocsLayout({
   children,
@@ -26,6 +27,7 @@ export default async function LocaleDocsLayout({
           <LangToggle />
         </div>
       </header>
+      <DocsMobileControls />
       <div className="docs-outer">
         <aside className="docs-sidebar-desktop">
           <DocsSidebar />

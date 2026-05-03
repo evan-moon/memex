@@ -944,7 +944,71 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
 }
 
+.docs-mobile-tools,
+.docs-mobile-backdrop,
+.docs-mobile-drawer {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .docs-sidebar-desktop { display: none; }
   .docs-content { padding: 1.5rem 1.25rem 4rem; }
+
+  .docs-mobile-tools {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    min-height: 2.75rem;
+  }
+
+  .docs-mobile-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .docs-mobile-btn:hover { color: var(--fg); border-color: var(--muted); }
+
+  .docs-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    border: none;
+    transition: opacity 0.2s;
+    cursor: default;
+  }
+
+  .docs-mobile-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .docs-mobile-drawer {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    z-index: 51;
+    overflow-y: auto;
+    padding: 1.5rem 0;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .docs-mobile-menu.open { transform: translateX(0); }
 }
