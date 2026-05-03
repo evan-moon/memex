@@ -17,7 +17,7 @@ import {
 } from '@memex/db';
 import { extractCategory, buildEmbeddingText } from '@memex/utils';
 
-type Embedder = (text: string) => Promise<number[]>;
+type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
 const sanitizeFilename = (title: string): string =>
   title
