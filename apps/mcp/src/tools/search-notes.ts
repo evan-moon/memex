@@ -31,8 +31,15 @@ export const registerSearchNotes = (
         .describe('Filter notes created on or before this date (ISO 8601, e.g. "2026-05-01")'),
     },
     async ({ query, limit, category, tag, date_from, date_to }) => {
-      const dateFrom = date_from ? new Date(date_from).getTime() : undefined;
-      const dateTo = date_to ? new Date(date_to).getTime() : undefined;
+      const parseDate = (s: string, label: string): number => {
+        const ms = new Date(s).getTime();
+        if (isNaN(ms)) throw new Error(`Invalid ${label}: "${s}". Use ISO 8601 format, e.g. "2026-04-01".`);
+        return ms;
+      };
+      const dateFrom = date_from ? parseDate(date_from, 'date_from') : undefined;
+      const dateTo = date_to
+        ? parseDate(date_to.includes('T') ? date_to : date_to + 'T23:59:59.999Z', 'date_to')
+        : undefined;
       const results = await semanticSearch(client, embedder, query, limit, category, tag, dateFrom, dateTo);
       if (results.length === 0) {
         return { content: [{ type: 'text', text: 'No notes found.' }] };

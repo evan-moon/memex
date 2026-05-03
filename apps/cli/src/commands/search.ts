@@ -24,8 +24,18 @@ export const registerSearch = (program: Command) => {
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
       s.message('Searching...');
-      const dateFrom = opts.from ? new Date(opts.from).getTime() : undefined;
-      const dateTo = opts.to ? new Date(opts.to).getTime() : undefined;
+      const parseDate = (s: string, label: string): number => {
+        const ms = new Date(s).getTime();
+        if (isNaN(ms)) {
+          console.error(`Error: Invalid ${label} date: "${s}". Use YYYY-MM-DD format.`);
+          process.exit(1);
+        }
+        return ms;
+      };
+      const dateFrom = opts.from ? parseDate(opts.from, '--from') : undefined;
+      const dateTo = opts.to
+        ? parseDate(opts.to.includes('T') ? opts.to : opts.to + 'T23:59:59.999Z', '--to')
+        : undefined;
       const results = await semanticSearch(client, embedder, query, Number(opts.limit), opts.category, opts.tag, dateFrom, dateTo);
       s.stop(`Found ${results.length} result(s)`);
 
