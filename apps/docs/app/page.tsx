@@ -212,9 +212,30 @@ export default function Home() {
               <div>
                 <div className="feature-title">Standalone CLI</div>
                 <div className="feature-desc">
-                  Add, search, tag, and browse notes from the terminal. Index external
-                  directories like existing Obsidian vaults. Pipe-friendly with
-                  <code>--json</code> output.
+                  Add, search, tag, and browse notes from the terminal. Filter by date range
+                  with <code>--from</code> / <code>--to</code>. Index external directories
+                  like existing Obsidian vaults.
+                </div>
+              </div>
+            </div>
+            <div className="feature">
+              <div className="feature-icon">⇆</div>
+              <div>
+                <div className="feature-title">Backlinks</div>
+                <div className="feature-desc">
+                  Link notes with <code>[[Title]]</code> syntax. <code>get_note</code> automatically
+                  surfaces which other notes reference it — building a graph of connected thinking
+                  without any manual wiring.
+                </div>
+              </div>
+            </div>
+            <div className="feature">
+              <div className="feature-icon">∑</div>
+              <div>
+                <div className="feature-title">Daily digest</div>
+                <div className="feature-desc">
+                  <code>memex digest</code> prints a summary of everything saved in the last
+                  N days, grouped by folder. A quick way to review what Claude captured this week.
                 </div>
               </div>
             </div>
@@ -307,7 +328,11 @@ export default function Home() {
             </div>
             <div className="command-row">
               <span className="cmd">memex search &lt;query&gt;</span>
-              <span className="cmd-desc">Semantic search across all notes</span>
+              <span className="cmd-desc">Semantic search — supports <code>--from</code>, <code>--to</code>, <code>--tag</code></span>
+            </div>
+            <div className="command-row">
+              <span className="cmd">memex digest</span>
+              <span className="cmd-desc">Summary of notes saved in the last N days</span>
             </div>
             <div className="command-row">
               <span className="cmd">memex list</span>
@@ -324,6 +349,10 @@ export default function Home() {
             <div className="command-row">
               <span className="cmd">memex related &lt;id&gt;</span>
               <span className="cmd-desc">Find semantically related notes</span>
+            </div>
+            <div className="command-row">
+              <span className="cmd">memex tags</span>
+              <span className="cmd-desc">List all tags with note counts</span>
             </div>
             <div className="command-row">
               <span className="cmd">memex source add &lt;path&gt;</span>

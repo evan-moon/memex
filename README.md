@@ -76,7 +76,11 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 
 - **Semantic search** — finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
 - **Hybrid retrieval** — vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
+- **Date filter** — narrow search to a time range with `--from` / `--to`
 - **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
+- **Duplicate detection** — `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
+- **Backlinks** — link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
+- **Digest** — `memex digest` summarises notes saved in the last N days, grouped by folder
 - **CLI** — add, search, tag, browse, and index notes from the terminal
 - **Obsidian-compatible** — notes saved as `.md` files; works alongside existing vaults
 - **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) at `~/.memex/memex.db`
@@ -97,6 +101,8 @@ memex add --title "Note title" --content "..." -T typescript -T architecture
 memex search "semantic search query"         # multilingual
 memex search "지식 관리" --limit 10
 memex search "query" --tag typescript        # filter by tag
+memex search "query" --from 2026-04-01       # notes since a date
+memex search "query" --from 2026-04-01 --to 2026-04-30
 
 # Browse
 memex list                                   # recent 10 notes
@@ -104,6 +110,8 @@ memex list --limit 20
 memex show <id>
 memex tags                                   # all tags with counts
 memex related <id>                           # semantically related notes
+memex digest                                 # summary of last 7 days
+memex digest --days 30                       # summary of last 30 days
 
 # Edit / delete
 memex edit <id>
@@ -162,10 +170,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note with title, content, folder, and tags |
-| `search_notes` | Semantic search across all notes |
+| `save_note` | Save a note — warns if a similar note already exists |
+| `search_notes` | Semantic search; supports `category`, `tag`, `date_from`, `date_to` filters |
 | `list_notes` | List recent notes |
-| `get_note` | Get full content of a note by ID |
+| `list_tags` | List all tags with note counts |
+| `list_folders` | List all folders with note counts |
+| `get_note` | Get full content and backlinks of a note by ID |
 | `update_note` | Update title or content of an existing note |
 | `delete_note` | Delete a note by ID |
 
