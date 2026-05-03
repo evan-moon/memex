@@ -58,6 +58,14 @@ export const openDb = (dbDir: string): MemexClient => {
   try { sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT'); } catch { /* already exists */ }
   try { sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch { /* already exists */ }
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_links (
+      source_id INTEGER NOT NULL,
+      target_id INTEGER NOT NULL,
+      PRIMARY KEY (source_id, target_id)
+    );
+  `);
+
   // FTS5 full-text index (BM25 over title + content)
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(

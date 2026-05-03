@@ -8,6 +8,7 @@ import {
   saveEmbedding,
   searchNotes as dbSearchNotes,
   serializeTags,
+  syncLinks,
   updateNote,
   type MemexClient,
   type NoteSource,
@@ -45,6 +46,7 @@ export const saveNote = async (
   const note = insertNote(client, { ...params, filePath, category: category ?? undefined, tags });
   const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
   saveEmbedding(client, note.id, embedding);
+  syncLinks(client, note.id, params.content);
 
   return note;
 };
@@ -86,6 +88,7 @@ export const editNote = async (
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   const embedding = await embedder(buildEmbeddingText(title, content, folder, resolvedTags));
   saveEmbedding(client, id, embedding);
+  syncLinks(client, id, content);
 
   return updated;
 };

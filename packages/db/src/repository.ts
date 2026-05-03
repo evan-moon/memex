@@ -244,6 +244,37 @@ export const listAllFolders = (client: MemexClient): FolderCount[] =>
 
 export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
+const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
+
+export const syncLinks = (client: MemexClient, sourceId: number, content: string): void => {
+  client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ?').run(sourceId);
+
+  const titles = [...content.matchAll(WIKI_LINK_RE)].map((m) => m[1].trim());
+  if (titles.length === 0) return;
+
+  const insert = client.sqlite.prepare(
+    'INSERT OR IGNORE INTO note_links(source_id, target_id) VALUES (?, ?)',
+  );
+  const findByTitle = client.sqlite.prepare(
+    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
+  );
+
+  for (const title of titles) {
+    const row = findByTitle.get(title) as { id: number } | undefined;
+    if (row) insert.run(sourceId, row.id);
+  }
+};
+
+export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
+  client.sqlite
+    .prepare(
+      `SELECT n.* FROM note_links l
+       JOIN notes n ON n.id = l.source_id
+       WHERE l.target_id = ?
+       ORDER BY n.updated_at DESC`,
+    )
+    .all(targetId) as Note[];
+
 export const findRelatedNotes = (
   client: MemexClient,
   noteId: number,
