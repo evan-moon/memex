@@ -40,14 +40,13 @@ export const registerSaveNote = (
         source: source as NoteSource,
       });
 
-      let text = `Saved note #${note.id}: "${note.title}"`;
-
-      if (similar.length > 0) {
-        const list = similar
-          .map((s) => `- #${s.id} "${s.title}" (distance: ${s.distance.toFixed(3)})`)
-          .join('\n');
-        text += `\n\n⚠️ Similar notes already exist — consider updating one instead:\n${list}`;
-      }
+      const warning =
+        similar.length > 0
+          ? `\n\n⚠️ Similar notes already exist — consider updating one instead:\n${similar
+              .map((s) => `- #${s.id} "${s.title}" (distance: ${s.distance.toFixed(3)})`)
+              .join('\n')}`
+          : '';
+      const text = `Saved note #${note.id}: "${note.title}"${warning}`;
 
       return { content: [{ type: 'text', text }] };
     },

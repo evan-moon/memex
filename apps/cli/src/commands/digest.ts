@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { openDb, listNotesSince, parseTags } from '@memex/db';
+import { type Note, openDb, listNotesSince, parseTags } from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
 
 export const registerDigest = (program: Command) => {
@@ -26,28 +26,25 @@ export const registerDigest = (program: Command) => {
         return;
       }
 
-      // Group by category (top-level folder), null → '(root)'
-      const groups = new Map<string, typeof notesResult>();
-      for (const note of notesResult) {
+      const groups = notesResult.reduce<Map<string, Note[]>>((acc, note) => {
         const key = note.category ?? '(root)';
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(note);
-      }
+        return acc.set(key, [...(acc.get(key) ?? []), note]);
+      }, new Map());
 
       console.log();
       console.log(pc.bold(`Digest — last ${days} day(s) since ${sinceDate}`));
       console.log(pc.dim(`${notesResult.length} note(s) across ${groups.size} folder(s)`));
 
-      for (const [folder, folderNotes] of groups) {
+      Array.from(groups.entries()).forEach(([folder, folderNotes]) => {
         console.log();
-        console.log(pc.bold(pc.cyan(`${folder}`)));
-        for (const note of folderNotes) {
+        console.log(pc.bold(pc.cyan(folder)));
+        folderNotes.forEach((note) => {
           const date = formatDate(new Date(note.createdAt));
           const tags = parseTags(note.tags);
           const tagStr = tags.length > 0 ? pc.dim(`  [${tags.join(', ')}]`) : '';
           console.log(`  ${pc.bold(`#${note.id}`)} ${note.title}${tagStr}  ${pc.dim(date)}`);
-        }
-      }
+        });
+      });
       console.log();
     });
 };

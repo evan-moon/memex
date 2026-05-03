@@ -247,7 +247,7 @@ export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
 const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
-export const syncLinks = (client: MemexClient, sourceId: number, content: string): void => {
+export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ?').run(sourceId);
 
   const titles = [...content.matchAll(WIKI_LINK_RE)].map((m) => m[1].trim());
@@ -260,10 +260,10 @@ export const syncLinks = (client: MemexClient, sourceId: number, content: string
     'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
   );
 
-  for (const title of titles) {
+  titles.forEach((title) => {
     const row = findByTitle.get(title) as { id: number } | undefined;
     if (row) insert.run(sourceId, row.id);
-  }
+  });
 };
 
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
