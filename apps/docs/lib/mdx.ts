@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import matter from 'gray-matter';
 import { evaluate, type EvaluateOptions } from '@mdx-js/mdx';
+import remarkGfm from 'remark-gfm';
 import * as runtime from 'react/jsx-runtime';
 import type { MDXComponents } from 'mdx/types';
 import type { ReactElement } from 'react';
@@ -40,6 +41,7 @@ export async function loadDoc(slug: string, locale: Locale): Promise<DocSource |
   const compiled = await evaluate(content, {
     ...(runtime as EvaluateOptions),
     development: process.env.NODE_ENV !== 'production',
+    remarkPlugins: [remarkGfm],
   });
 
   return {
