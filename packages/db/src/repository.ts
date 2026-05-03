@@ -171,6 +171,7 @@ export const listNotesByPathPrefix = (client: MemexClient, prefix: string): Note
 
 export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
+  client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
 
