@@ -12,12 +12,15 @@
     "build": "turbo build",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "check": "biome check ."
+    "check": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "packageManager": "yarn@4.14.1",
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
     "turbo": "^2.5.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.5"
   }
 }
