@@ -19,7 +19,7 @@ export const mdxComponents = {
     return <h2 className="docs-h2" id={props.id ?? fallbackId} {...props} />;
   },
   h3: (props: ComponentProps<'h3'>) => <h3 className="docs-h3" {...props} />,
-  p: (props: ComponentProps<'p'>) => <p className="docs-p" {...props} />,
+  p: (props: ComponentProps<'p'>) => <p className="docs-body" {...props} />,
   ul: (props: ComponentProps<'ul'>) => <ul className="docs-ul" {...props} />,
   ol: (props: ComponentProps<'ol'>) => <ol className="docs-ol" {...props} />,
   li: (props: ComponentProps<'li'>) => <li className="docs-li" {...props} />,

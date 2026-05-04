@@ -1,20 +1,6 @@
 export default function Home() {
   return (
     <>
-      {/* ── Nav ───────────────────────────────────────────────── */}
-      <header className="nav">
-        <span className="nav-logo">memex</span>
-        <nav className="nav-links">
-          <a href="/en/docs/getting-started" className="nav-link">Docs</a>
-          <a href="https://github.com/evan-moon/memex" target="_blank" rel="noopener noreferrer" className="nav-link">
-            GitHub <span className="nav-arrow">↗</span>
-          </a>
-          <a href="https://www.npmjs.com/package/@evan-moon/memex" target="_blank" rel="noopener noreferrer" className="nav-link">
-            npm <span className="nav-arrow">↗</span>
-          </a>
-        </nav>
-      </header>
-
       <main className="page">
 
         {/* ── Hero ──────────────────────────────────────────────── */}
