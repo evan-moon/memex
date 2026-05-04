@@ -22,7 +22,6 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
 
 export const saveEmbedding = (client: MemexClient, noteId: number, embedding: number[]): void => {
   const vec = new Float32Array(embedding);
-  // better-sqlite3 passes JS numbers as SQLite REAL; BigInt binds as INTEGER (required by vec0 PK)
   client.sqlite
     .prepare('INSERT OR REPLACE INTO note_embeddings(note_id, embedding) VALUES (?, ?)')
     .run(BigInt(noteId), Buffer.from(vec.buffer));
@@ -74,7 +73,6 @@ export const searchNotes = (
 
   const rrf = buildRrf();
 
-  // Source 1: Vector (dense semantic)
   const vectorResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
@@ -94,7 +92,6 @@ export const searchNotes = (
   const normTokens = [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))];
 
   if (normTokens.length > 0) {
-    // Source 2: FTS5 (BM25 over title + content body)
     const ftsTokens = normTokens
       .map((t) => t.replace(/["'*^()\[\]{}\\]/g, '').trim())
       .filter((t) => t.length >= 2);
@@ -117,11 +114,9 @@ export const searchNotes = (
           .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Note[];
         rrf.add(ftsResults);
       } catch {
-        // FTS5 query invalid or table unavailable — skip this source
       }
     }
 
-    // Source 3: Tag exact match (ordered by number of matching tags)
     const tagPlaceholders = normTokens.map(() => '?').join(', ');
     const tagResults = client.sqlite
       .prepare(
@@ -141,7 +136,6 @@ export const searchNotes = (
       .all(...normTokens, ...normTokens, ...filterArgs, ...dateArgs, limit * 3) as Note[];
     rrf.add(tagResults);
 
-    // Source 4: Title keyword match (2× weight — strongest exact-match signal)
     const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
     const titleResults = client.sqlite
       .prepare(
@@ -311,7 +305,6 @@ export const findRelatedNotes = (
     .map((r) => {
       const rTags = parseTags(r.tags);
       const sharedTags = sourceTags.filter((t) => rTags.includes(t));
-      // vecScore: 1/(1+d) → [0,1], higher = closer
       const vecScore = 1 / (1 + r.distance);
       const tagScore =
         sourceTags.length + rTags.length > 0

@@ -40,7 +40,6 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
-  // Recreate vec0 table if embedding dimension changed (e.g. model upgrade)
   const embRow = sqlite
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_embeddings'")
     .get() as { sql: string } | undefined;
@@ -54,7 +53,6 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
-  // Idempotent migrations for pre-existing DBs
   try { sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT'); } catch { /* already exists */ }
   try { sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch { /* already exists */ }
 
@@ -66,7 +64,6 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
-  // FTS5 full-text index (BM25 over title + content)
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       title,
@@ -93,7 +90,6 @@ export const openDb = (dbDir: string): MemexClient => {
     END;
   `);
 
-  // One-time backfill: notes_fts_docsize has one row per indexed doc; 0 = index is empty
   try {
     const { n } = sqlite.prepare('SELECT COUNT(*) as n FROM notes_fts_docsize').get() as { n: number };
     if (n === 0) sqlite.exec("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')");

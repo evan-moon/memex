@@ -41,7 +41,6 @@ export const saveNote = async (
   vaultPath: string,
   params: { title: string; content: string; source: NoteSource; folder?: string; tags?: string[] },
 ): Promise<{ note: Note; similar: SimilarNote[] }> => {
-  // Compute embedding first so we can reuse it for similarity check
   const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
   const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
 

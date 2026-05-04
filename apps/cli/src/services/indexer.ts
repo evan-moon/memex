@@ -77,7 +77,6 @@ const indexFile = async (
       saveEmbedding(client, note.id, embedding);
       stats.added++;
     } catch {
-      // File was already inserted by a concurrent scan (e.g. overlapping source paths)
       stats.skipped++;
     }
   }
@@ -122,7 +121,6 @@ export const indexDirectory = async (
     );
   }
 
-  // Remove notes that no longer exist on disk OR whose paths are now ignored
   const fileSet = new Set(files);
   for (const note of listNotesByPathPrefix(client, dirPath)) {
     if (isIgnoredPath(note.filePath) || (!fileSet.has(note.filePath) && !existsSync(note.filePath))) {
