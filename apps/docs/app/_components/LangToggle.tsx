@@ -2,12 +2,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const toLocale = (path: string, locale: 'en' | 'ko'): string => {
-  const other = locale === 'en' ? 'ko' : 'en';
-  if (path === `/${other}`) return `/${locale}`;
-  if (path.startsWith(`/${other}/`)) return path.replace(`/${other}/`, `/${locale}/`);
-  if (locale === 'ko') return `/ko${path === '/' ? '' : path}`;
+const stripKo = (path: string): string => {
+  if (path === '/ko') return '/';
+  if (path.startsWith('/ko/')) return path.replace(/\/ko\//, '/en/');
   return path;
+};
+
+const targetKo = (path: string): string => {
+  if (path === '/') return '/ko';
+  return path.replace(/\/en\//, '/ko/');
 };
 
 export default function LangToggle() {
@@ -17,7 +20,7 @@ export default function LangToggle() {
   return (
     <div className="lang-toggle" role="group" aria-label="Language">
       <Link
-        href={toLocale(pathname, 'en')}
+        href={stripKo(pathname)}
         className={`lang-toggle-link${!onKo ? ' active' : ''}`}
         aria-current={!onKo ? 'page' : undefined}
       >
@@ -25,7 +28,7 @@ export default function LangToggle() {
       </Link>
       <span className="lang-toggle-sep">·</span>
       <Link
-        href={toLocale(pathname, 'ko')}
+        href={targetKo(pathname)}
         className={`lang-toggle-link${onKo ? ' active' : ''}`}
         aria-current={onKo ? 'page' : undefined}
       >
