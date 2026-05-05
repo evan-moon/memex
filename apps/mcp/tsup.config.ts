@@ -5,5 +5,4 @@ export default defineConfig({
   ...baseConfig,
   entry: ['src/index.ts'],
   noExternal: [/@modelcontextprotocol/, /@memex/],
-  external: ['./embed.js'],
 });
