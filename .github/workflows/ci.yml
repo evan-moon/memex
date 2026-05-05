@@ -27,9 +27,29 @@ jobs:
       - name: Run unit tests
         run: yarn test
 
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Type check
+        run: yarn typecheck
+
   smoke-test:
     name: ${{ matrix.os }} / Node ${{ matrix.node }}
-    needs: test
+    needs: [test, typecheck]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
