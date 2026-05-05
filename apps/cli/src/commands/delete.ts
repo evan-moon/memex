@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { confirm, isCancel, cancel } from '@clack/prompts';
 import pc from 'picocolors';
 import { openDb, getNote } from '@memex/db';
-import { loadConfig, expandPath } from '@memex/utils';
+import { CONFIG_DIR } from '@memex/utils';
 import { removeNote } from '../services/note.ts';
 
 export const registerDelete = (program: Command) => {
@@ -11,8 +11,6 @@ export const registerDelete = (program: Command) => {
     .description('Delete a note by ID')
     .option('-y, --yes', 'Skip confirmation')
     .action(async (id: string, opts: { yes?: boolean }) => {
-      const config = loadConfig();
-      const vaultPath = expandPath(config.vault_path);
       const client = openDb(CONFIG_DIR);
       const note = getNote(client, Number(id));
 
