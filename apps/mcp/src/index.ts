@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { mkdirSync } from 'node:fs';
 import { openDb } from '@memex/db';
-import { createEmbedder } from './embed.js';
+import { createEmbedder } from '@memex/embed';
 import { expandPath, loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from './config.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
