@@ -227,6 +227,12 @@ memex is the memory layer of the [Herald](https://ai-herald.vercel.app) ambient 
 
 ---
 
+## llms.txt
+
+[`llms.txt`](llms.txt) is a machine-readable summary of this project for LLM agents — concise description with documentation links, following the [llms.txt standard](https://llmstxt.org/).
+
+---
+
 ## License
 
 MIT

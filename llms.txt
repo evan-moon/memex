@@ -1,0 +1,16 @@
+# memex
+
+> Local-first second brain for Claude. Notes stored as plain Markdown, indexed with a local multilingual embedding model, exposed to Claude over MCP. Fully offline, no API keys.
+
+memex makes Claude smarter about you. It searches your notes before answering and saves insights at the end of every conversation — automatically. Hybrid retrieval (vector + BM25 + tag) over an `~/.memex/memex.db` SQLite database with `sqlite-vec`. Multilingual (Korean + English) via `multilingual-e5-base`. Obsidian-compatible: notes live as `.md` files in a vault you can also open in Obsidian.
+
+## Documentation
+- [README](https://github.com/evan-moon/memex/blob/main/README.md): Install, features, CLI reference, MCP setup
+- [CLI](https://github.com/evan-moon/memex/blob/main/README.md#cli): Add, search, browse, edit/delete, source, config
+- [MCP server](https://github.com/evan-moon/memex/blob/main/README.md#mcp-server): Claude Code / Claude Desktop setup, tool catalog
+- [Architecture](https://github.com/evan-moon/memex/blob/main/README.md#architecture): Package layout and on-disk format
+- [npm](https://www.npmjs.com/package/@evan-moon/memex): `npm install -g @evan-moon/memex`
+
+## Optional
+- [Herald](https://ai-herald.vercel.app): Voice assistant that consumes memex over MCP
+- [firma](https://github.com/evan-moon/firma): Companion MCP server for personal finance
