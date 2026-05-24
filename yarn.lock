@@ -336,6 +336,7 @@ __metadata:
     "@memex/db": "workspace:*"
     "@memex/embed": "workspace:*"
     "@memex/mcp": "workspace:*"
+    "@memex/rerank": "workspace:*"
     "@memex/utils": "workspace:*"
     "@types/better-sqlite3": "npm:^7.6.13"
     "@types/node": "npm:^22"
@@ -736,6 +737,7 @@ __metadata:
   dependencies:
     "@memex/db": "workspace:*"
     "@memex/embed": "workspace:*"
+    "@memex/rerank": "workspace:*"
     "@memex/utils": "workspace:*"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
     "@types/better-sqlite3": "npm:^7.6.13"
@@ -750,7 +752,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@memex/rerank@workspace:packages/rerank":
+"@memex/rerank@workspace:*, @memex/rerank@workspace:packages/rerank":
   version: 0.0.0-use.local
   resolution: "@memex/rerank@workspace:packages/rerank"
   dependencies:

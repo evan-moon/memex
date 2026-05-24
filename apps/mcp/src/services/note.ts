@@ -17,6 +17,7 @@ import {
   type NoteSource,
   type SimilarNote,
 } from '@memex/db';
+import type { Reranker } from '@memex/rerank';
 import { extractCategory, buildEmbeddingText } from '@memex/utils';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -60,6 +61,7 @@ export const saveNote = async (
 export const semanticSearch = async (
   client: MemexClient,
   embedder: Embedder,
+  reranker: Reranker | null,
   query: string,
   limit: number,
   category?: string,
@@ -67,8 +69,30 @@ export const semanticSearch = async (
   dateFrom?: number,
   dateTo?: number,
 ) => {
+  const overfetch = reranker ? Math.min(50, limit * 10) : limit;
   const embedding = await embedder(query, 'query');
-  return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
+  const candidates = dbSearchNotes(
+    client,
+    query,
+    embedding,
+    overfetch,
+    category,
+    tag,
+    dateFrom,
+    dateTo,
+  );
+
+  if (!reranker || candidates.length <= limit) return candidates.slice(0, limit);
+
+  const scores = await reranker(
+    query,
+    candidates.map((c) => `${c.title}\n\n${c.content}`),
+  );
+
+  return candidates
+    .map((note, i) => ({ ...note, distance: -scores[i] }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit);
 };
 
 export type EditNoteRejection =
