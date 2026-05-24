@@ -40,13 +40,13 @@ Create shorthand aliases that expand at search time:
 ```json
 {
   "aliases": {
-    "js": ["javascript", "자바스크립트"],
+    "js": ["javascript", "ecmascript"],
     "ts": ["typescript"]
   }
 }
 ```
 
-Set via `~/.memex/config.json`. Searching "js" will also match "javascript" and "자바스크립트" notes.
+Set via `~/.memex/config.json`. Searching "js" will also match notes containing "javascript" or "ecmascript". Values can be any language — useful for bridging across scripts (e.g. mapping an English alias to its Korean or Japanese term).
 
 ## Duplicate detection
 

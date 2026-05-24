@@ -3,15 +3,15 @@ title: 노트 레이어
 description: memex가 모든 노트를 past / state / rule로 분류하는 방식 — 각 레이어의 의미와 Claude의 권한.
 ---
 
-memex는 모든 노트를 세 가지 **mutability 레이어** 중 하나로 분류합니다. 레이어는 Claude가 노트를 어떻게 읽고 쓸 수 있는지를 결정하며, 노트가 표시되는 곳마다 짧은 시각적 표시(`[과거]` / `[현재]` / `[규칙]`)가 함께 나옵니다.
+memex는 모든 노트를 세 가지 **mutability 레이어** 중 하나로 분류합니다. 레이어는 Claude가 노트를 어떻게 읽고 쓸 수 있는지를 결정하며, CLI에서 노트가 표시되는 곳마다 색이 있는 `[past]` / `[state]` / `[rule]` 배지가 함께 나옵니다.
 
 ## 세 가지 레이어
 
-| 레이어 | 배지 | 의미 | Claude의 권한 |
-|--------|------|------|--------------|
-| `past` | `[과거]` | 일어난 일의 기록 — 회고, 미팅, 결정 reasoning, 디버깅 세션, 대화 | **Append-only.** `update_note`는 `error: 'PAST_IMMUTABLE'`로 거부. 정정하려면 원본으로 위키링크하는 `[Amendment]` 새 노트를 저장. |
-| `state` | `[현재]` | 현재 상태나 계획 — 프로젝트 진행, 로드맵, 사람의 현재 직책, 진행 중인 작업 | **자유 수정.** 가변 문서로 취급. |
-| `rule` | `[규칙]` | Claude 행동 가이드 — 코딩 스타일, 검색 정책, 개인 선호 | **Claude는 read-only.** 사용자만 수정. Claude는 직접 수정하지 않고 대화에 제안만 띄움. [MCP instructions에 자동 주입](/ko/docs/mcp-tools#house-rules-자동-주입)도 됨. |
+| 레이어 | 의미 | Claude의 권한 |
+|--------|------|--------------|
+| `past` | 일어난 일의 기록 — 회고, 미팅, 결정 reasoning, 디버깅 세션, 대화 | **Append-only.** `update_note`는 `error: 'PAST_IMMUTABLE'`로 거부. 정정하려면 원본으로 위키링크하는 `[Amendment]` 새 노트를 저장. |
+| `state` | 현재 상태나 계획 — 프로젝트 진행, 로드맵, 사람의 현재 직책, 진행 중인 작업 | **자유 수정.** 가변 문서로 취급. |
+| `rule` | Claude 행동 가이드 — 코딩 스타일, 검색 정책, 개인 선호 | **Claude는 read-only.** 사용자만 수정. Claude는 직접 수정하지 않고 대화에 제안만 띄움. [MCP instructions에 자동 주입](/ko/docs/mcp-tools#house-rules-자동-주입)도 됨. |
 
 ## 분류 방식
 

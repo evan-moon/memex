@@ -2,9 +2,9 @@ import pc from 'picocolors';
 import type { NoteLayer } from '@memex/db';
 
 const BADGE: Record<NoteLayer, string> = {
-  past: '[과거]',
-  state: '[현재]',
-  rule: '[규칙]',
+  past: '[past]',
+  state: '[state]',
+  rule: '[rule]',
 };
 
 const COLOR: Record<NoteLayer, (s: string) => string> = {

@@ -3,15 +3,15 @@ title: Note Layers
 description: How memex classifies every note as past, state, or rule — and what each layer means for Claude.
 ---
 
-memex classifies every note into one of three **mutability layers**. The layer determines how Claude is allowed to read and write the note, and surfaces a small visual cue (`[과거]` / `[현재]` / `[규칙]`) wherever the note appears.
+memex classifies every note into one of three **mutability layers**. The layer determines how Claude is allowed to read and write the note, and surfaces a small colour-coded badge (`[past]` / `[state]` / `[rule]`) wherever the note appears in the CLI.
 
 ## The three layers
 
-| Layer | Badge | Meaning | Claude's permission |
-|-------|-------|---------|---------------------|
-| `past` | `[과거]` | Record of what happened — retros, meetings, decision rationale, debugging sessions, conversations | **Append-only.** `update_note` refuses with `error: 'PAST_IMMUTABLE'`. To correct, save a new `[Amendment]` note that wiki-links back to the original. |
-| `state` | `[현재]` | Current state or plans — project progress, roadmaps, a person's current role, ongoing work | **Freely updatable.** Treated like a mutable document. |
-| `rule` | `[규칙]` | Behaviour guide for Claude — coding style, search policy, personal preferences | **Read-only for Claude.** Only the user writes. Claude surfaces proposed changes in chat instead of writing them. Also [auto-injected into MCP instructions](/en/docs/mcp-tools#house-rules-auto-inject). |
+| Layer | Meaning | Claude's permission |
+|-------|---------|---------------------|
+| `past` | Record of what happened — retros, meetings, decision rationale, debugging sessions, conversations | **Append-only.** `update_note` refuses with `error: 'PAST_IMMUTABLE'`. To correct, save a new `[Amendment]` note that wiki-links back to the original. |
+| `state` | Current state or plans — project progress, roadmaps, a person's current role, ongoing work | **Freely updatable.** Treated like a mutable document. |
+| `rule` | Behaviour guide for Claude — coding style, search policy, personal preferences | **Read-only for Claude.** Only the user writes. Claude surfaces proposed changes in chat instead of writing them. Also [auto-injected into MCP instructions](/en/docs/mcp-tools#house-rules-auto-inject). |
 
 ## How classification works
 

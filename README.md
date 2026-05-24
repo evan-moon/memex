@@ -105,7 +105,7 @@ memex relayer <id> state                     # move a note to a different layer
 
 # Search
 memex search "semantic search query"         # multilingual
-memex search "지식 관리" --limit 10
+memex search "knowledge management" --limit 10    # multilingual: matches Korean/Japanese notes too
 memex search "query" --tag typescript        # filter by tag
 memex search "query" --from 2026-04-01       # notes since a date
 memex search "query" --from 2026-04-01 --to 2026-04-30
@@ -189,11 +189,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Every note is classified into one of three layers based on mutability:
 
-| Layer | Badge | Meaning | Claude's permission |
-|-------|-------|---------|---------------------|
-| `past` | `[과거]` | Record of what happened — retros, meetings, decision rationale, debugging sessions | Append-only. `update_note` refuses, suggesting an `[Amendment]` note instead |
-| `state` | `[현재]` | Current state or plans — project progress, roadmaps, a person's current role | Freely updatable |
-| `rule` | `[규칙]` | Behaviour guide for Claude — coding style, search policy | Claude is read-only. Only the user writes |
+| Layer | Meaning | Claude's permission |
+|-------|---------|---------------------|
+| `past` | Record of what happened — retros, meetings, decision rationale, debugging sessions | Append-only. `update_note` refuses, suggesting an `[Amendment]` note instead |
+| `state` | Current state or plans — project progress, roadmaps, a person's current role | Freely updatable |
+| `rule` | Behaviour guide for Claude — coding style, search policy | Claude is read-only. Only the user writes |
+
+The CLI prints a colour-coded `[past]` / `[state]` / `[rule]` badge next to each note in `list`, `search`, and `show`.
 
 - `save_note` (MCP) and `memex add` (CLI) require an explicit `layer`. The classification rules are documented in the tool description so Claude picks correctly.
 - On first run, existing notes get a folder-based backfill: `projects`/`dev`/`herald` → `state`, `coding` → `rule`, everything else → `past`. Migration is idempotent.
@@ -232,7 +234,7 @@ Config lives at `~/.memex/config.json`.
 |-----|---------|-------------|
 | `vault_path` | `~/Documents/Second Brain` | Directory where `.md` files are saved |
 | `sources` | `[]` | Additional directories to index (e.g. existing Obsidian vaults) |
-| `aliases` | `{}` | Search alias map, e.g. `{ "js": ["javascript", "자바스크립트"] }` |
+| `aliases` | `{}` | Search alias map, e.g. `{ "js": ["javascript", "ecmascript"] }` — values can be any language to bridge across scripts |
 
 ```bash
 memex config set vault-path ~/my-vault
