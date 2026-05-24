@@ -23,7 +23,9 @@ export const registerSaveNote = (
          자유 update 가능.
 - rule: 사용자의 명시적 요청으로만 생성. Claude 행동 안내 (코드 스타일, 검색 정책 등).
 
-판단 시: 시제(과거 vs 현재/미래), "사실 vs 의도" 축. 모호하면 past.`,
+판단 시: 시제(과거 vs 현재/미래), "사실 vs 의도" 축. 모호하면 past.
+
+The response may include "Flashback" lines pointing to older notes from a different context that are semantically similar — surface these to the user when relevant.`,
     {
       title: z.string().describe('Title of the note'),
       content: z.string().describe('Content of the note in markdown'),
@@ -45,7 +47,7 @@ export const registerSaveNote = (
         .describe('Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide, user-only writes. When in doubt, choose past.'),
     },
     async ({ title, content, folder, tags, source, layer }) => {
-      const { note, similar } = await saveNote(client, embedder, vaultPath, {
+      const { note, similar, flashbacks } = await saveNote(client, embedder, vaultPath, {
         title,
         content,
         folder,
@@ -60,7 +62,18 @@ export const registerSaveNote = (
               .map((s) => `- #${s.id} "${s.title}" (distance: ${s.distance.toFixed(3)})`)
               .join('\n')}`
           : '';
-      const text = `Saved note #${note.id}: "${note.title}"${warning}`;
+
+      const flashbackSection =
+        flashbacks.length > 0
+          ? `\n\n🔗 Flashback — older notes from a different context:\n${flashbacks
+              .map(
+                (f) =>
+                  `- ${f.daysAgo} days ago: #${f.id} "${f.title}" (${((1 - f.distance) * 100).toFixed(0)}% match)`,
+              )
+              .join('\n')}`
+          : '';
+
+      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}`;
 
       return { content: [{ type: 'text', text }] };
     },
