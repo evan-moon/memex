@@ -750,6 +750,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@memex/rerank@workspace:packages/rerank":
+  version: 0.0.0-use.local
+  resolution: "@memex/rerank@workspace:packages/rerank"
+  dependencies:
+    "@huggingface/transformers": "npm:^3.5.1"
+    "@types/node": "npm:^22"
+    tsup: "npm:^8.4.0"
+    typescript: "npm:^5.8.3"
+  languageName: unknown
+  linkType: soft
+
 "@memex/utils@workspace:*, @memex/utils@workspace:packages/utils":
   version: 0.0.0-use.local
   resolution: "@memex/utils@workspace:packages/utils"
