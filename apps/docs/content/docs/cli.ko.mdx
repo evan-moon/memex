@@ -6,12 +6,23 @@ description: memex 커맨드라인 인터페이스 전체 레퍼런스.
 ## 노트 추가
 
 ```bash
-memex add                                       # 대화형 프롬프트
-memex add --title "노트 제목" --content "..."
-memex add --title "노트 제목" --file ./note.md
-memex add --title "노트 제목" --content "..." --folder conversations/tom
-memex add --title "노트 제목" --content "..." -T typescript -T architecture
+memex add                                                     # 대화형 프롬프트 (layer 입력)
+memex add --title "노트 제목" --content "..." --layer past
+memex add --title "노트 제목" --file ./note.md --layer state
+memex add --title "노트 제목" --content "..." --folder conversations/tom --layer past
+memex add --title "노트 제목" --content "..." -T typescript -T architecture --layer past
 ```
+
+`--layer`는 필수입니다. 회고/미팅/결정 기록은 `past`, 진행 중인 계획·로드맵은 `state`, Claude 행동 가이드는 `rule`을 선택합니다. 아래 [노트 레이어](#layers) 섹션 참조.
+
+## 레이어
+
+```bash
+memex classify                               # past / state / rule 분포 확인
+memex relayer <id> state                     # 특정 노트의 layer 정정
+```
+
+`classify`는 layer별 노트 수를 출력합니다 — 첫 마이그레이션 직후 폴더가 어떻게 매핑됐는지 확인할 때 유용합니다. `relayer`는 개별 노트를 정정할 때 사용합니다 (예: 로드맵 노트를 `past`에서 `state`로 이동).
 
 ## 검색
 

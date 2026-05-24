@@ -6,12 +6,23 @@ description: Full reference for the memex command-line interface.
 ## Add notes
 
 ```bash
-memex add                                    # interactive prompt
-memex add --title "Note title" --content "..."
-memex add --title "Note title" --file ./note.md
-memex add --title "Note title" --content "..." --folder conversations/tom
-memex add --title "Note title" --content "..." -T typescript -T architecture
+memex add                                                # interactive prompt (asks for layer)
+memex add --title "Note title" --content "..." --layer past
+memex add --title "Note title" --file ./note.md --layer state
+memex add --title "Note title" --content "..." --folder conversations/tom --layer past
+memex add --title "Note title" --content "..." -T typescript -T architecture --layer past
 ```
+
+`--layer` is required. Pick `past` for records (meetings, retros, decisions), `state` for ongoing plans, or `rule` for Claude behaviour guides. See [Note layers](#layers) below.
+
+## Layers
+
+```bash
+memex classify                               # distribution of past / state / rule
+memex relayer <id> state                     # move a single note to a different layer
+```
+
+`classify` prints the count per layer — useful right after the first-run migration to see how your folders mapped. `relayer` corrects individual notes (e.g. moving a roadmap note from `past` to `state`).
 
 ## Search
 

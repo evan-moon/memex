@@ -59,6 +59,10 @@ When saving a new note, memex computes its embedding and checks for existing not
 
 Claude is instructed to switch to `update_note` when this warning appears.
 
+## Flashback in results
+
+After the ranked results, both `memex search` and the MCP `search_notes` tool append a `🔗 Flashback` hint pointing to older notes (≥ 90 days old, default) from a *different folder* that are semantically related to the top result. This is how cross-context connections — "I wrote about this in a different project months ago" — actually become visible. See the dedicated [Flashback](/en/docs/flashback) page for the full story.
+
 ## CLI search options
 
 ```bash

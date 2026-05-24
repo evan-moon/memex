@@ -59,6 +59,10 @@ MCP를 통해 특정 기간에 대해 질문하면 Claude가 `date_from`과 `dat
 
 이 경고가 표시되면 Claude는 `update_note`로 전환하도록 지시받습니다.
 
+## 결과의 플래시백
+
+`memex search`와 MCP의 `search_notes` 모두, 순위 매겨진 결과 아래에 `🔗 Flashback` 힌트를 부착합니다. top 결과와 의미적으로 가까우면서 *다른 폴더에 있는 오래된 노트* (기본 90일+)를 함께 보여줍니다. "몇 달 전 다른 프로젝트에서 비슷한 걸 다뤘었네" 같은 cross-context 연결이 실제로 보이게 됩니다. 전체 동작은 [플래시백](/ko/docs/flashback) 페이지를 참조하세요.
+
 ## CLI 검색 옵션
 
 ```bash

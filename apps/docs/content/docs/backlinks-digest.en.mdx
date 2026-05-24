@@ -40,6 +40,15 @@ memex show <id>    # includes "Referenced by" section
 
 Via Claude: use `get_note` — backlinks appear at the bottom.
 
+### Wiki backlinks vs flashback links
+
+`note_links` tracks two kinds of edges via a `source` column:
+
+- `source = 'wiki'` — created by you via `[[Title]]` syntax. Re-synced on every save/update of the source note.
+- `source = 'flashback'` — created by memex when a save or search surfaces an older cross-context note. Persistent across syncs.
+
+`memex show <id>` lists both — the standard "Referenced by" block plus a "Surfaced as flashback in" block. The composite primary key `(source_id, target_id, source)` means the same pair can exist as both kinds simultaneously without colliding.
+
 ---
 
 ## Digest

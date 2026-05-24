@@ -9,13 +9,13 @@ When you connect memex to Claude, it gets access to 8 tools. Claude uses these a
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note. Warns if a semantically similar note already exists. |
-| `search_notes` | Hybrid semantic search with optional filters. |
+| `save_note` | Save a note. Requires `layer`. Warns if a similar note already exists. Surfaces flashbacks. |
+| `search_notes` | Hybrid semantic search with optional filters. Appends flashbacks for the top result. |
 | `list_notes` | List recent notes by creation date. |
 | `list_tags` | All tags with note counts. |
 | `list_folders` | All folders with note counts. |
 | `get_note` | Full note content + backlinks by ID. |
-| `update_note` | Update title, content, or tags of an existing note. |
+| `update_note` | Update title, content, or tags. Refuses `past` notes (suggests an `[Amendment]` note) and `rule` notes (user-only). |
 | `delete_note` | Delete a note by ID. |
 
 ## search_notes parameters
@@ -33,6 +33,8 @@ Example: _"What did we decide about auth last April?"_ → Claude calls `search_
 
 ## save_note behavior
 
+`save_note` requires a `layer` parameter — `past`, `state`, or `rule`. The classification rules are baked into the tool description so Claude picks correctly: past for records of what happened (default when in doubt), state for current plans, rule only when you explicitly ask.
+
 Before saving, Claude is instructed to:
 
 1. Call `list_tags` and `list_folders` to see existing taxonomy
@@ -40,6 +42,50 @@ Before saving, Claude is instructed to:
 3. Use `[[Title]]` wiki-link syntax for references to people, projects, or concepts
 
 If `save_note` returns a ⚠️ similar notes warning, Claude switches to `update_note` on the most relevant existing note instead of creating a duplicate.
+
+The response also includes any flashbacks — see [Flashback in tool responses](#flashback-in-tool-responses) below.
+
+## update_note layer guards
+
+`update_note` is layer-aware:
+
+- `past` → refused with `error: 'PAST_IMMUTABLE'` and a suggestion to save a new `[Amendment]` note that wiki-links back to the original. Claude is instructed to follow the suggestion automatically.
+- `rule` → refused with `error: 'RULE_USER_ONLY'`. Claude surfaces its proposed change in chat instead of writing it.
+- `state` → updates normally.
+
+This keeps your audit trail intact (past records stay frozen) and prevents Claude from silently rewriting its own behaviour rules.
+
+## House Rules auto-inject
+
+Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation — no `search_notes` call required. Coding style guides, personal preferences, and policy notes belong here.
+
+| Env | Default | Behaviour |
+|-----|---------|-----------|
+| `MEMEX_INJECT_RULES` | enabled | Set to `0` to disable injection entirely |
+| `MEMEX_RULES_MAX_CHARS` | `8000` | Byte budget; overflow truncates with a `console.warn` |
+
+Changes are picked up on the next Claude Desktop / Claude Code restart.
+
+## Flashback in tool responses
+
+Both `save_note` and `search_notes` append a `🔗 Flashback` section when older notes from a different folder match the current context:
+
+```
+Saved note #142: "Auth approach revisited"
+
+🔗 Flashback — older notes from a different context:
+- 124 days ago: #48 "Auth Architecture Decision" (82% match)
+```
+
+For `search_notes`, the flashback anchor is the top result. Claude is instructed to surface these to you when relevant — they're how "I wrote about this 3 months ago in a different project" connections actually become visible.
+
+Tunable via env:
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `MEMEX_FLASHBACK_DAYS` | `90` | minimum age gap, in days |
+| `MEMEX_FLASHBACK_DIST` | `0.4` | maximum vector distance (lower = stricter) |
+| `MEMEX_FLASHBACK_LIMIT` | `3` | max suggestions per surface |
 
 ## get_note + backlinks
 
