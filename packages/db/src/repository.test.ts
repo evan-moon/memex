@@ -237,7 +237,7 @@ describe('findFlashbacks', () => {
     saveEmbedding(client, old.id, fakeEmbedding);
     saveEmbedding(client, fresh.id, fakeEmbedding);
 
-    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    const flashbacks = findFlashbacks(client, fresh.id, now);
     expect(flashbacks.map((f) => f.id)).toContain(old.id);
     const oldFlash = flashbacks.find((f) => f.id === old.id);
     expect(oldFlash?.daysAgo).toBeGreaterThanOrEqual(90);
@@ -266,7 +266,7 @@ describe('findFlashbacks', () => {
     saveEmbedding(client, old.id, fakeEmbedding);
     saveEmbedding(client, fresh.id, fakeEmbedding);
 
-    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    const flashbacks = findFlashbacks(client, fresh.id, now);
     expect(flashbacks.map((f) => f.id)).not.toContain(old.id);
   });
 
@@ -293,7 +293,7 @@ describe('findFlashbacks', () => {
     saveEmbedding(client, recent.id, fakeEmbedding);
     saveEmbedding(client, fresh.id, fakeEmbedding);
 
-    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    const flashbacks = findFlashbacks(client, fresh.id, now);
     expect(flashbacks.map((f) => f.id)).not.toContain(recent.id);
   });
 
@@ -320,10 +320,7 @@ describe('findFlashbacks', () => {
     saveEmbedding(client, a.id, fakeEmbedding);
     saveEmbedding(client, fresh.id, fakeEmbedding);
 
-    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now, {
-      minDaysGap: 30,
-      limit: 1,
-    });
+    const flashbacks = findFlashbacks(client, fresh.id, now, { minDaysGap: 30, limit: 1 });
     expect(flashbacks).toHaveLength(1);
     expect(flashbacks[0].id).toBe(a.id);
   });

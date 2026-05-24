@@ -289,7 +289,6 @@ export type FlashbackOptions = {
 export const findFlashbacks = (
   client: MemexClient,
   noteId: number,
-  embedding: number[],
   now: number,
   options: FlashbackOptions = {},
 ): Flashback[] => {
@@ -298,15 +297,19 @@ export const findFlashbacks = (
   const limit = options.limit ?? 3;
   const cutoff = now - minDaysGap * 86_400_000;
 
+  const embRow = client.sqlite
+    .prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?')
+    .get(BigInt(noteId)) as { embedding: Buffer } | undefined;
+  if (!embRow) return [];
+
   const source = client.db.select().from(notes).where(eq(notes.id, noteId)).get();
   const sourceCategory = source?.category ?? null;
 
-  const vec = new Float32Array(embedding);
   const categoryFilter = sourceCategory
     ? 'AND (n.category IS NULL OR n.category != ?)'
     : '';
   const args: (number | Buffer | string)[] = [
-    Buffer.from(vec.buffer),
+    embRow.embedding,
     limit * 5,
     noteId,
     cutoff,

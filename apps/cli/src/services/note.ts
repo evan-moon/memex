@@ -76,7 +76,7 @@ export const saveNote = async (
   saveEmbedding(client, note.id, embedding);
   syncLinks(client, note.id, params.content);
 
-  const flashbacks = findFlashbacks(client, note.id, embedding, Date.now(), readFlashbackOptions());
+  const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
 
   return { note, flashbacks };

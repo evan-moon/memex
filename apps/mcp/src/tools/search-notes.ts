@@ -1,10 +1,22 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { MemexClient } from '@memex/db';
+import { findFlashbacks, type FlashbackOptions, type MemexClient } from '@memex/db';
 import type { Reranker } from '@memex/rerank';
 import { semanticSearch } from '../services/note.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
+
+const readFlashbackOptions = (): FlashbackOptions => ({
+  minDaysGap: process.env.MEMEX_FLASHBACK_DAYS
+    ? Number(process.env.MEMEX_FLASHBACK_DAYS)
+    : undefined,
+  maxDistance: process.env.MEMEX_FLASHBACK_DIST
+    ? Number(process.env.MEMEX_FLASHBACK_DIST)
+    : undefined,
+  limit: process.env.MEMEX_FLASHBACK_LIMIT
+    ? Number(process.env.MEMEX_FLASHBACK_LIMIT)
+    : undefined,
+});
 
 export const registerSearchNotes = (
   server: McpServer,
@@ -56,9 +68,24 @@ export const registerSearchNotes = (
       if (results.length === 0) {
         return { content: [{ type: 'text', text: 'No notes found.' }] };
       }
-      const text = results
-        .map((r, i) => `## ${i + 1}. ${r.title} (id: ${r.id})\n\n${r.content}`)
-        .join('\n\n---\n\n');
+
+      const flashbacks = findFlashbacks(
+        client,
+        results[0].id,
+        Date.now(),
+        readFlashbackOptions(),
+      );
+      const flashbackHint =
+        flashbacks.length > 0
+          ? `\n\n---\n🔗 Flashback for top result — older notes from a different context:\n${flashbacks
+              .map((f) => `- ${f.daysAgo} days ago: #${f.id} "${f.title}"`)
+              .join('\n')}`
+          : '';
+
+      const text =
+        results
+          .map((r, i) => `## ${i + 1}. ${r.title} (id: ${r.id})\n\n${r.content}`)
+          .join('\n\n---\n\n') + flashbackHint;
       return { content: [{ type: 'text', text }] };
     },
   );
