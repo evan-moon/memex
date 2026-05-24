@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
+import type { Reranker } from '@memex/rerank';
 import { semanticSearch } from '../services/note.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
@@ -9,6 +10,7 @@ export const registerSearchNotes = (
   server: McpServer,
   client: MemexClient,
   embedder: Embedder,
+  reranker: Reranker | null,
 ) => {
   server.tool(
     'search_notes',
@@ -40,7 +42,17 @@ export const registerSearchNotes = (
       const dateTo = date_to
         ? parseDate(date_to.includes('T') ? date_to : date_to + 'T23:59:59.999Z', 'date_to')
         : undefined;
-      const results = await semanticSearch(client, embedder, query, limit, category, tag, dateFrom, dateTo);
+      const results = await semanticSearch(
+        client,
+        embedder,
+        reranker,
+        query,
+        limit,
+        category,
+        tag,
+        dateFrom,
+        dateTo,
+      );
       if (results.length === 0) {
         return { content: [{ type: 'text', text: 'No notes found.' }] };
       }
