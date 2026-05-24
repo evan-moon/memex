@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { intro, outro, text, select, spinner, isCancel, cancel } from '@clack/prompts';
 import type { Command } from 'commander';
+import pc from 'picocolors';
 import { openDb, type NoteLayer, type NoteSource } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
@@ -71,7 +72,7 @@ export const registerAdd = (program: Command) => {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
         s.message('Saving note...');
-        const note = await saveNote(client, embedder, vaultPath, {
+        const { note, flashbacks } = await saveNote(client, embedder, vaultPath, {
           title,
           content,
           source: opts.source as NoteSource,
@@ -81,6 +82,15 @@ export const registerAdd = (program: Command) => {
         });
 
         s.stop(`Saved note #${note.id}: "${note.title}"`);
+        if (flashbacks.length > 0) {
+          console.log();
+          console.log(pc.dim('--- Flashback ---'));
+          for (const f of flashbacks) {
+            console.log(
+              `${pc.dim(`[#${f.id}]`)} ${pc.dim(`${f.daysAgo}d ago`)} ${f.title}`,
+            );
+          }
+        }
         outro('Done');
       } catch (err) {
         s.stop('Failed');

@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { insertNote, openDb, type MemexClient } from '@memex/db';
-import { editNote, isEditRejection } from './note.ts';
+import { insertNote, openDb, saveEmbedding, type MemexClient } from '@memex/db';
+import { editNote, isEditRejection, saveNote } from './note.ts';
 
-const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0);
+const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
 
 describe('editNote — layer guards', () => {
   let dbDir: string;
@@ -62,5 +62,53 @@ describe('editNote — layer guards', () => {
     expect(isEditRejection(result)).toBe(true);
     if (!isEditRejection(result)) return;
     expect(result.error).toBe('RULE_USER_ONLY');
+  });
+});
+
+describe('saveNote — flashbacks', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-save-flash-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-save-flash-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  it('returns flashbacks for older cross-category notes and persists them as flashback links', async () => {
+    const old = insertNote(client, {
+      title: 'Decision from last quarter',
+      content: 'we picked JWT',
+      filePath: join(vaultDir, 'old.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'decisions',
+    });
+    client.sqlite
+      .prepare('UPDATE notes SET created_at = ? WHERE id = ?')
+      .run(Date.now() - 120 * 86_400_000, old.id);
+    saveEmbedding(client, old.id, new Array(768).fill(0.1));
+
+    const { note, flashbacks } = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'New project note',
+      content: 'planning auth approach',
+      source: 'manual',
+      layer: 'state',
+      folder: 'projects/auth',
+    });
+
+    expect(flashbacks.map((f) => f.id)).toContain(old.id);
+
+    const links = client.sqlite
+      .prepare("SELECT source FROM note_links WHERE source_id = ? AND target_id = ?")
+      .all(note.id, old.id) as { source: string }[];
+    expect(links.some((l) => l.source === 'flashback')).toBe(true);
   });
 });

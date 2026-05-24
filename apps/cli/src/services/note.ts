@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import {
   deleteNote,
+  findFlashbacks,
   getNote,
   insertNote,
   parseTags,
@@ -10,6 +11,8 @@ import {
   serializeTags,
   syncLinks,
   updateNote,
+  type Flashback,
+  type FlashbackOptions,
   type MemexClient,
   type NoteLayer,
   type NoteSource,
@@ -34,12 +37,35 @@ const generateFilePath = (vaultPath: string, title: string, folder?: string): st
   return join(dir, `${sanitizeFilename(title)}-${Date.now()}.md`);
 };
 
+const readFlashbackOptions = (): FlashbackOptions => ({
+  minDaysGap: process.env.MEMEX_FLASHBACK_DAYS
+    ? Number(process.env.MEMEX_FLASHBACK_DAYS)
+    : undefined,
+  maxDistance: process.env.MEMEX_FLASHBACK_DIST
+    ? Number(process.env.MEMEX_FLASHBACK_DIST)
+    : undefined,
+  limit: process.env.MEMEX_FLASHBACK_LIMIT
+    ? Number(process.env.MEMEX_FLASHBACK_LIMIT)
+    : undefined,
+});
+
+const persistFlashbackLinks = (
+  client: MemexClient,
+  sourceId: number,
+  flashbacks: Flashback[],
+): void => {
+  const insert = client.sqlite.prepare(
+    "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'flashback')",
+  );
+  for (const f of flashbacks) insert.run(sourceId, f.id);
+};
+
 export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
   params: { title: string; content: string; source: NoteSource; layer: NoteLayer; folder?: string; tags?: string[] },
-) => {
+): Promise<{ note: ReturnType<typeof insertNote>; flashbacks: Flashback[] }> => {
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
 
@@ -50,7 +76,10 @@ export const saveNote = async (
   saveEmbedding(client, note.id, embedding);
   syncLinks(client, note.id, params.content);
 
-  return note;
+  const flashbacks = findFlashbacks(client, note.id, embedding, Date.now(), readFlashbackOptions());
+  persistFlashbackLinks(client, note.id, flashbacks);
+
+  return { note, flashbacks };
 };
 
 export const semanticSearch = async (
