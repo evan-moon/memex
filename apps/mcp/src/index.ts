@@ -13,6 +13,7 @@ import { registerDeleteNote } from './tools/delete-note.ts';
 import { registerUpdateNote } from './tools/update-note.ts';
 import { registerListTags } from './tools/list-tags.ts';
 import { registerListFolders } from './tools/list-folders.ts';
+import { buildRuleInstructions } from './services/rules.ts';
 
 const config = loadConfig();
 const vaultPath = expandPath(config.vault_path);
@@ -22,8 +23,7 @@ mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 const client = openDb(CONFIG_DIR);
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
-const server = new McpServer({ name: 'memex', version: '0.1.0' }, {
-  instructions: `
+const baseInstructions = `
 You are connected to the user's second brain (memex). Follow these rules at all times:
 
 ## SEARCH
@@ -58,8 +58,13 @@ conversations/<name> · decisions/<project> · learning/<topic> · ideas/
 ## TAGS
 
 Always include tags when saving or updating a note. Extract 3–7 semantic tags covering technologies, people, topics, and concepts — independent of the folder. Tags are the primary cross-category relationship mechanism (e.g. a "typescript" tag connects a conversation with Alice to a decision in decisions/memex).
-`.trim(),
-});
+`.trim();
+
+const injectRules = process.env.MEMEX_INJECT_RULES !== '0';
+const ruleSection = injectRules ? buildRuleInstructions(client) : '';
+const instructions = ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions;
+
+const server = new McpServer({ name: 'memex', version: '0.1.0' }, { instructions });
 
 registerSaveNote(server, client, embedder, vaultPath);
 registerSearchNotes(server, client, embedder);
