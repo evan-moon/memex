@@ -5,6 +5,7 @@ import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { semanticSearch } from '../services/note.ts';
+import { layerBadge } from '../layer.ts';
 
 export const registerSearch = (program: Command) => {
   program
@@ -46,7 +47,7 @@ export const registerSearch = (program: Command) => {
 
       for (const note of results) {
         console.log();
-        console.log(pc.bold(`[${note.id}] ${note.title}`));
+        console.log(`${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`);
         const preview = note.content.slice(0, 200).replace(/\n/g, ' ');
         console.log(pc.dim(preview + (note.content.length > 200 ? '…' : '')));
       }

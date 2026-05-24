@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import pc from 'picocolors';
 import { openDb, getNote } from '@memex/db';
 import { formatDate, CONFIG_DIR } from '@memex/utils';
+import { layerBadge } from '../layer.ts';
 
 export const registerShow = (program: Command) => {
   program
@@ -17,10 +18,10 @@ export const registerShow = (program: Command) => {
       }
 
       console.log();
-      console.log(pc.bold(`# ${note.title}`));
+      console.log(`${layerBadge(note.layer)} ${pc.bold(`# ${note.title}`)}`);
       console.log();
       console.log(note.content);
       console.log();
-      console.log(pc.dim(`id: ${note.id} | source: ${note.source} | created: ${formatDate(new Date(note.createdAt))}`));
+      console.log(pc.dim(`id: ${note.id} | layer: ${note.layer} | source: ${note.source} | created: ${formatDate(new Date(note.createdAt))}`));
     });
 };

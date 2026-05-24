@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import pc from 'picocolors';
 import { openDb, listNotes, countNotes } from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
+import { layerBadge } from '../layer.ts';
 
 export const registerList = (program: Command) => {
   program
@@ -21,7 +22,7 @@ export const registerList = (program: Command) => {
       console.log(pc.dim(`${total} notes total — showing ${notes.length}\n`));
       for (const note of notes) {
         const date = formatDate(new Date(note.createdAt));
-        console.log(`${pc.dim(`[${note.id}]`)} ${note.title} ${pc.dim(date)}`);
+        console.log(`${pc.dim(`[${note.id}]`)} ${layerBadge(note.layer)} ${note.title} ${pc.dim(date)}`);
       }
     });
 };

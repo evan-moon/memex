@@ -4,7 +4,7 @@ import type { Command } from 'commander';
 import { openDb, getNote } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
-import { editNote } from '../services/note.ts';
+import { editNote, isEditRejection } from '../services/note.ts';
 import pc from 'picocolors';
 
 export const registerEdit = (program: Command) => {
@@ -53,12 +53,20 @@ export const registerEdit = (program: Command) => {
 
       try {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
-        const updated = await editNote(client, embedder, vaultPath, Number(id), {
+        const result = await editNote(client, embedder, vaultPath, Number(id), {
           title: title || undefined,
           content: content || undefined,
         });
 
-        s.stop(`Updated note #${updated!.id}: "${updated!.title}"`);
+        if (isEditRejection(result)) {
+          s.stop(pc.yellow(result.message));
+          if (result.error === 'PAST_IMMUTABLE') {
+            console.log(pc.dim(`Suggested: memex add --layer past -t "${result.suggestion.title}" (link with ${result.suggestion.link})`));
+          }
+          process.exit(1);
+        }
+
+        s.stop(`Updated note #${result!.id}: "${result!.title}"`);
         outro('Done');
       } catch (err) {
         s.stop('Failed');

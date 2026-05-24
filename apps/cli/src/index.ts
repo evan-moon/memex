@@ -14,6 +14,8 @@ import { registerTags } from './commands/tags.ts';
 import { registerRelated } from './commands/related.ts';
 import { registerMcp } from './commands/mcp.ts';
 import { registerDigest } from './commands/digest.ts';
+import { registerClassify } from './commands/classify.ts';
+import { registerRelayer } from './commands/relayer.ts';
 
 const program = new Command();
 
@@ -36,5 +38,7 @@ registerTags(program);
 registerRelated(program);
 registerMcp(program);
 registerDigest(program);
+registerClassify(program);
+registerRelayer(program);
 
 program.parse();

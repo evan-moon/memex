@@ -56,6 +56,21 @@ export const openDb = (dbDir: string): MemexClient => {
   try { sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT'); } catch { /* already exists */ }
   try { sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch { /* already exists */ }
 
+  const cols = sqlite.prepare('PRAGMA table_info(notes)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'layer')) {
+    sqlite.exec("ALTER TABLE notes ADD COLUMN layer TEXT NOT NULL DEFAULT 'past'");
+
+    const STATE_FOLDERS = ['projects', 'dev', 'herald'];
+    const RULE_FOLDERS = ['coding'];
+
+    const setLayer = sqlite.prepare(
+      'UPDATE notes SET layer = ? WHERE category = ? OR category LIKE ? || \'/%\'',
+    );
+
+    for (const f of STATE_FOLDERS) setLayer.run('state', f, f);
+    for (const f of RULE_FOLDERS) setLayer.run('rule', f, f);
+  }
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS note_links (
       source_id INTEGER NOT NULL,

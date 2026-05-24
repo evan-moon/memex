@@ -11,6 +11,7 @@ import {
   syncLinks,
   updateNote,
   type MemexClient,
+  type NoteLayer,
   type NoteSource,
 } from '@memex/db';
 import { extractCategory, buildEmbeddingText } from '@memex/utils';
@@ -36,7 +37,7 @@ export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
-  params: { title: string; content: string; source: NoteSource; folder?: string; tags?: string[] },
+  params: { title: string; content: string; source: NoteSource; layer: NoteLayer; folder?: string; tags?: string[] },
 ) => {
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
@@ -65,6 +66,19 @@ export const semanticSearch = async (
   return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
 };
 
+export type EditNoteRejection =
+  | {
+      error: 'PAST_IMMUTABLE';
+      message: string;
+      suggestion: { action: 'save_note'; title: string; link: string; layer: NoteLayer };
+    }
+  | { error: 'RULE_USER_ONLY'; message: string };
+
+export const isEditRejection = (
+  result: unknown,
+): result is EditNoteRejection =>
+  result !== null && typeof result === 'object' && 'error' in (result as object);
+
 export const editNote = async (
   client: MemexClient,
   embedder: Embedder,
@@ -74,6 +88,26 @@ export const editNote = async (
 ) => {
   const note = getNote(client, id);
   if (!note) return null;
+
+  if (note.layer === 'past') {
+    return {
+      error: 'PAST_IMMUTABLE' as const,
+      message: 'past notes are immutable. Create an Amendment note instead.',
+      suggestion: {
+        action: 'save_note' as const,
+        title: `[Amendment] ${note.title}`,
+        link: `[[${note.title}]]`,
+        layer: 'past' as NoteLayer,
+      },
+    };
+  }
+
+  if (note.layer === 'rule') {
+    return {
+      error: 'RULE_USER_ONLY' as const,
+      message: 'rule notes can only be edited by the user.',
+    };
+  }
 
   const tags = patch.tags !== undefined ? serializeTags(patch.tags) : undefined;
   const updated = updateNote(client, id, { ...patch, tags });

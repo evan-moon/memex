@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { intro, outro, text, select, spinner, isCancel, cancel } from '@clack/prompts';
 import type { Command } from 'commander';
-import { openDb, type NoteSource } from '@memex/db';
+import { openDb, type NoteLayer, type NoteSource } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { saveNote } from '../services/note.ts';
+
+const LAYERS: ReadonlyArray<NoteLayer> = ['past', 'state', 'rule'];
 
 export const registerAdd = (program: Command) => {
   program
@@ -16,11 +18,18 @@ export const registerAdd = (program: Command) => {
     .option('-d, --folder <folder>', 'Subfolder within the vault (e.g. projects/memex)')
     .option('-T, --tag <tag>', 'Tag to attach (repeatable: -T typescript -T architecture)', (v, acc: string[]) => [...acc, v], [] as string[])
     .option('-s, --source <source>', 'Source (manual|herald|claude-code)', 'manual')
-    .action(async (opts: { title?: string; content?: string; file?: string; folder?: string; tag: string[]; source: string }) => {
+    .option('-L, --layer <layer>', 'Mutability layer (past|state|rule)')
+    .action(async (opts: { title?: string; content?: string; file?: string; folder?: string; tag: string[]; source: string; layer?: string }) => {
       intro('memex add');
 
       let title = opts.title;
       let content = opts.content;
+      let layer = opts.layer as NoteLayer | undefined;
+
+      if (layer && !LAYERS.includes(layer)) {
+        cancel(`Invalid --layer "${layer}". Expected one of: ${LAYERS.join(', ')}.`);
+        process.exit(1);
+      }
 
       if (!title) {
         const res = await text({ message: 'Title', placeholder: 'My note title' });
@@ -38,6 +47,20 @@ export const registerAdd = (program: Command) => {
         }
       }
 
+      if (!layer) {
+        const res = await select({
+          message: 'Layer',
+          options: [
+            { value: 'past', label: 'past   [과거]  immutable record of what happened' },
+            { value: 'state', label: 'state  [현재]  current state or plan, freely updatable' },
+            { value: 'rule', label: 'rule   [규칙]  Claude behavior guide (user writes only)' },
+          ],
+          initialValue: 'past',
+        });
+        if (isCancel(res)) { cancel(); process.exit(0); }
+        layer = res as NoteLayer;
+      }
+
       const s = spinner();
       s.start('Loading embedder...');
 
@@ -52,6 +75,7 @@ export const registerAdd = (program: Command) => {
           title,
           content,
           source: opts.source as NoteSource,
+          layer,
           folder: opts.folder,
           tags: opts.tag.length > 0 ? opts.tag : undefined,
         });

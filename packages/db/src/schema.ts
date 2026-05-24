@@ -10,10 +10,14 @@ export const notes = sqliteTable('notes', {
   source: text('source', { enum: ['manual', 'herald', 'claude-code', 'index'] })
     .notNull()
     .default('manual'),
+  layer: text('layer', { enum: ['past', 'state', 'rule'] })
+    .notNull()
+    .default('past'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
 
 export type Note = typeof notes.$inferSelect;
 export type NoteSource = Note['source'];
+export type NoteLayer = Note['layer'];
 export type NewNote = Omit<typeof notes.$inferInsert, 'id' | 'createdAt' | 'updatedAt'>;

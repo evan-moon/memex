@@ -13,6 +13,7 @@ import {
   updateNote,
   type MemexClient,
   type Note,
+  type NoteLayer,
   type NoteSource,
   type SimilarNote,
 } from '@memex/db';
@@ -39,7 +40,7 @@ export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
-  params: { title: string; content: string; source: NoteSource; folder?: string; tags?: string[] },
+  params: { title: string; content: string; source: NoteSource; layer: NoteLayer; folder?: string; tags?: string[] },
 ): Promise<{ note: Note; similar: SimilarNote[] }> => {
   const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
   const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
@@ -70,15 +71,43 @@ export const semanticSearch = async (
   return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
 };
 
+export type EditNoteRejection =
+  | {
+      error: 'PAST_IMMUTABLE';
+      message: string;
+      suggestion: { action: 'save_note'; title: string; link: string; layer: NoteLayer };
+    }
+  | { error: 'RULE_USER_ONLY'; message: string };
+
 export const editNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
   id: number,
   patch: { title?: string; content?: string; tags?: string[] },
-) => {
+): Promise<Note | EditNoteRejection | null> => {
   const note = getNote(client, id);
   if (!note) return null;
+
+  if (note.layer === 'past') {
+    return {
+      error: 'PAST_IMMUTABLE',
+      message: 'past notes are immutable. Create an Amendment note instead.',
+      suggestion: {
+        action: 'save_note',
+        title: `[Amendment] ${note.title}`,
+        link: `[[${note.title}]]`,
+        layer: 'past',
+      },
+    };
+  }
+
+  if (note.layer === 'rule') {
+    return {
+      error: 'RULE_USER_ONLY',
+      message: 'rule notes can only be edited by the user. Surface your proposed change in chat.',
+    };
+  }
 
   const tags = patch.tags !== undefined ? serializeTags(patch.tags) : undefined;
   const updated = updateNote(client, id, { ...patch, tags });
@@ -97,6 +126,11 @@ export const editNote = async (
 
   return updated;
 };
+
+export const isEditRejection = (
+  result: Note | EditNoteRejection | null,
+): result is EditNoteRejection =>
+  result !== null && typeof result === 'object' && 'error' in result;
 
 export const removeNote = (client: MemexClient, id: number, filePath: string): void => {
   if (existsSync(filePath)) unlinkSync(filePath);
