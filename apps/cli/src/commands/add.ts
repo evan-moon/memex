@@ -52,9 +52,9 @@ export const registerAdd = (program: Command) => {
         const res = await select({
           message: 'Layer',
           options: [
-            { value: 'past', label: 'past   [과거]  immutable record of what happened' },
-            { value: 'state', label: 'state  [현재]  current state or plan, freely updatable' },
-            { value: 'rule', label: 'rule   [규칙]  Claude behavior guide (user writes only)' },
+            { value: 'past', label: 'past   immutable record of what happened' },
+            { value: 'state', label: 'state  current state or plan, freely updatable' },
+            { value: 'rule', label: 'rule   Claude behavior guide (user writes only)' },
           ],
           initialValue: 'past',
         });
