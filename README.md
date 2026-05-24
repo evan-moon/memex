@@ -180,6 +180,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `update_note` | Update title or content of an existing note |
 | `delete_note` | Delete a note by ID |
 
+### Flashback
+
+When you save a note or search, memex automatically surfaces older notes from a **different folder** that are semantically similar — "you wrote about this 124 days ago in a different context." Stored as system-generated backlinks (`note_links.source = 'flashback'`), separate from your `[[wikilinks]]` (`source = 'wiki'`).
+
+Tune via env:
+
+| Env | Default | Behaviour |
+|-----|---------|-----------|
+| `MEMEX_FLASHBACK_DAYS` | `90` | minimum age gap, in days |
+| `MEMEX_FLASHBACK_DIST` | `0.4` | maximum vector distance (lower = stricter match) |
+| `MEMEX_FLASHBACK_LIMIT` | `3` | max suggestions per surface |
+
 ### Rule layer auto-inject
 
 Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation — no `search_notes` call required. This is the right home for coding style guides or other behavioural guidance.
