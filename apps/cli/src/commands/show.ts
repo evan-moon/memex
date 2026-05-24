@@ -23,5 +23,19 @@ export const registerShow = (program: Command) => {
       console.log(note.content);
       console.log();
       console.log(pc.dim(`id: ${note.id} | layer: ${note.layer} | source: ${note.source} | created: ${formatDate(new Date(note.createdAt))}`));
+
+      const flashbackLinks = client.sqlite
+        .prepare(
+          "SELECT n.id, n.title FROM note_links l JOIN notes n ON n.id = l.source_id WHERE l.target_id = ? AND l.source = 'flashback'",
+        )
+        .all(Number(id)) as { id: number; title: string }[];
+
+      if (flashbackLinks.length > 0) {
+        console.log();
+        console.log(pc.dim('--- Surfaced as flashback in ---'));
+        for (const f of flashbackLinks) {
+          console.log(`${pc.dim(`[#${f.id}]`)} ${f.title}`);
+        }
+      }
     });
 };

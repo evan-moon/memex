@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
-import { openDb } from '@memex/db';
+import { findFlashbacks, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { createReranker, type Reranker } from '@memex/rerank';
 import { loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
@@ -66,6 +66,17 @@ export const registerSearch = (program: Command) => {
         console.log(`${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`);
         const preview = note.content.slice(0, 200).replace(/\n/g, ' ');
         console.log(pc.dim(preview + (note.content.length > 200 ? '…' : '')));
+      }
+
+      const flashbacks = findFlashbacks(client, results[0].id, Date.now());
+      if (flashbacks.length > 0) {
+        console.log();
+        console.log(pc.dim('--- Flashback ---'));
+        for (const f of flashbacks) {
+          console.log(
+            `${pc.dim(`[#${f.id}]`)} ${layerBadge(f.layer)} ${f.title} ${pc.dim(`${f.daysAgo}d ago`)}`,
+          );
+        }
       }
     });
 };
