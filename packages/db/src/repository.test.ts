@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type MemexClient } from './client.ts';
 import {
+  findFlashbacks,
   getBacklinks,
   getNote,
   insertNote,
   parseTags,
+  saveEmbedding,
   serializeTags,
   syncLinks,
   updateNote,
@@ -190,5 +192,139 @@ describe('note_links source column', () => {
 
     const backlinks = getBacklinks(client, target.id);
     expect(backlinks.map((b) => b.id)).toContain(src.id);
+  });
+});
+
+describe('findFlashbacks', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-flash-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const setCreatedAt = (id: number, ms: number) =>
+    client.sqlite.prepare('UPDATE notes SET created_at = ? WHERE id = ?').run(ms, id);
+
+  const fakeEmbedding = new Array(768).fill(0.1);
+
+  it('returns notes older than minDaysGap from a different category', () => {
+    const now = Date.now();
+    const old = insertNote(client, {
+      title: 'old',
+      content: 'x',
+      filePath: join(dbDir, 'o.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'memory',
+    });
+    setCreatedAt(old.id, now - 100 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, old.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    expect(flashbacks.map((f) => f.id)).toContain(old.id);
+    const oldFlash = flashbacks.find((f) => f.id === old.id);
+    expect(oldFlash?.daysAgo).toBeGreaterThanOrEqual(90);
+  });
+
+  it('excludes notes in the same category as the source', () => {
+    const now = Date.now();
+    const old = insertNote(client, {
+      title: 'same-cat-old',
+      content: 'x',
+      filePath: join(dbDir, 'so.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    setCreatedAt(old.id, now - 200 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, old.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    expect(flashbacks.map((f) => f.id)).not.toContain(old.id);
+  });
+
+  it('excludes notes younger than the cutoff', () => {
+    const now = Date.now();
+    const recent = insertNote(client, {
+      title: 'recent',
+      content: 'x',
+      filePath: join(dbDir, 'r.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'memory',
+    });
+    setCreatedAt(recent.id, now - 10 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, recent.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now);
+    expect(flashbacks.map((f) => f.id)).not.toContain(recent.id);
+  });
+
+  it('respects custom minDaysGap and limit options', () => {
+    const now = Date.now();
+    const a = insertNote(client, {
+      title: 'A',
+      content: 'x',
+      filePath: join(dbDir, 'a.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'memory',
+    });
+    setCreatedAt(a.id, now - 40 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, a.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, fakeEmbedding, now, {
+      minDaysGap: 30,
+      limit: 1,
+    });
+    expect(flashbacks).toHaveLength(1);
+    expect(flashbacks[0].id).toBe(a.id);
   });
 });

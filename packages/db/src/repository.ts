@@ -275,6 +275,72 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
 export const listNotesSince = (client: MemexClient, sinceMs: number): Note[] =>
   client.db.select().from(notes).where(gte(notes.createdAt, sinceMs)).orderBy(desc(notes.createdAt)).all();
 
+export type Flashback = Note & {
+  distance: number;
+  daysAgo: number;
+};
+
+export type FlashbackOptions = {
+  minDaysGap?: number;
+  maxDistance?: number;
+  limit?: number;
+};
+
+export const findFlashbacks = (
+  client: MemexClient,
+  noteId: number,
+  embedding: number[],
+  now: number,
+  options: FlashbackOptions = {},
+): Flashback[] => {
+  const minDaysGap = options.minDaysGap ?? 90;
+  const maxDistance = options.maxDistance ?? 0.4;
+  const limit = options.limit ?? 3;
+  const cutoff = now - minDaysGap * 86_400_000;
+
+  const source = client.db.select().from(notes).where(eq(notes.id, noteId)).get();
+  const sourceCategory = source?.category ?? null;
+
+  const vec = new Float32Array(embedding);
+  const categoryFilter = sourceCategory
+    ? 'AND (n.category IS NULL OR n.category != ?)'
+    : '';
+  const args: (number | Buffer | string)[] = [
+    Buffer.from(vec.buffer),
+    limit * 5,
+    noteId,
+    cutoff,
+    maxDistance,
+  ];
+  if (sourceCategory) args.push(sourceCategory);
+
+  const rows = client.sqlite
+    .prepare(
+      `SELECT n.id, n.title, n.content,
+              n.file_path  AS filePath,
+              n.category,  n.tags, n.source, n.layer,
+              n.created_at AS createdAt,
+              n.updated_at AS updatedAt,
+              e.distance
+       FROM note_embeddings e
+       JOIN notes n ON n.id = e.note_id
+       WHERE e.embedding MATCH ?
+         AND k = ?
+         AND n.id != ?
+         AND n.created_at < ?
+         AND e.distance < ?
+         ${categoryFilter}
+       ORDER BY e.distance
+       LIMIT ${limit}`,
+    )
+    .all(...args) as (Note & { distance: number })[];
+
+  return rows.map((r) => ({
+    ...r,
+    daysAgo: Math.floor((now - r.createdAt) / 86_400_000),
+  }));
+};
+
 export const findRelatedNotes = (
   client: MemexClient,
   noteId: number,
