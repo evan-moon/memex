@@ -75,9 +75,15 @@ export const openDb = (dbDir: string): MemexClient => {
     CREATE TABLE IF NOT EXISTS note_links (
       source_id INTEGER NOT NULL,
       target_id INTEGER NOT NULL,
-      PRIMARY KEY (source_id, target_id)
+      source    TEXT    NOT NULL DEFAULT 'wiki',
+      PRIMARY KEY (source_id, target_id, source)
     );
   `);
+
+  const linkCols = sqlite.prepare('PRAGMA table_info(note_links)').all() as { name: string }[];
+  if (!linkCols.some((c) => c.name === 'source')) {
+    sqlite.exec("ALTER TABLE note_links ADD COLUMN source TEXT NOT NULL DEFAULT 'wiki'");
+  }
 
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(

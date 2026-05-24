@@ -242,13 +242,15 @@ export type RelatedNote = Note & { sharedTags: string[]; score: number };
 const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
 export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
-  client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ?').run(sourceId);
+  client.sqlite
+    .prepare("DELETE FROM note_links WHERE source_id = ? AND source = 'wiki'")
+    .run(sourceId);
 
   const titles = [...content.matchAll(WIKI_LINK_RE)].map((m) => m[1].trim());
   if (titles.length === 0) return;
 
   const insert = client.sqlite.prepare(
-    'INSERT OR IGNORE INTO note_links(source_id, target_id) VALUES (?, ?)',
+    "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')",
   );
   const findByTitle = client.sqlite.prepare(
     'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
