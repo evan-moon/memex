@@ -4,7 +4,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { mkdirSync } from 'node:fs';
 import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { createReranker, type Reranker } from '@memex/rerank';
 import { expandPath, loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from './config.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
@@ -23,9 +22,6 @@ mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
 const client = openDb(CONFIG_DIR);
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
-
-const rerankEnabled = process.env.MEMEX_RERANK !== '0';
-const reranker: Reranker | null = rerankEnabled ? await createReranker(MODEL_CACHE_DIR) : null;
 
 const baseInstructions = `
 You are connected to the user's second brain (memex). Follow these rules at all times:
@@ -74,7 +70,7 @@ const instructions = ruleSection ? `${baseInstructions}\n\n${ruleSection}` : bas
 const server = new McpServer({ name: 'memex', version: '0.1.0' }, { instructions });
 
 registerSaveNote(server, client, embedder, vaultPath);
-registerSearchNotes(server, client, embedder, reranker);
+registerSearchNotes(server, client, embedder);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);

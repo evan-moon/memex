@@ -8,7 +8,6 @@ export default defineConfig({
     alias: {
       '@memex/db': fromHere('./packages/db/src/index.ts'),
       '@memex/embed': fromHere('./packages/embed/src/index.ts'),
-      '@memex/rerank': fromHere('./packages/rerank/src/index.ts'),
       '@memex/utils': fromHere('./packages/utils/src/index.ts'),
     },
   },

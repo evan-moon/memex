@@ -3,7 +3,6 @@ import { spinner } from '@clack/prompts';
 import pc from 'picocolors';
 import { findFlashbacks, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { createReranker, type Reranker } from '@memex/rerank';
 import { loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
 import { semanticSearch } from '../services/note.ts';
 import { layerBadge } from '../layer.ts';
@@ -25,11 +24,6 @@ export const registerSearch = (program: Command) => {
       const client = openDb(CONFIG_DIR);
       const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
-      const rerankEnabled = process.env.MEMEX_RERANK !== '0';
-      const reranker: Reranker | null = rerankEnabled
-        ? await createReranker(MODEL_CACHE_DIR)
-        : null;
-
       s.message('Searching...');
       const parseDate = (s: string, label: string): number => {
         const ms = new Date(s).getTime();
@@ -46,7 +40,6 @@ export const registerSearch = (program: Command) => {
       const results = await semanticSearch(
         client,
         embedder,
-        reranker,
         query,
         Number(opts.limit),
         opts.category,

@@ -76,7 +76,6 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 
 - **Semantic search** — finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
 - **Hybrid retrieval** — vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
-- **Cross-encoder reranker** — `bge-reranker-v2-m3` (multilingual) reranks up to 50 candidates into the final top-K. Set `MEMEX_RERANK=0` to disable
 - **Date filter** — narrow search to a time range with `--from` / `--to`
 - **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Duplicate detection** — `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { findFlashbacks, type FlashbackOptions, type MemexClient } from '@memex/db';
-import type { Reranker } from '@memex/rerank';
 import { semanticSearch } from '../services/note.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
@@ -22,7 +21,6 @@ export const registerSearchNotes = (
   server: McpServer,
   client: MemexClient,
   embedder: Embedder,
-  reranker: Reranker | null,
 ) => {
   server.tool(
     'search_notes',
@@ -57,7 +55,6 @@ export const registerSearchNotes = (
       const results = await semanticSearch(
         client,
         embedder,
-        reranker,
         query,
         limit,
         category,
