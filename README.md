@@ -77,6 +77,8 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 - **Semantic search** — finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
 - **Hybrid retrieval** — vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
 - **Date filter** — narrow search to a time range with `--from` / `--to`
+- **Note layers** — every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
+- **Flashback** — save and search automatically surface older notes from a *different folder* that are semantically related — "you wrote about this 124 days ago in a different context"
 - **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Duplicate detection** — `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
 - **Backlinks** — link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
@@ -91,11 +93,15 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 
 ```bash
 # Add notes
-memex add                                    # interactive prompt
-memex add --title "Note title" --content "..."
-memex add --title "Note title" --file ./note.md
-memex add --title "Note title" --content "..." --folder conversations/tom
-memex add --title "Note title" --content "..." -T typescript -T architecture
+memex add                                    # interactive prompt (asks for layer)
+memex add --title "Note title" --content "..." --layer past
+memex add --title "Note title" --file ./note.md --layer state
+memex add --title "Note title" --content "..." --folder conversations/tom --layer past
+memex add --title "Note title" --content "..." -T typescript -T architecture --layer past
+
+# Layers
+memex classify                               # distribution of past / state / rule
+memex relayer <id> state                     # move a note to a different layer
 
 # Search
 memex search "semantic search query"         # multilingual
@@ -170,14 +176,28 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note — warns if a similar note already exists |
-| `search_notes` | Semantic search; supports `category`, `tag`, `date_from`, `date_to` filters |
+| `save_note` | Save a note — requires `layer`, warns if a similar note already exists, surfaces flashbacks |
+| `search_notes` | Semantic search; supports `category`, `tag`, `date_from`, `date_to` filters; appends flashbacks for the top result |
 | `list_notes` | List recent notes |
 | `list_tags` | List all tags with note counts |
 | `list_folders` | List all folders with note counts |
 | `get_note` | Get full content and backlinks of a note by ID |
-| `update_note` | Update title or content of an existing note |
+| `update_note` | Update title or content. Refuses `past` notes (with `[Amendment]` suggestion) and `rule` notes (user-only) |
 | `delete_note` | Delete a note by ID |
+
+### Note layers
+
+Every note is classified into one of three layers based on mutability:
+
+| Layer | Badge | Meaning | Claude's permission |
+|-------|-------|---------|---------------------|
+| `past` | `[과거]` | Record of what happened — retros, meetings, decision rationale, debugging sessions | Append-only. `update_note` refuses, suggesting an `[Amendment]` note instead |
+| `state` | `[현재]` | Current state or plans — project progress, roadmaps, a person's current role | Freely updatable |
+| `rule` | `[규칙]` | Behaviour guide for Claude — coding style, search policy | Claude is read-only. Only the user writes |
+
+- `save_note` (MCP) and `memex add` (CLI) require an explicit `layer`. The classification rules are documented in the tool description so Claude picks correctly.
+- On first run, existing notes get a folder-based backfill: `projects`/`dev`/`herald` → `state`, `coding` → `rule`, everything else → `past`. Migration is idempotent.
+- `rule` notes are also auto-injected into the MCP server's instructions — see [Rule layer auto-inject](#rule-layer-auto-inject) below.
 
 ### Flashback
 
