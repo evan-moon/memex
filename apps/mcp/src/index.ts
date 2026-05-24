@@ -61,7 +61,10 @@ Always include tags when saving or updating a note. Extract 3–7 semantic tags 
 `.trim();
 
 const injectRules = process.env.MEMEX_INJECT_RULES !== '0';
-const ruleSection = injectRules ? buildRuleInstructions(client) : '';
+const maxChars = process.env.MEMEX_RULES_MAX_CHARS
+  ? Number(process.env.MEMEX_RULES_MAX_CHARS)
+  : undefined;
+const ruleSection = injectRules ? buildRuleInstructions(client, { maxChars }) : '';
 const instructions = ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions;
 
 const server = new McpServer({ name: 'memex', version: '0.1.0' }, { instructions });

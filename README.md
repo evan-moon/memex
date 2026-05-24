@@ -179,6 +179,17 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `update_note` | Update title or content of an existing note |
 | `delete_note` | Delete a note by ID |
 
+### Rule layer auto-inject
+
+Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation — no `search_notes` call required. This is the right home for coding style guides or other behavioural guidance.
+
+| Env | Default | Behaviour |
+|-----|---------|-----------|
+| `MEMEX_INJECT_RULES` | enabled | Set to `0` to disable injection entirely |
+| `MEMEX_RULES_MAX_CHARS` | `8000` | Byte budget for the injected section; overflow is truncated with a `console.warn` |
+
+Updates to rule notes are picked up on the next Claude Desktop / Claude Code restart.
+
 ---
 
 ## Configuration
