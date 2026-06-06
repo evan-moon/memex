@@ -13,6 +13,10 @@ export const notes = sqliteTable('notes', {
   layer: text('layer', { enum: ['past', 'state', 'rule'] })
     .notNull()
     .default('past'),
+  // When the note was actually authored (parsed from frontmatter/title date),
+  // as opposed to createdAt which is the import timestamp. Nullable; temporal
+  // reasoning falls back to createdAt when absent.
+  authoredAt: integer('authored_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

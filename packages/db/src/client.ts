@@ -1,8 +1,8 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-import * as sqliteVec from 'sqlite-vec';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
 import * as schema from './schema.ts';
 
 export const EMBEDDING_DIM = 768;
@@ -53,8 +53,16 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
-  try { sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT'); } catch { /* already exists */ }
-  try { sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch { /* already exists */ }
+  try {
+    sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT');
+  } catch {
+    /* already exists */
+  }
+  try {
+    sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'");
+  } catch {
+    /* already exists */
+  }
 
   const cols = sqlite.prepare('PRAGMA table_info(notes)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'layer')) {
@@ -64,11 +72,47 @@ export const openDb = (dbDir: string): MemexClient => {
     const RULE_FOLDERS = ['coding'];
 
     const setLayer = sqlite.prepare(
-      'UPDATE notes SET layer = ? WHERE category = ? OR category LIKE ? || \'/%\'',
+      "UPDATE notes SET layer = ? WHERE category = ? OR category LIKE ? || '/%'",
     );
 
     for (const f of STATE_FOLDERS) setLayer.run('state', f, f);
     for (const f of RULE_FOLDERS) setLayer.run('rule', f, f);
+  }
+
+  // authored_at: the note's real authored date (frontmatter `date:` or a
+  // (YYYY-MM-DD) in the title), distinct from created_at (import time). Without
+  // it, temporal signals are meaningless on an imported vault where every
+  // created_at lands in the import window.
+  if (!cols.some((c) => c.name === 'authored_at')) {
+    sqlite.exec('ALTER TABLE notes ADD COLUMN authored_at INTEGER');
+
+    const parseAuthoredAt = (title: string, content: string): number | null => {
+      const fm = content.match(/\bdate:\s*(\d{4}-\d{2}-\d{2})/);
+      if (fm) {
+        const ms = Date.parse(fm[1]);
+        if (!Number.isNaN(ms)) return ms;
+      }
+      const tt = title.match(/\((\d{4}-\d{2}-\d{2})\)/);
+      if (tt) {
+        const ms = Date.parse(tt[1]);
+        if (!Number.isNaN(ms)) return ms;
+      }
+      return null;
+    };
+
+    const rows = sqlite.prepare('SELECT id, title, content FROM notes').all() as {
+      id: number;
+      title: string;
+      content: string;
+    }[];
+    const upd = sqlite.prepare('UPDATE notes SET authored_at = ? WHERE id = ?');
+    const backfill = sqlite.transaction(() => {
+      for (const r of rows) {
+        const ms = parseAuthoredAt(r.title, r.content);
+        if (ms !== null) upd.run(ms, r.id);
+      }
+    });
+    backfill();
   }
 
   sqlite.exec(`
@@ -112,9 +156,28 @@ export const openDb = (dbDir: string): MemexClient => {
   `);
 
   try {
-    const { n } = sqlite.prepare('SELECT COUNT(*) as n FROM notes_fts_docsize').get() as { n: number };
+    const { n } = sqlite.prepare('SELECT COUNT(*) as n FROM notes_fts_docsize').get() as {
+      n: number;
+    };
     if (n === 0) sqlite.exec("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')");
-  } catch { /* FTS5 not available — search degrades gracefully */ }
+  } catch {
+    /* FTS5 not available — search degrades gracefully */
+  }
+
+  // Inference engine — Lv1 deterministic signals triage queue.
+  // Signals point at un-synthesized patterns; they are NOT inferences.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS signals (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      type         TEXT    NOT NULL,
+      evidence_ids TEXT    NOT NULL,
+      reasoning    TEXT,
+      signal_hash  TEXT    NOT NULL UNIQUE,
+      status       TEXT    NOT NULL DEFAULT 'new',
+      created_at   INTEGER NOT NULL,
+      updated_at   INTEGER NOT NULL
+    );
+  `);
 
   return { db: drizzle(sqlite, { schema }), sqlite };
 };
