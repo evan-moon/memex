@@ -1,6 +1,23 @@
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
 export type {
+  EvidenceEdge,
+  EvidenceInput,
+  EvidenceRole,
+  Inference,
+  InferenceStatus,
+  MintInferenceInput,
+} from './inferences.ts';
+export {
+  checkInferenceStale,
+  getInference,
+  listInferences,
+  mintInference,
+  noteContentHash,
+  refreshInferenceStaleness,
+  setInferenceStatus,
+} from './inferences.ts';
+export type {
   Flashback,
   FlashbackOptions,
   FolderCount,
@@ -47,6 +64,7 @@ export {
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
+  getSignal,
   listSignals,
   refreshSignals,
   setSignalStatus,

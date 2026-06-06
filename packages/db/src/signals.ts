@@ -113,6 +113,13 @@ export const listSignals = (client: MemexClient, options: ListSignalsOptions = {
   return rows.map(rowToSignal);
 };
 
+export const getSignal = (client: MemexClient, id: number): Signal | undefined => {
+  const row = client.sqlite.prepare('SELECT * FROM signals WHERE id = ?').get(id) as
+    | SignalRow
+    | undefined;
+  return row ? rowToSignal(row) : undefined;
+};
+
 export const setSignalStatus = (
   client: MemexClient,
   id: number,

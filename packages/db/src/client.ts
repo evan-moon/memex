@@ -179,5 +179,36 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
+  // Inference engine — Lv2 inferences (hypotheses) and their evidence edges.
+  // An inference is NOT a note: it is an LLM-synthesized hypothesis, kept in a
+  // separate table so it can never be fed back into search/synthesis as if it
+  // were a primary source (which would self-poison the brain). Each edge stores
+  // the source note's content hash AT MINT TIME so drift can be detected
+  // deterministically (see checkInferenceStale). Evidence rows intentionally
+  // have NO foreign-key cascade: when a source note is deleted the row remains
+  // so the inference can be flagged orphaned rather than silently shrinking.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS inferences (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      title          TEXT    NOT NULL,
+      summary        TEXT    NOT NULL,
+      confidence     REAL,
+      status         TEXT    NOT NULL DEFAULT 'active',
+      model_id       TEXT,
+      prompt_version TEXT,
+      created_at     INTEGER NOT NULL,
+      updated_at     INTEGER NOT NULL
+    );
+  `);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS inference_evidence (
+      inference_id INTEGER NOT NULL,
+      note_id      INTEGER NOT NULL,
+      role         TEXT    NOT NULL DEFAULT 'source',
+      source_hash  TEXT    NOT NULL,
+      PRIMARY KEY (inference_id, note_id)
+    );
+  `);
+
   return { db: drizzle(sqlite, { schema }), sqlite };
 };

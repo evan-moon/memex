@@ -7,8 +7,10 @@ import { registerDelete } from './commands/delete.ts';
 import { registerDigest } from './commands/digest.ts';
 import { registerEdit } from './commands/edit.ts';
 import { registerIndex } from './commands/index.ts';
+import { registerInferences } from './commands/inferences.ts';
 import { registerList } from './commands/list.ts';
 import { registerMcp } from './commands/mcp.ts';
+import { registerMint } from './commands/mint.ts';
 import { registerReembed } from './commands/reembed.ts';
 import { registerRelated } from './commands/related.ts';
 import { registerRelayer } from './commands/relayer.ts';
@@ -39,5 +41,7 @@ registerDigest(program);
 registerClassify(program);
 registerRelayer(program);
 registerSignals(program);
+registerMint(program);
+registerInferences(program);
 
 program.parse();
