@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient, NoteSource } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { saveNote } from '../services/note.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
@@ -35,11 +35,15 @@ The response may include "Flashback" lines pointing to older notes from a differ
       folder: z
         .string()
         .optional()
-        .describe('Subfolder within the vault (e.g. "projects/memex"). Created if it does not exist.'),
+        .describe(
+          'Subfolder within the vault (e.g. "projects/memex"). Created if it does not exist.',
+        ),
       tags: z
         .array(z.string())
         .optional()
-        .describe('Semantic tags for cross-category relationship mapping (e.g. ["typescript", "architecture", "evan"]). Extract 3–7 tags covering technologies, people, topics, and concepts — independent of folder.'),
+        .describe(
+          'Semantic tags for cross-category relationship mapping (e.g. ["typescript", "architecture", "evan"]). Extract 3–7 tags covering technologies, people, topics, and concepts — independent of folder.',
+        ),
       source: z
         .enum(['manual', 'herald', 'claude-code'])
         .optional()
@@ -47,10 +51,12 @@ The response may include "Flashback" lines pointing to older notes from a differ
         .describe('Origin of the note'),
       layer: z
         .enum(['past', 'state', 'rule'])
-        .describe('Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide, user-only writes. When in doubt, choose past.'),
+        .describe(
+          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide, user-only writes. When in doubt, choose past.',
+        ),
     },
     async ({ title, content, folder, tags, source, layer }) => {
-      const { note, similar, flashbacks } = await saveNote(client, embedder, vaultPath, {
+      const { note, similar, flashbacks, signal } = await saveNote(client, embedder, vaultPath, {
         title,
         content,
         folder,
@@ -76,7 +82,11 @@ The response may include "Flashback" lines pointing to older notes from a differ
               .join('\n')}`
           : '';
 
-      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}`;
+      const signalSection = signal
+        ? `\n\n💡 Proactive Signal: Note joined an un-synthesized ${signal.type.replace('_', ' ')} (#${signal.id}: ${signal.reasoning})`
+        : '';
+
+      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}${signalSection}`;
 
       return { content: [{ type: 'text', text }] };
     },

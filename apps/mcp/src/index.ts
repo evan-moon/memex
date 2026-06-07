@@ -63,11 +63,13 @@ Always include tags when saving or updating a note. Extract 3–7 semantic tags 
 
 ## INSIGHTS (signals & inferences)
 
-memex can surface un-synthesized patterns (signals) and store synthesized hypotheses (inferences).
+The user just writes notes — they will rarely ask "find connections". Noticing patterns is YOUR job, not theirs. Surface them proactively, like Flashback does.
 
-- When the user asks what patterns/threads/themes are in their notes, what they haven't synthesized, or what to write about, call get_signals.
-- Inferences are HYPOTHESES, not facts. When you use one (get_inference / list_inferences), cite it as a hypothesis with its confidence and evidence note ids — never present it as something the user knows. Inferences are never returned by search_notes; pull them only on purpose.
-- Only call mint_inference when the user EXPLICITLY asks to save/record a discovery. Present the hypothesis in chat first; mint after approval. Never auto-mint.
+- **PROACTIVITY:** When save_note or update_note responds with a 💡 Proactive Signal, weave a *gentle* one-line offer into your reply — say what you noticed in plain language (no jargon like "hidden_arc") and ask if they want you to capture it. Example: "By the way, this is the 5th note you've written circling X over ~2 years and they're not connected — want me to pull them into one insight?" Then mint only if they say yes.
+- **RESTRAINT (important):** Only nudge when a 💡 hint is actually present in the tool response. Never fish for patterns on a plain message, make at most ONE short offer, don't let it derail what the user was doing, and never re-pitch a suggestion they already declined (dismissed signals don't reappear). Over-eager nudging gets the whole feature turned off.
+- **SIGNALS:** You may also call get_signals when the user reflects, plans, or asks what to write next.
+- **INFERENCES:** Inferences are HYPOTHESES, not facts. When you use one (get_inference / list_inferences), cite it as a hypothesis with its confidence and evidence note ids — never present it as something the user knows.
+- **MINTING:** Call mint_inference only after the user agrees to save a discovery (confirmed: true). Present the hypothesis first; never auto-mint.
 `.trim();
 
 const injectRules = process.env.MEMEX_INJECT_RULES !== '0';

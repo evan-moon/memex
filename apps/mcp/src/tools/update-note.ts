@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { editNote, isEditRejection } from '../services/note.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
@@ -23,7 +23,10 @@ Layer rules:
       id: z.number().int().describe('Note ID'),
       title: z.string().optional().describe('New title'),
       content: z.string().optional().describe('New content in markdown'),
-      tags: z.array(z.string()).optional().describe('Replace tags entirely (omit to keep existing tags)'),
+      tags: z
+        .array(z.string())
+        .optional()
+        .describe('Replace tags entirely (omit to keep existing tags)'),
     },
     async ({ id, title, content, tags }) => {
       const result = await editNote(client, embedder, vaultPath, id, { title, content, tags });
@@ -31,9 +34,21 @@ Layer rules:
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
       if (isEditRejection(result)) {
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: true };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          isError: true,
+        };
       }
-      return { content: [{ type: 'text', text: `Updated note #${result.id}: "${result.title}"` }] };
+
+      const signalSection = result.signal
+        ? `\n\n💡 Proactive Signal: Note joined/extended an un-synthesized ${result.signal.type.replace('_', ' ')} (#${result.signal.id}: ${result.signal.reasoning})`
+        : '';
+
+      return {
+        content: [
+          { type: 'text', text: `Updated note #${result.id}: "${result.title}"${signalSection}` },
+        ],
+      };
     },
   );
 };

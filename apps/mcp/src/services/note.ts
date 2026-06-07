@@ -5,6 +5,7 @@ import {
   deleteNote,
   type Flashback,
   type FlashbackOptions,
+  findBestProactiveSignal,
   findFlashbacks,
   findSimilarByEmbedding,
   getNote,
@@ -15,6 +16,8 @@ import {
   type NoteSource,
   parseAuthoredAt,
   parseTags,
+  refreshSignals,
+  type Signal,
   type SimilarNote,
   saveEmbedding,
   serializeTags,
@@ -73,7 +76,7 @@ export const saveNote = async (
     folder?: string;
     tags?: string[];
   },
-): Promise<{ note: Note; similar: SimilarNote[]; flashbacks: Flashback[] }> => {
+): Promise<{ note: Note; similar: SimilarNote[]; flashbacks: Flashback[]; signal?: Signal }> => {
   const embedding = await embedder(
     buildEmbeddingText(params.title, params.content, params.folder, params.tags),
   );
@@ -98,7 +101,13 @@ export const saveNote = async (
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
 
-  return { note, similar, flashbacks };
+  // Proactive surfacing: the write just bumped updated_at, so the dirty-flag
+  // lets this refresh run (detection cost is paid on write, keeping reads free).
+  // We then surface at most one signal the new note is part of.
+  const signals = refreshSignals(client);
+  const signal = findBestProactiveSignal(signals, note.id);
+
+  return { note, similar, flashbacks, signal };
 };
 
 export const semanticSearch = async (
@@ -129,7 +138,7 @@ export const editNote = async (
   vaultPath: string,
   id: number,
   patch: { title?: string; content?: string; tags?: string[] },
-): Promise<Note | EditNoteRejection | null> => {
+): Promise<(Note & { signal?: Signal }) | EditNoteRejection | null> => {
   const note = getNote(client, id);
   if (!note) return null;
 
@@ -168,7 +177,10 @@ export const editNote = async (
   saveEmbedding(client, id, embedding);
   syncLinks(client, id, content);
 
-  return updated;
+  const signals = refreshSignals(client);
+  const signal = findBestProactiveSignal(signals, id);
+
+  return { ...updated, signal };
 };
 
 export const isEditRejection = (

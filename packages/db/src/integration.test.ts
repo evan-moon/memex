@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
 import { checkInferenceStale, getInference, mintInference } from './inferences.ts';
 import { insertNote, saveEmbedding, serializeTags, updateNote } from './repository.ts';
-import { listSignals, refreshSignals } from './signals.ts';
+import { findBestProactiveSignal, listSignals, refreshSignals } from './signals.ts';
 
 const DAY = 86_400_000;
 
@@ -81,5 +81,38 @@ describe('signal → mint → invalidate loop', () => {
     expect(verdict?.stale).toBe(true);
     expect(verdict?.changedNoteIds).toContain(arc[0].id);
     expect(getInference(client, inf.id)?.inference.status).toBe('stale');
+  });
+
+  it('proactively surfaces the arc a freshly-saved note joins', () => {
+    const now = Date.now();
+    // An existing arc of 3 notes spread over time...
+    [600, 400, 200].forEach((daysAgo, idx) => {
+      const n = insertNote(client, {
+        title: `existing ${idx}`,
+        content: `body ${idx}`,
+        filePath: join(dbDir, `e${idx}.md`),
+        source: 'manual',
+        layer: 'past',
+      });
+      client.sqlite
+        .prepare('UPDATE notes SET created_at = ? WHERE id = ?')
+        .run(now - daysAgo * DAY, n.id);
+      saveEmbedding(client, n.id, unit(4));
+    });
+
+    // ...the user just saves a 4th note in the same vein (this is what saveNote
+    // does, minus the embedder). It should complete the arc.
+    const fresh = insertNote(client, {
+      title: 'fresh thought',
+      content: 'same theme, new day',
+      filePath: join(dbDir, 'fresh.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    saveEmbedding(client, fresh.id, unit(4));
+
+    const hint = findBestProactiveSignal(refreshSignals(client), fresh.id);
+    expect(hint?.type).toBe('hidden_arc');
+    expect(hint?.evidenceIds).toContain(fresh.id);
   });
 });

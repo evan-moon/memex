@@ -10,6 +10,7 @@ import {
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
+  findBestProactiveSignal,
   listSignals,
   refreshSignals,
   setSignalStatus,
@@ -181,6 +182,49 @@ describe('detectTagBursts', () => {
     addNote({ tags: ['steady'], createdAt: now - 2 * DAY });
     addNote({ tags: ['steady'], createdAt: now - 1 * DAY });
     expect(detectTagBursts(client, { now, minBurst: 2 })).toHaveLength(0);
+  });
+});
+
+describe('findBestProactiveSignal', () => {
+  it('picks the highest-priority new signal involving the note', () => {
+    upsertSignal(client, {
+      type: 'dangling_link',
+      evidenceIds: [1],
+      reasoning: 'd',
+      identity: 'd1',
+    });
+    upsertSignal(client, {
+      type: 'hidden_arc',
+      evidenceIds: [1, 2, 3, 4],
+      reasoning: 'a',
+      identity: 'a1',
+    });
+    upsertSignal(client, {
+      type: 'tag_burst',
+      evidenceIds: [1, 9],
+      reasoning: 'b',
+      identity: 'b1',
+    });
+    expect(findBestProactiveSignal(listSignals(client), 1)?.type).toBe('hidden_arc');
+  });
+
+  it('ignores notes not involved and non-new statuses', () => {
+    const arc = upsertSignal(client, {
+      type: 'hidden_arc',
+      evidenceIds: [5, 6, 7, 8],
+      reasoning: 'a',
+      identity: 'a2',
+    });
+    setSignalStatus(client, arc.id, 'dismissed'); // declined → must not resurface
+    const burst = upsertSignal(client, {
+      type: 'tag_burst',
+      evidenceIds: [5, 10],
+      reasoning: 'b',
+      identity: 'b2',
+    });
+
+    expect(findBestProactiveSignal(listSignals(client), 99)).toBeUndefined();
+    expect(findBestProactiveSignal(listSignals(client), 5)?.id).toBe(burst.id);
   });
 });
 

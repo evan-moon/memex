@@ -508,3 +508,26 @@ export const refreshSignals = (
   setMeta(client, REFRESH_META_KEY, Date.now());
   return touched;
 };
+
+/**
+ * Pick the most interesting "new" signal that involves the given note.
+ * Used for proactive hints during save/update.
+ */
+export const findBestProactiveSignal = (signals: Signal[], noteId: number): Signal | undefined => {
+  const candidates = signals.filter((s) => s.status === 'new' && s.evidenceIds.includes(noteId));
+
+  const priority: Record<SignalType, number> = {
+    hidden_arc: 1,
+    tag_burst: 2,
+    stale_state: 3,
+    dangling_link: 4,
+  };
+
+  return candidates.sort((a, b) => {
+    if (priority[a.type] !== priority[b.type]) {
+      return priority[a.type] - priority[b.type];
+    }
+    // For same type, prefer larger evidence set
+    return b.evidenceIds.length - a.evidenceIds.length;
+  })[0];
+};

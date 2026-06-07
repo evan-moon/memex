@@ -65,6 +65,7 @@ export {
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
+  findBestProactiveSignal,
   getSignal,
   listSignals,
   refreshSignals,
