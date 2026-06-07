@@ -1,4 +1,5 @@
 import {
+  checkInferenceStale,
   getInference,
   getSignal,
   type InferenceStatus,
@@ -49,6 +50,7 @@ export const registerInferences = (server: McpServer, client: MemexClient) => {
       id: z.number().int().describe('Inference id'),
     },
     async ({ id }) => {
+      checkInferenceStale(client, id); // sync status before reading
       const found = getInference(client, id);
       if (!found) {
         return { content: [{ type: 'text', text: `Inference #${id} not found.` }] };
@@ -93,8 +95,24 @@ Provide either fromSignalId (sources are taken from that signal) or evidenceNote
         .describe("Explicit source note ids (merged with the signal's notes if both given)"),
       confidence: z.number().min(0).max(1).optional().describe('Confidence 0..1'),
       modelId: z.string().optional().describe('Model that produced the synthesis'),
+      confirmed: z
+        .boolean()
+        .describe(
+          'Must be true: set ONLY after the user has explicitly approved saving this inference',
+        ),
     },
-    async ({ title, summary, fromSignalId, evidenceNoteIds, confidence, modelId }) => {
+    async ({ title, summary, fromSignalId, evidenceNoteIds, confidence, modelId, confirmed }) => {
+      // Hard gate (not just description text): minting requires explicit approval.
+      if (!confirmed) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'Refused: mint_inference requires confirmed=true. Present the hypothesis to the user and only mint after they approve.',
+            },
+          ],
+        };
+      }
       const ids = new Set<number>(evidenceNoteIds ?? []);
       if (fromSignalId !== undefined) {
         const signal = getSignal(client, fromSignalId);

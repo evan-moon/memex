@@ -84,7 +84,10 @@ const nudgeParts = [
   newSignals > 0 ? `${newSignals} new signal(s) to triage (get_signals)` : '',
   staleInferences > 0 ? `${staleInferences} stale inference(s) to re-verify` : '',
 ].filter(Boolean);
-const nudge = nudgeParts.length > 0 ? `\n\n## STATUS\n\n${nudgeParts.join('; ')}.` : '';
+// Static startup snapshot (MCP instructions are fixed at construct time); call
+// get_signals / list_inferences for live state.
+const nudge =
+  nudgeParts.length > 0 ? `\n\n## STATUS (at startup)\n\n${nudgeParts.join('; ')}.` : '';
 
 const instructions =
   (ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions) + nudge;
