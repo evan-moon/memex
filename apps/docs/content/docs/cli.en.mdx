@@ -53,7 +53,39 @@ memex digest                # summary of notes saved in the last 7 days
 memex digest --days 30      # last 30 days
 ```
 
-Digest groups notes by folder and prints them with tags and dates. Useful as a weekly review or to catch up after time away.
+Digest groups notes by folder and prints them with tags and dates, then ends with a **signal summary** and your **active/stale inferences** — a one-shot weekly review of both what you wrote and what's worth synthesizing.
+
+## Insights (signals & inferences)
+
+The [inference engine](/en/docs/inference-engine) finds patterns across your notes and lets you promote them into hypotheses.
+
+```bash
+memex signals                       # detect + list un-synthesized patterns
+memex signals --type hidden_arc     # one type only (hidden_arc|stale_state|dangling_link|tag_burst)
+memex signals --no-refresh          # list stored signals without re-detecting
+memex signals dismiss <id>          # triage: never resurface this signal
+memex signals snooze <id>
+
+memex mint <signalId>               # print the evidence bundle + a synthesis prompt (read-only)
+memex mint <signalId> \             # persist a synthesized inference
+  --title "..." --summary "..." --confidence 0.7 --model claude-opus-4-8
+
+memex inferences                    # list inferences (re-checks staleness first)
+memex inferences archive <id>       # archive (kept for provenance, frozen from staleness)
+```
+
+`mint` is a two-step, LLM-free flow: `memex mint <id>` assembles the source notes and a synthesis prompt; you (or Claude) write the inference and persist it with `--title`/`--summary`. An inference stores a content-hash snapshot of every source, so it auto-flips to `[!] STALE` if a source note later changes.
+
+Detector thresholds are tunable via env: `MEMEX_ARC_DIST` (default `0.45`), `MEMEX_ARC_MIN_MEMBERS`, `MEMEX_ARC_MAX_MEMBERS`, `MEMEX_ARC_MIN_SPAN_DAYS`, `MEMEX_STALE_DIST`, `MEMEX_STALE_MIN_NEWER`, `MEMEX_BURST_DORMANT_DAYS`, `MEMEX_BURST_MIN`.
+
+## Schedule
+
+```bash
+memex schedule                 # print a cron/launchd snippet for a daily digest
+memex schedule --at 08:30      # at a specific time
+```
+
+memex never runs a daemon. `schedule` prints a copy-paste cron line and launchd plist that run `memex digest` on a timer — the OS owns scheduling. Detection is dirty-flagged, so a scheduled run is free when nothing changed.
 
 ## Edit & delete
 

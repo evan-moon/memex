@@ -3,7 +3,7 @@ title: MCP Tools
 description: The tools memex exposes to Claude via the Model Context Protocol.
 ---
 
-When you connect memex to Claude, it gets access to 8 tools. Claude uses these automatically — you don't have to ask.
+When you connect memex to Claude, it gets access to 13 tools. Claude uses these automatically — you don't have to ask.
 
 ## Tools
 
@@ -17,6 +17,11 @@ When you connect memex to Claude, it gets access to 8 tools. Claude uses these a
 | `get_note` | Full note content + backlinks by ID. |
 | `update_note` | Update title, content, or tags. Refuses `past` notes (suggests an `[Amendment]` note) and `rule` notes (user-only). |
 | `delete_note` | Delete a note by ID. |
+| `get_signals` | Deterministic un-synthesized patterns (hidden_arc / stale_state / dangling_link / tag_burst). |
+| `update_signal_status` | Triage a signal — dismiss noise or snooze for later. |
+| `list_inferences` | List synthesized hypotheses (re-checks staleness first). |
+| `get_inference` | One inference with full provenance (evidence + change/delete markers). |
+| `mint_inference` | Persist an approved hypothesis. Requires explicit confirmation. |
 
 ## search_notes parameters
 
@@ -90,6 +95,22 @@ Tunable via env:
 ## get_note + backlinks
 
 `get_note` returns the full note content and a "Referenced by" section listing every note that links to this one via `[[Title]]` syntax. Backlinks are resolved at save/update time.
+
+## Inference engine tools
+
+These expose the [inference engine](/en/docs/inference-engine) to Claude. Detection and invalidation stay deterministic in memex; the only LLM step is synthesizing an inference's summary, and Claude does that — never memex.
+
+- `get_signals(type?, status?)` — lists un-synthesized patterns. Defaults to `new` and re-runs detection (dirty-flagged, so it's free on a static corpus). Use it when you ask "what threads are in my notes", "what haven't I synthesized", or "what should I write about".
+- `update_signal_status(id, status)` — dismiss noise so it never resurfaces, or snooze it. Claude confirms with you before dismissing.
+- `list_inferences(status?)` / `get_inference(id)` — read stored hypotheses. Staleness is re-checked first, so a changed source shows up as `stale`.
+- `mint_inference(...)` — persist a hypothesis.
+
+**Two guardrails make this safe to trust:**
+
+1. **Inferences are pull-only, never injected.** They're excluded from `search_notes` and never auto-loaded into Claude's context. Claude pulls them on purpose and cites them as *hypotheses* — `[Inference #42, conf 0.78, from notes #1, #2]` — never as facts you "know". This prevents the brain from echoing its own past guesses back as truth.
+2. **No auto-mint.** `mint_inference` requires `confirmed: true`, which Claude only sets after you explicitly approve. It presents the hypothesis in chat first; minting in the background is refused at the code level, not just by instruction.
+
+On connect, the server greeting includes a startup *count* of new signals and stale inferences (a nudge to look) — but never their content.
 
 ## Claude's automatic behavior
 

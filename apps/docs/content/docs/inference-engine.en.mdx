@@ -1,0 +1,86 @@
+---
+title: Inference Engine
+description: How memex turns accumulated notes into new inferences — deterministic signals, agent-synthesized hypotheses, and automatic invalidation.
+---
+
+Search retrieves what you wrote. The **inference engine** goes one step further: it surfaces patterns *across* your notes that no single note states, and lets you promote the good ones into durable hypotheses with provenance.
+
+The design hypothesis is the same as [Flashback](/en/docs/flashback): the value is in the connections, not the volume. But where flashback points at one related note, the inference engine looks at the *whole corpus structure* — clusters that span years, state notes that have quietly gone out of date, themes you never synthesized.
+
+## The core principle: memex is not an LLM
+
+memex never calls a language model. It stays a **deterministic structure engine**. The split is deliberate (the same one [firma](https://github.com/evan-moon) uses for facts vs. narrative):
+
+- **memex** finds, scores, and stores — cheaply, reproducibly, with no hallucination surface.
+- **The agent** (Claude, in conversation) does the one synthesis step, and only when you ask.
+
+This keeps the brain trustworthy over time. Inferences are stored in their own tables and are **never returned by `search_notes`**, so a future synthesis can never feed on a previous (possibly wrong) inference. That circular echo is how a second brain self-poisons; the table separation prevents it structurally.
+
+## Two layers: signals → inferences
+
+```
+notes ──(deterministic detection)──▶ signals ──(you approve)──▶ agent synthesis ──▶ inferences
+                                        ▲                                              │
+                                        └──────────── triage (dismiss/snooze) ────────┘
+```
+
+### Signals (Lv1, no LLM)
+
+A **signal** points at an un-synthesized pattern — "there is something here worth thinking about." Four detectors, all pure SQL + vector math:
+
+| Signal | What it catches |
+|--------|-----------------|
+| `hidden_arc` | A cluster of notes that clearly belong together but were never linked, playing out over a long time — an un-synthesized thread. |
+| `stale_state` | A `state` note that has newer related notes created after it was last updated — its "current truth" may be out of date. |
+| `dangling_link` | A `[[link]]` to a note that doesn't exist yet — an explicit open question. |
+| `tag_burst` | A tag that went dormant for months and then resurfaced — a revival of interest. |
+
+`hidden_arc` is the subtle one. It builds a **mutual-kNN graph** (an edge only when two notes are each in the other's nearest neighbors), runs union-find to get disjoint components, then keeps only components that are 4–12 notes, span ≥180 days, and have near-zero internal links. Mutual-kNN kills "hub" notes that would otherwise merge unrelated arcs into one blob; the size and span filters separate a real *arc* (periodic reflection) from a *topic* (a daily-grind work stream).
+
+Signals are **materialized** with a triage status (`new` / `snoozed` / `dismissed` / `minted`), so dismissing noise sticks — re-running detection never resurfaces what you've already judged.
+
+### Inferences (Lv2, agent-synthesized)
+
+An **inference** is a hypothesis: a non-obvious claim that holds across several notes but is stated in none. You (or the agent) read a signal's evidence, synthesize the claim, and **mint** it. What gets stored:
+
+- the title + summary (the claim and why the evidence supports it),
+- a `confidence` score and the `model_id` that produced it,
+- an **evidence edge** to every source note, with a **content-hash snapshot** of that note at mint time.
+
+Inferences are hypotheses, not facts. When the agent uses one, it cites it as such — `[Inference #42, conf 0.78, from notes #1, #2]` — never as something you "know."
+
+## Invalidation: the brain doesn't rot
+
+The content-hash snapshot is what keeps inferences honest over time. Whenever an inference is read, memex re-hashes its source notes and compares:
+
+- a source's content **changed** → the inference flips to `stale`,
+- a source was **deleted** → the inference is flagged orphaned (the evidence row is kept on purpose, so the loss is *detectable* rather than silent).
+
+Stale inferences show a `[!] STALE` marker and a `~`/`✗` next to the offending source. This is all deterministic — no LLM needed to notice an inference rotted. A flagged inference is re-minted (synthesis is holistic; partial patching is brittle), and once its sources are stable again it returns to `active`.
+
+## Lazy by default, no daemon
+
+Detection is **on-read**: `memex signals`, `memex digest`, and the MCP `get_signals` tool run it on demand. There is no background daemon — that would be the wrong fit for a local-first CLI.
+
+To keep on-read cheap, `refreshSignals` is **dirty-flagged**: if no note has changed since the last run, detection is skipped entirely (tracked in an `engine_meta` table). So a static corpus pays nothing, and you only eat the O(N·kNN) cost when something actually changed.
+
+Want a daily nudge anyway? Let the OS schedule it — `memex schedule` prints a ready-to-paste cron or launchd snippet that runs `memex digest`. memex still never owns a long-running process.
+
+## Where it surfaces
+
+- **CLI** — `memex signals` (with `dismiss`/`snooze`), `memex mint`, `memex inferences`. `memex digest` now ends with a signal summary and your active/stale inferences.
+- **MCP** — `get_signals`, `update_signal_status`, `list_inferences`, `get_inference`, `mint_inference`. The agent can surface signals and, *only when you explicitly ask*, mint an approved hypothesis. See [MCP Tools](/en/docs/mcp-tools#inference-engine-tools).
+
+## Guardrails (why you can trust it)
+
+1. **No LLM in the core** — detection and invalidation are deterministic; the model only writes the final summary.
+2. **Inferences ≠ notes** — separate tables, excluded from search, so synthesis can't eat its own output.
+3. **No auto-mint** — `mint_inference` requires explicit user approval (`confirmed: true`); the agent presents the hypothesis first.
+4. **Provenance + invalidation** — every inference carries its sources and their hashes, so drift is caught automatically.
+
+## Related
+
+- [Flashback](/en/docs/flashback) — the per-note version of the same "make connections visible" idea
+- [Note Layers](/en/docs/layers) — `state` notes drive `stale_state`; `past` notes are the arc material
+- [CLI Reference](/en/docs/cli#insights-signals--inferences)
+- [MCP Tools](/en/docs/mcp-tools#inference-engine-tools)

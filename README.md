@@ -79,6 +79,7 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 - **Date filter** — narrow search to a time range with `--from` / `--to`
 - **Note layers** — every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
 - **Flashback** — save and search automatically surface older notes from a *different folder* that are semantically related — "you wrote about this 124 days ago in a different context"
+- **Inference engine** — deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
 - **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Duplicate detection** — `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
 - **Backlinks** — link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
@@ -116,8 +117,17 @@ memex list --limit 20
 memex show <id>
 memex tags                                   # all tags with counts
 memex related <id>                           # semantically related notes
-memex digest                                 # summary of last 7 days
+memex digest                                 # last 7 days + signals + inferences
 memex digest --days 30                       # summary of last 30 days
+
+# Insights (inference engine)
+memex signals                                # detect un-synthesized patterns
+memex signals --type hidden_arc              # one type only
+memex signals dismiss <id>                   # triage (also: snooze)
+memex mint <signalId>                        # print evidence bundle to synthesize
+memex mint <signalId> --title "..." --summary "..." --confidence 0.7
+memex inferences                             # list inferences (auto-flags stale)
+memex schedule                               # print cron/launchd snippet (no daemon)
 
 # Edit / delete
 memex edit <id>
@@ -184,6 +194,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `get_note` | Get full content and backlinks of a note by ID |
 | `update_note` | Update title or content. Refuses `past` notes (with `[Amendment]` suggestion) and `rule` notes (user-only) |
 | `delete_note` | Delete a note by ID |
+| `get_signals` | Deterministic un-synthesized patterns (hidden_arc / stale_state / dangling_link / tag_burst) |
+| `update_signal_status` | Triage a signal — dismiss or snooze |
+| `list_inferences` | List synthesized hypotheses (re-checks staleness first) |
+| `get_inference` | One inference with full provenance + change/delete markers |
+| `mint_inference` | Persist an approved hypothesis — requires explicit confirmation |
+
+Inferences are kept separate from notes (excluded from search) and are cited as hypotheses, never facts. Detection stays deterministic; the only LLM step is synthesizing an inference's summary, which Claude does — never memex.
 
 ### Note layers
 

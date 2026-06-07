@@ -53,7 +53,39 @@ memex digest                # 최근 7일간 저장된 노트 요약
 memex digest --days 30      # 최근 30일
 ```
 
-다이제스트는 노트를 폴더별로 그룹화하고 태그와 날짜와 함께 출력합니다. 주간 회고나 오래 쉰 뒤 따라잡을 때 유용합니다.
+다이제스트는 노트를 폴더별로 그룹화해 태그·날짜와 함께 출력하고, 마지막에 **신호 요약**과 **active/stale 추론**을 덧붙입니다 — 무엇을 썼는지와 무엇을 종합할 만한지를 한 번에 보는 주간 회고입니다.
+
+## 인사이트 (신호 & 추론)
+
+[추론 엔진](/ko/docs/inference-engine)은 노트 사이의 패턴을 찾아 가설로 승격시킵니다.
+
+```bash
+memex signals                       # 종합 안 된 패턴 탐지 + 나열
+memex signals --type hidden_arc     # 한 종류만 (hidden_arc|stale_state|dangling_link|tag_burst)
+memex signals --no-refresh          # 재탐지 없이 저장된 신호만 나열
+memex signals dismiss <id>          # triage: 이 신호 다시 안 뜨게
+memex signals snooze <id>
+
+memex mint <signalId>               # 근거 번들 + 종합 프롬프트 출력 (읽기 전용)
+memex mint <signalId> \             # 종합된 추론 저장
+  --title "..." --summary "..." --confidence 0.7 --model claude-opus-4-8
+
+memex inferences                    # 추론 목록 (먼저 staleness 재확인)
+memex inferences archive <id>       # 아카이브 (출처용 보존, staleness에서 제외)
+```
+
+`mint`은 LLM을 안 쓰는 2단계 흐름입니다: `memex mint <id>`가 출처 노트와 종합 프롬프트를 모아주면, 당신(또는 Claude)이 추론을 써서 `--title`/`--summary`로 저장합니다. 추론은 모든 출처의 content 해시 스냅샷을 저장하므로, 나중에 출처 노트가 바뀌면 자동으로 `[!] STALE`로 전환됩니다.
+
+탐지 임계값은 env로 조정합니다: `MEMEX_ARC_DIST`(기본 `0.45`), `MEMEX_ARC_MIN_MEMBERS`, `MEMEX_ARC_MAX_MEMBERS`, `MEMEX_ARC_MIN_SPAN_DAYS`, `MEMEX_STALE_DIST`, `MEMEX_STALE_MIN_NEWER`, `MEMEX_BURST_DORMANT_DAYS`, `MEMEX_BURST_MIN`.
+
+## 스케줄
+
+```bash
+memex schedule                 # 일일 다이제스트용 cron/launchd 스니펫 출력
+memex schedule --at 08:30      # 특정 시각
+```
+
+memex는 데몬을 돌리지 않습니다. `schedule`은 `memex digest`를 정해진 시각에 돌리는 cron 라인과 launchd plist를 복붙용으로 출력합니다 — 스케줄링은 OS가 맡습니다. 탐지는 dirty-flag가 걸려 있어, 바뀐 게 없으면 예약 실행도 비용이 0입니다.
 
 ## 편집 & 삭제
 
