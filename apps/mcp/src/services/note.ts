@@ -1,26 +1,27 @@
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import {
+  searchNotes as dbSearchNotes,
   deleteNote,
+  type Flashback,
+  type FlashbackOptions,
   findFlashbacks,
   findSimilarByEmbedding,
   getNote,
   insertNote,
-  parseTags,
-  saveEmbedding,
-  searchNotes as dbSearchNotes,
-  serializeTags,
-  syncLinks,
-  updateNote,
-  type Flashback,
-  type FlashbackOptions,
   type MemexClient,
   type Note,
   type NoteLayer,
   type NoteSource,
+  parseAuthoredAt,
+  parseTags,
   type SimilarNote,
+  saveEmbedding,
+  serializeTags,
+  syncLinks,
+  updateNote,
 } from '@memex/db';
-import { extractCategory, buildEmbeddingText } from '@memex/utils';
+import { buildEmbeddingText, extractCategory } from '@memex/utils';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -46,9 +47,7 @@ const readFlashbackOptions = (): FlashbackOptions => ({
   maxDistance: process.env.MEMEX_FLASHBACK_DIST
     ? Number(process.env.MEMEX_FLASHBACK_DIST)
     : undefined,
-  limit: process.env.MEMEX_FLASHBACK_LIMIT
-    ? Number(process.env.MEMEX_FLASHBACK_LIMIT)
-    : undefined,
+  limit: process.env.MEMEX_FLASHBACK_LIMIT ? Number(process.env.MEMEX_FLASHBACK_LIMIT) : undefined,
 });
 
 const persistFlashbackLinks = (
@@ -66,9 +65,18 @@ export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
-  params: { title: string; content: string; source: NoteSource; layer: NoteLayer; folder?: string; tags?: string[] },
+  params: {
+    title: string;
+    content: string;
+    source: NoteSource;
+    layer: NoteLayer;
+    folder?: string;
+    tags?: string[];
+  },
 ): Promise<{ note: Note; similar: SimilarNote[]; flashbacks: Flashback[] }> => {
-  const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
+  const embedding = await embedder(
+    buildEmbeddingText(params.title, params.content, params.folder, params.tags),
+  );
   const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
 
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
@@ -76,7 +84,14 @@ export const saveNote = async (
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const note = insertNote(client, { ...params, filePath, category: category ?? undefined, tags });
+  const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
+  const note = insertNote(client, {
+    ...params,
+    filePath,
+    category: category ?? undefined,
+    tags,
+    authoredAt,
+  });
   saveEmbedding(client, note.id, embedding);
   syncLinks(client, note.id, params.content);
 

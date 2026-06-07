@@ -36,11 +36,16 @@ export type EvidenceEdge = {
   noteId: number;
   role: EvidenceRole;
   sourceHash: string;
+  sourceExcerpt: string | null; // note content snapshot at mint time
   // Resolved at read time:
   title: string | null;
   changed: boolean; // current content hash != sourceHash
   missing: boolean; // note no longer exists
 };
+
+const EXCERPT_CHARS = 280;
+const excerptOf = (content: string): string =>
+  content.length <= EXCERPT_CHARS ? content : `${content.slice(0, EXCERPT_CHARS)}…`;
 
 export type MintInferenceInput = {
   title: string;
@@ -79,11 +84,14 @@ const rowToInference = (r: InferenceRow): Inference => ({
 export const noteContentHash = (content: string): string =>
   createHash('sha256').update(content).digest('hex');
 
-const noteHashFor = (client: MemexClient, noteId: number): string | null => {
+const noteSnapshotFor = (
+  client: MemexClient,
+  noteId: number,
+): { hash: string; excerpt: string } | null => {
   const row = client.sqlite.prepare('SELECT content FROM notes WHERE id = ?').get(noteId) as
     | { content: string }
     | undefined;
-  return row ? noteContentHash(row.content) : null;
+  return row ? { hash: noteContentHash(row.content), excerpt: excerptOf(row.content) } : null;
 };
 
 // Persist an LLM-synthesized inference with full provenance. The summary/title
@@ -110,13 +118,14 @@ export const mintInference = (client: MemexClient, input: MintInferenceInput): I
     const inferenceId = Number(lastInsertRowid);
 
     const insertEdge = client.sqlite.prepare(
-      `INSERT OR IGNORE INTO inference_evidence (inference_id, note_id, role, source_hash)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO inference_evidence
+         (inference_id, note_id, role, source_hash, source_excerpt)
+       VALUES (?, ?, ?, ?, ?)`,
     );
     for (const ev of input.evidence) {
-      const hash = noteHashFor(client, ev.noteId);
-      if (hash === null) continue; // can't mint from a note that doesn't exist
-      insertEdge.run(inferenceId, ev.noteId, ev.role ?? 'source', hash);
+      const snap = noteSnapshotFor(client, ev.noteId);
+      if (snap === null) continue; // can't mint from a note that doesn't exist
+      insertEdge.run(inferenceId, ev.noteId, ev.role ?? 'source', snap.hash, snap.excerpt);
     }
 
     if (input.fromSignalId !== undefined) {
@@ -143,7 +152,7 @@ export const getInference = (
 
   const edges = client.sqlite
     .prepare(
-      `SELECT ie.note_id, ie.role, ie.source_hash, n.content, n.title
+      `SELECT ie.note_id, ie.role, ie.source_hash, ie.source_excerpt, n.content, n.title
        FROM inference_evidence ie
        LEFT JOIN notes n ON n.id = ie.note_id
        WHERE ie.inference_id = ?
@@ -153,6 +162,7 @@ export const getInference = (
     note_id: number;
     role: EvidenceRole;
     source_hash: string;
+    source_excerpt: string | null;
     content: string | null;
     title: string | null;
   }[];
@@ -161,6 +171,7 @@ export const getInference = (
     noteId: e.note_id,
     role: e.role,
     sourceHash: e.source_hash,
+    sourceExcerpt: e.source_excerpt,
     title: e.title,
     missing: e.content === null,
     changed: e.content !== null && noteContentHash(e.content) !== e.source_hash,

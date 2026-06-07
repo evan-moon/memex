@@ -1,19 +1,21 @@
 #!/usr/bin/env node
+import { mkdirSync } from 'node:fs';
+import { listInferences, listSignals, openDb } from '@memex/db';
+import { createEmbedder } from '@memex/embed';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { mkdirSync } from 'node:fs';
-import { openDb } from '@memex/db';
-import { createEmbedder } from '@memex/embed';
-import { expandPath, loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from './config.ts';
+import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from './config.ts';
+import { buildRuleInstructions } from './services/rules.ts';
+import { registerDeleteNote } from './tools/delete-note.ts';
+import { registerGetNote } from './tools/get-note.ts';
+import { registerInferences } from './tools/inferences.ts';
+import { registerListFolders } from './tools/list-folders.ts';
+import { registerListNotes } from './tools/list-notes.ts';
+import { registerListTags } from './tools/list-tags.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
-import { registerListNotes } from './tools/list-notes.ts';
-import { registerGetNote } from './tools/get-note.ts';
-import { registerDeleteNote } from './tools/delete-note.ts';
+import { registerSignals } from './tools/signals.ts';
 import { registerUpdateNote } from './tools/update-note.ts';
-import { registerListTags } from './tools/list-tags.ts';
-import { registerListFolders } from './tools/list-folders.ts';
-import { buildRuleInstructions } from './services/rules.ts';
 
 const config = loadConfig();
 const vaultPath = expandPath(config.vault_path);
@@ -58,6 +60,14 @@ conversations/<name> · decisions/<project> · learning/<topic> · ideas/
 ## TAGS
 
 Always include tags when saving or updating a note. Extract 3–7 semantic tags covering technologies, people, topics, and concepts — independent of the folder. Tags are the primary cross-category relationship mechanism (e.g. a "typescript" tag connects a conversation with Alice to a decision in decisions/memex).
+
+## INSIGHTS (signals & inferences)
+
+memex can surface un-synthesized patterns (signals) and store synthesized hypotheses (inferences).
+
+- When the user asks what patterns/threads/themes are in their notes, what they haven't synthesized, or what to write about, call get_signals.
+- Inferences are HYPOTHESES, not facts. When you use one (get_inference / list_inferences), cite it as a hypothesis with its confidence and evidence note ids — never present it as something the user knows. Inferences are never returned by search_notes; pull them only on purpose.
+- Only call mint_inference when the user EXPLICITLY asks to save/record a discovery. Present the hypothesis in chat first; mint after approval. Never auto-mint.
 `.trim();
 
 const injectRules = process.env.MEMEX_INJECT_RULES !== '0';
@@ -65,7 +75,19 @@ const maxChars = process.env.MEMEX_RULES_MAX_CHARS
   ? Number(process.env.MEMEX_RULES_MAX_CHARS)
   : undefined;
 const ruleSection = injectRules ? buildRuleInstructions(client, { maxChars }) : '';
-const instructions = ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions;
+
+// Nudge only (a COUNT, never inference content): inferences are pull-only so
+// they never silently shape answers as if they were facts.
+const newSignals = listSignals(client, { status: 'new' }).length;
+const staleInferences = listInferences(client, { status: 'stale' }).length;
+const nudgeParts = [
+  newSignals > 0 ? `${newSignals} new signal(s) to triage (get_signals)` : '',
+  staleInferences > 0 ? `${staleInferences} stale inference(s) to re-verify` : '',
+].filter(Boolean);
+const nudge = nudgeParts.length > 0 ? `\n\n## STATUS\n\n${nudgeParts.join('; ')}.` : '';
+
+const instructions =
+  (ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions) + nudge;
 
 const server = new McpServer({ name: 'memex', version: '0.1.0' }, { instructions });
 
@@ -77,6 +99,8 @@ registerDeleteNote(server, client);
 registerUpdateNote(server, client, embedder, vaultPath);
 registerListTags(server, client);
 registerListFolders(server, client);
+registerSignals(server, client);
+registerInferences(server, client);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

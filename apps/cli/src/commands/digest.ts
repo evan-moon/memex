@@ -1,7 +1,16 @@
+import {
+  listInferences,
+  listNotesSince,
+  listSignals,
+  type Note,
+  openDb,
+  parseTags,
+  refreshInferenceStaleness,
+  type SignalType,
+} from '@memex/db';
+import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { type Note, openDb, listNotesSince, parseTags } from '@memex/db';
-import { CONFIG_DIR, formatDate } from '@memex/utils';
 
 export const registerDigest = (program: Command) => {
   program
@@ -45,6 +54,31 @@ export const registerDigest = (program: Command) => {
           console.log(`  ${pc.bold(`#${note.id}`)} ${note.title}${tagStr}  ${pc.dim(date)}`);
         });
       });
+
+      // Signals & inferences: what's worth synthesizing, and what's rotting.
+      const TYPE_ORDER: SignalType[] = ['hidden_arc', 'stale_state', 'tag_burst', 'dangling_link'];
+      const newSignals = listSignals(client, { status: 'new' });
+      if (newSignals.length > 0) {
+        const byType = new Map<SignalType, number>();
+        for (const s of newSignals) byType.set(s.type, (byType.get(s.type) ?? 0) + 1);
+        const summary = TYPE_ORDER.filter((t) => byType.has(t))
+          .map((t) => `${byType.get(t)} ${t}`)
+          .join(', ');
+        console.log();
+        console.log(pc.bold(pc.magenta('Signals (new)')));
+        console.log(pc.dim(`  ${summary} — review: memex signals`));
+      }
+
+      refreshInferenceStaleness(client);
+      const active = listInferences(client, { status: 'active' });
+      const stale = listInferences(client, { status: 'stale' });
+      if (active.length > 0 || stale.length > 0) {
+        console.log();
+        console.log(pc.bold(pc.green('Inferences')));
+        for (const inf of stale) console.log(`  ${pc.red('[!] STALE')} #${inf.id} ${inf.title}`);
+        for (const inf of active) console.log(`  ${pc.dim('·')} #${inf.id} ${inf.title}`);
+      }
+
       console.log();
     });
 };

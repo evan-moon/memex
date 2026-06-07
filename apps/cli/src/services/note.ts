@@ -1,23 +1,24 @@
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import {
+  searchNotes as dbSearchNotes,
   deleteNote,
+  type Flashback,
+  type FlashbackOptions,
   findFlashbacks,
   getNote,
   insertNote,
-  parseTags,
-  saveEmbedding,
-  searchNotes as dbSearchNotes,
-  serializeTags,
-  syncLinks,
-  updateNote,
-  type Flashback,
-  type FlashbackOptions,
   type MemexClient,
   type NoteLayer,
   type NoteSource,
+  parseAuthoredAt,
+  parseTags,
+  saveEmbedding,
+  serializeTags,
+  syncLinks,
+  updateNote,
 } from '@memex/db';
-import { extractCategory, buildEmbeddingText } from '@memex/utils';
+import { buildEmbeddingText, extractCategory } from '@memex/utils';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -43,9 +44,7 @@ const readFlashbackOptions = (): FlashbackOptions => ({
   maxDistance: process.env.MEMEX_FLASHBACK_DIST
     ? Number(process.env.MEMEX_FLASHBACK_DIST)
     : undefined,
-  limit: process.env.MEMEX_FLASHBACK_LIMIT
-    ? Number(process.env.MEMEX_FLASHBACK_LIMIT)
-    : undefined,
+  limit: process.env.MEMEX_FLASHBACK_LIMIT ? Number(process.env.MEMEX_FLASHBACK_LIMIT) : undefined,
 });
 
 const persistFlashbackLinks = (
@@ -63,15 +62,31 @@ export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
-  params: { title: string; content: string; source: NoteSource; layer: NoteLayer; folder?: string; tags?: string[] },
+  params: {
+    title: string;
+    content: string;
+    source: NoteSource;
+    layer: NoteLayer;
+    folder?: string;
+    tags?: string[];
+  },
 ): Promise<{ note: ReturnType<typeof insertNote>; flashbacks: Flashback[] }> => {
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const note = insertNote(client, { ...params, filePath, category: category ?? undefined, tags });
-  const embedding = await embedder(buildEmbeddingText(params.title, params.content, params.folder, params.tags));
+  const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
+  const note = insertNote(client, {
+    ...params,
+    filePath,
+    category: category ?? undefined,
+    tags,
+    authoredAt,
+  });
+  const embedding = await embedder(
+    buildEmbeddingText(params.title, params.content, params.folder, params.tags),
+  );
   saveEmbedding(client, note.id, embedding);
   syncLinks(client, note.id, params.content);
 
@@ -103,9 +118,7 @@ export type EditNoteRejection =
     }
   | { error: 'RULE_USER_ONLY'; message: string };
 
-export const isEditRejection = (
-  result: unknown,
-): result is EditNoteRejection =>
+export const isEditRejection = (result: unknown): result is EditNoteRejection =>
   result !== null && typeof result === 'object' && 'error' in (result as object);
 
 export const editNote = async (

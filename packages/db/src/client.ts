@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
+import { parseAuthoredAt } from './dates.ts';
 import * as schema from './schema.ts';
 
 export const EMBEDDING_DIM = 768;
@@ -85,20 +86,6 @@ export const openDb = (dbDir: string): MemexClient => {
   // created_at lands in the import window.
   if (!cols.some((c) => c.name === 'authored_at')) {
     sqlite.exec('ALTER TABLE notes ADD COLUMN authored_at INTEGER');
-
-    const parseAuthoredAt = (title: string, content: string): number | null => {
-      const fm = content.match(/\bdate:\s*(\d{4}-\d{2}-\d{2})/);
-      if (fm) {
-        const ms = Date.parse(fm[1]);
-        if (!Number.isNaN(ms)) return ms;
-      }
-      const tt = title.match(/\((\d{4}-\d{2}-\d{2})\)/);
-      if (tt) {
-        const ms = Date.parse(tt[1]);
-        if (!Number.isNaN(ms)) return ms;
-      }
-      return null;
-    };
 
     const rows = sqlite.prepare('SELECT id, title, content FROM notes').all() as {
       id: number;
@@ -202,13 +189,20 @@ export const openDb = (dbDir: string): MemexClient => {
   `);
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS inference_evidence (
-      inference_id INTEGER NOT NULL,
-      note_id      INTEGER NOT NULL,
-      role         TEXT    NOT NULL DEFAULT 'source',
-      source_hash  TEXT    NOT NULL,
+      inference_id   INTEGER NOT NULL,
+      note_id        INTEGER NOT NULL,
+      role           TEXT    NOT NULL DEFAULT 'source',
+      source_hash    TEXT    NOT NULL,
+      source_excerpt TEXT,
       PRIMARY KEY (inference_id, note_id)
     );
   `);
+  const evCols = sqlite.prepare('PRAGMA table_info(inference_evidence)').all() as {
+    name: string;
+  }[];
+  if (!evCols.some((c) => c.name === 'source_excerpt')) {
+    sqlite.exec('ALTER TABLE inference_evidence ADD COLUMN source_excerpt TEXT');
+  }
 
   return { db: drizzle(sqlite, { schema }), sqlite };
 };

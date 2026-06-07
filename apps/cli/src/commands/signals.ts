@@ -19,6 +19,27 @@ const TYPE_LABEL: Record<SignalType, (s: string) => string> = {
   tag_burst: pc.green,
 };
 
+const num = (v: string | undefined): number | undefined =>
+  v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined;
+
+// Detector thresholds are tunable via env (mirrors MEMEX_FLASHBACK_*).
+const detectorOptions = () => ({
+  arc: {
+    knnDistance: num(process.env.MEMEX_ARC_DIST),
+    minMembers: num(process.env.MEMEX_ARC_MIN_MEMBERS),
+    maxMembers: num(process.env.MEMEX_ARC_MAX_MEMBERS),
+    minSpanDays: num(process.env.MEMEX_ARC_MIN_SPAN_DAYS),
+  },
+  stale: {
+    maxDistance: num(process.env.MEMEX_STALE_DIST),
+    minNewer: num(process.env.MEMEX_STALE_MIN_NEWER),
+  },
+  burst: {
+    dormantDays: num(process.env.MEMEX_BURST_DORMANT_DAYS),
+    minBurst: num(process.env.MEMEX_BURST_MIN),
+  },
+});
+
 const TYPE_ORDER: SignalType[] = ['hidden_arc', 'stale_state', 'tag_burst', 'dangling_link'];
 
 const printSignal = (client: ReturnType<typeof openDb>, s: Signal) => {
@@ -47,7 +68,7 @@ export const registerSignals = (program: Command) => {
     .action((opts: { status: string; type?: SignalType; refresh: boolean }) => {
       const client = openDb(CONFIG_DIR);
 
-      if (opts.refresh) refreshSignals(client);
+      if (opts.refresh) refreshSignals(client, detectorOptions());
 
       const found = listSignals(client, {
         status: opts.status as SignalStatus,
