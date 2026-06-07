@@ -14,6 +14,7 @@ import { registerMint } from './commands/mint.ts';
 import { registerReembed } from './commands/reembed.ts';
 import { registerRelated } from './commands/related.ts';
 import { registerRelayer } from './commands/relayer.ts';
+import { registerSchedule } from './commands/schedule.ts';
 import { registerSearch } from './commands/search.ts';
 import { registerShow } from './commands/show.ts';
 import { registerSignals } from './commands/signals.ts';
@@ -43,5 +44,6 @@ registerRelayer(program);
 registerSignals(program);
 registerMint(program);
 registerInferences(program);
+registerSchedule(program);
 
 program.parse();

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { insertNote, saveEmbedding, serializeTags } from './repository.ts';
+import { insertNote, saveEmbedding, serializeTags, updateNote } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,
@@ -11,6 +11,7 @@ import {
   detectStaleState,
   detectTagBursts,
   listSignals,
+  refreshSignals,
   setSignalStatus,
   upsertSignal,
 } from './signals.ts';
@@ -180,6 +181,26 @@ describe('detectTagBursts', () => {
     addNote({ tags: ['steady'], createdAt: now - 2 * DAY });
     addNote({ tags: ['steady'], createdAt: now - 1 * DAY });
     expect(detectTagBursts(client, { now, minBurst: 2 })).toHaveLength(0);
+  });
+});
+
+describe('refreshSignals dirty-flag', () => {
+  const seedArc = () => {
+    const now = Date.now();
+    for (const d of [400, 300, 200, 10]) {
+      addNote({ tags: ['x'], embedding: unit(9), createdAt: now - d * DAY });
+    }
+  };
+
+  it('skips detection when nothing changed, re-runs after a change or with force', () => {
+    seedArc();
+    expect(refreshSignals(client).length).toBeGreaterThan(0); // first run detects
+    expect(refreshSignals(client)).toHaveLength(0); // clean → short-circuit
+    expect(refreshSignals(client, { force: true }).length).toBeGreaterThan(0); // forced
+
+    // a change bumps updated_at (explicit future ts avoids same-ms flakiness)
+    addNote({ tags: ['y'], content: 'see [[Nope]]', updatedAt: Date.now() + 60_000 });
+    expect(refreshSignals(client).length).toBeGreaterThan(0); // dirty again
   });
 });
 

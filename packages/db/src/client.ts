@@ -166,6 +166,15 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
+  // Small key/value store for engine bookkeeping (e.g. last signal refresh, for
+  // the dirty-flag that makes on-read detection free when nothing changed).
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS engine_meta (
+      key   TEXT PRIMARY KEY,
+      value INTEGER NOT NULL
+    );
+  `);
+
   // Inference engine — Lv2 inferences (hypotheses) and their evidence edges.
   // An inference is NOT a note: it is an LLM-synthesized hypothesis, kept in a
   // separate table so it can never be fed back into search/synthesis as if it

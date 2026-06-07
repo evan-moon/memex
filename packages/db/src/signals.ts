@@ -460,20 +460,51 @@ export const detectHiddenArcs = (
   return candidates;
 };
 
+const REFRESH_META_KEY = 'signals_refreshed_at';
+
+const maxNotesUpdatedAt = (client: MemexClient): number =>
+  (client.sqlite.prepare('SELECT MAX(updated_at) AS m FROM notes').get() as { m: number | null })
+    .m ?? 0;
+
+const getMeta = (client: MemexClient, key: string): number =>
+  (
+    client.sqlite.prepare('SELECT value FROM engine_meta WHERE key = ?').get(key) as
+      | { value: number }
+      | undefined
+  )?.value ?? 0;
+
+const setMeta = (client: MemexClient, key: string, value: number): void => {
+  client.sqlite
+    .prepare('INSERT OR REPLACE INTO engine_meta(key, value) VALUES (?, ?)')
+    .run(key, value);
+};
+
 // Run all detectors and persist their candidates. Returns the signals touched.
+//
+// Dirty-flag: detection is skipped when no note has changed since the last
+// refresh, so on-read detection (memex signals / digest / MCP get_signals) is
+// effectively free on a static corpus and only pays the O(N·kNN) cost when
+// something actually changed. Pass force to bypass (e.g. after a deletion,
+// which does not bump updated_at).
 export const refreshSignals = (
   client: MemexClient,
   options: {
     stale?: StaleStateOptions;
     burst?: TagBurstOptions;
     arc?: HiddenArcOptions;
+    force?: boolean;
   } = {},
 ): Signal[] => {
+  if (!options.force && maxNotesUpdatedAt(client) <= getMeta(client, REFRESH_META_KEY)) {
+    return [];
+  }
   const candidates = [
     ...detectDanglingLinks(client),
     ...detectStaleState(client, options.stale),
     ...detectTagBursts(client, options.burst),
     ...detectHiddenArcs(client, options.arc),
   ];
-  return candidates.map((c) => upsertSignal(client, c));
+  const touched = candidates.map((c) => upsertSignal(client, c));
+  setMeta(client, REFRESH_META_KEY, Date.now());
+  return touched;
 };

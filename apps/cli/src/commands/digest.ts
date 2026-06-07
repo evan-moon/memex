@@ -6,6 +6,7 @@ import {
   openDb,
   parseTags,
   refreshInferenceStaleness,
+  refreshSignals,
   type SignalType,
 } from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
@@ -56,6 +57,8 @@ export const registerDigest = (program: Command) => {
       });
 
       // Signals & inferences: what's worth synthesizing, and what's rotting.
+      // refreshSignals is dirty-flagged, so this is free unless notes changed.
+      refreshSignals(client);
       const TYPE_ORDER: SignalType[] = ['hidden_arc', 'stale_state', 'tag_burst', 'dangling_link'];
       const newSignals = listSignals(client, { status: 'new' });
       if (newSignals.length > 0) {
