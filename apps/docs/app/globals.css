@@ -9,6 +9,8 @@
   --code-fg: #cccccc;
   --chat-user-bg: #1a1a1a;
   --chat-ai-bg: #111111;
+  --mobile-header-height: 3.25rem;
+  --docs-mobile-tools-height: 2.85rem;
 }
 
 * { box-sizing: border-box; padding: 0; margin: 0; }
@@ -953,11 +955,11 @@ a { color: inherit; text-decoration: none; }
     flex-direction: column;
     gap: 1.2rem;
     position: fixed;
-    top: 3.25rem;
+    top: var(--mobile-header-height);
     left: 0;
     right: 0;
     width: 100%;
-    min-height: calc(100dvh - 3.25rem);
+    min-height: calc(100dvh - var(--mobile-header-height));
     padding: 1rem 1.7rem 2rem;
     background: #12121b;
     transform: translateY(-12px);
@@ -986,7 +988,7 @@ a { color: inherit; text-decoration: none; }
     position: sticky;
     top: 0;
     z-index: 50;
-    min-height: 2.85rem;
+    min-height: var(--docs-mobile-tools-height);
     background: var(--bg);
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
