@@ -1,0 +1,40 @@
+---
+title: The Herald Family
+description: "memex is one of three local-first tools — firma (money), memex (memory), skope (news) — that share one principle: your data stays on your machine, and the AI comes to it."
+---
+
+# The Herald Family
+
+You're reading the docs for **memex**, the memory layer of a small family of local-first tools. They share one principle: **your data stays on your machine, and the AI comes to it** — no uploads, no cloud, no account.
+
+## Three tools, one stack
+
+| Tool | What it is | What it owns |
+| --- | --- | --- |
+| **memex** — *you are here* | persistent memory | your notes and the context behind them, across every session |
+| **firma** | financial intelligence | portfolio · net worth · cash flow, in `~/.firma/firma.db` |
+| **skope** | news intelligence | a personalized lens on the world — the news that reaches *you* |
+
+Each is an independent MCP server you install on its own. None depends on the others — but Claude can hold all three at once, and that's where they compound: memex remembers the decisions you made in firma last month, and recalls why you started following a story skope first surfaced.
+
+## Federation, not lock-in
+
+The tools never call each other. Each owns its own data and exposes its own MCP tools; Claude is the only thing that sees across them. Add or drop any one and the rest keep working. That's the whole design — **compose through the model, not through a backend.**
+
+## Explore the rest of the family
+
+### firma — your money
+
+Drop your trade history into Claude and get the full picture — portfolio, net worth, cash flow — in one local SQLite file. No account, no cloud.
+
+[GitHub →](https://github.com/evan-moon/firma) · `npm install -g @evan-moon/firma`
+
+### skope — your news
+
+A lens **and** a watcher on the world. Claude scans the news, skope keeps only what has a causal path to you, and warns you when your attention collapses into a bubble.
+
+[GitHub →](https://github.com/evan-moon/skope) · `npm install -g @evan-moon/skope`
+
+---
+
+Want to talk to the whole stack out loud? **[Herald](https://ai-herald.vercel.app)** is the ambient voice layer that ties the family together on macOS.

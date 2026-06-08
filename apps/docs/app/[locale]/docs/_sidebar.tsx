@@ -13,6 +13,7 @@ const DOCS_ROUTES: { slug: string; localized: Locale[]; group: string }[] = [
   { slug: 'cli',             group: 'Reference',   localized: ['en', 'ko'] },
   { slug: 'search',          group: 'Reference',   localized: ['en', 'ko'] },
   { slug: 'backlinks-digest',group: 'Reference',   localized: ['en', 'ko'] },
+  { slug: 'ecosystem',       group: 'Ecosystem',   localized: ['en', 'ko'] },
 ];
 
 const LABELS: Record<Locale, Record<string, string>> = {
@@ -28,6 +29,8 @@ const LABELS: Record<Locale, Record<string, string>> = {
     'cli':              'CLI Reference',
     'search':           'Semantic Search',
     'backlinks-digest': 'Backlinks & Digest',
+    'Ecosystem':        'Ecosystem',
+    'ecosystem':        'The Herald Family',
   },
   ko: {
     'Get Started': 'Get Started',
@@ -41,6 +44,8 @@ const LABELS: Record<Locale, Record<string, string>> = {
     'cli':              'CLI 레퍼런스',
     'search':           '시맨틱 검색',
     'backlinks-digest': '백링크 & 다이제스트',
+    'Ecosystem':        'Ecosystem',
+    'ecosystem':        'Herald 패밀리',
   },
 };
 
