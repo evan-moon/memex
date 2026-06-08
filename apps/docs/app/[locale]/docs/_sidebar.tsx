@@ -30,7 +30,7 @@ const LABELS: Record<Locale, Record<string, string>> = {
     'search':           'Semantic Search',
     'backlinks-digest': 'Backlinks & Digest',
     'Ecosystem':        'Ecosystem',
-    'ecosystem':        'The Herald Family',
+    'ecosystem':        'Overview',
   },
   ko: {
     'Get Started': 'Get Started',
@@ -45,7 +45,7 @@ const LABELS: Record<Locale, Record<string, string>> = {
     'search':           '시맨틱 검색',
     'backlinks-digest': '백링크 & 다이제스트',
     'Ecosystem':        'Ecosystem',
-    'ecosystem':        'Herald 패밀리',
+    'ecosystem':        '개요',
   },
 };
 
