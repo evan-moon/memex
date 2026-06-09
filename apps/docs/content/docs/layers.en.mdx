@@ -1,6 +1,6 @@
 ---
 title: Note Layers
-description: How memex classifies every note as past, state, or rule — and what each layer means for Claude.
+description: How memex classifies every note as past, state, or rule, and what each layer means for Claude.
 ---
 
 memex classifies every note into one of three **mutability layers**. The layer determines how Claude is allowed to read and write the note, and surfaces a small colour-coded badge (`[past]` / `[state]` / `[rule]`) wherever the note appears in the CLI.
@@ -9,9 +9,9 @@ memex classifies every note into one of three **mutability layers**. The layer d
 
 | Layer | Meaning | Claude's permission |
 |-------|---------|---------------------|
-| `past` | Record of what happened — retros, meetings, decision rationale, debugging sessions, conversations | **Append-only.** `update_note` refuses with `error: 'PAST_IMMUTABLE'`. To correct, save a new `[Amendment]` note that wiki-links back to the original. |
-| `state` | Current state or plans — project progress, roadmaps, a person's current role, ongoing work | **Freely updatable.** Treated like a mutable document. |
-| `rule` | Behaviour guide for Claude — coding style, search policy, personal preferences | **Read-only for Claude.** Only the user writes. Claude surfaces proposed changes in chat instead of writing them. Also [auto-injected into MCP instructions](/en/docs/mcp-tools#house-rules-auto-inject). |
+| `past` | Record of what happened, retros, meetings, decision rationale, debugging sessions, conversations | **Append-only.** `update_note` refuses with `error: 'PAST_IMMUTABLE'`. To correct, save a new `[Amendment]` note that wiki-links back to the original. |
+| `state` | Current state or plans, project progress, roadmaps, a person's current role, ongoing work | **Freely updatable.** Treated like a mutable document. |
+| `rule` | Behaviour guide for Claude, coding style, search policy, personal preferences | **Read-only for Claude.** Only the user writes. Claude surfaces proposed changes in chat instead of writing them. Also [auto-injected into MCP instructions](/en/docs/mcp-tools#house-rules-auto-inject). |
 
 ## How classification works
 
@@ -19,7 +19,7 @@ When Claude saves a note via `save_note`, it must supply a `layer` parameter. Th
 
 - **Past tense / what happened** → `past`
 - **Present tense / future intent** → `state` if it's a fact about the world, or `rule` only if the user explicitly asks for guidance
-- **Ambiguous** → `past` (safer — append-only data can't be silently overwritten)
+- **Ambiguous** → `past` (safer, append-only data can't be silently overwritten)
 
 Via the CLI:
 
@@ -39,7 +39,7 @@ When you upgrade an existing install, memex does a one-time folder-based backfil
 | `coding` | `rule` |
 | Everything else (including `decisions`, `conversations`, `interviews`, `memory`, etc.) | `past` |
 
-This is idempotent — running it again does nothing. After migration, run:
+This is idempotent, running it again does nothing. After migration, run:
 
 ```bash
 memex classify
@@ -51,13 +51,13 @@ to see the resulting distribution and `memex relayer <id> <layer>` to correct in
 
 A second brain mixes three kinds of content with very different update semantics:
 
-- **"My 1-on-1 with Alice last quarter"** — a frozen record. Editing it would rewrite history.
-- **"Memex roadmap"** — a living document. It *should* be edited as plans change.
-- **"My code style guide"** — guidance for Claude. The user owns it; Claude follows it.
+- **"My 1-on-1 with Alice last quarter"**, a frozen record. Editing it would rewrite history.
+- **"Memex roadmap"**, a living document. It *should* be edited as plans change.
+- **"My code style guide"**, guidance for Claude. The user owns it; Claude follows it.
 
-Before layers, memex treated all three uniformly — Claude could (and did) update past records silently, conflate retros with roadmaps in search, and quietly rewrite its own style guide. The layer model makes the mutability difference structural rather than conventional, so the wrong thing is impossible rather than discouraged.
+Before layers, memex treated all three uniformly, Claude could (and did) update past records silently, conflate retros with roadmaps in search, and quietly rewrite its own style guide. The layer model makes the mutability difference structural rather than conventional, so the wrong thing is impossible rather than discouraged.
 
-The pattern echoes Eugene Yan's split between `~/vault` (facts) and `~/.claude` (preferences) — separating what can change from what shouldn't.
+The pattern echoes Eugene Yan's split between `~/vault` (facts) and `~/.claude` (preferences), separating what can change from what shouldn't.
 
 ## v1 scope
 
@@ -71,6 +71,6 @@ The plan is to live with v1 for a week and let data drive what's worth adding.
 
 ## Related
 
-- [MCP Tools — update_note layer guards](/en/docs/mcp-tools#update_note-layer-guards)
-- [MCP Tools — House Rules auto-inject](/en/docs/mcp-tools#house-rules-auto-inject)
+- [MCP Tools, update_note layer guards](/en/docs/mcp-tools#update_note-layer-guards)
+- [MCP Tools, House Rules auto-inject](/en/docs/mcp-tools#house-rules-auto-inject)
 - [Flashback](/en/docs/flashback)

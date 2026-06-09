@@ -11,7 +11,7 @@ export default function Home() {
           </h1>
           <p className="hero-hook">Your second brain, Claude&apos;s long-term memory.</p>
           <p className="hero-sub">
-            memex gives Claude persistent memory across conversations — saving insights
+            memex gives Claude persistent memory across conversations, saving insights
             automatically and surfacing them semantically when you need them.
             All data stays on your machine. No cloud, no API keys.
           </p>
@@ -38,7 +38,7 @@ export default function Home() {
 
             <div className="claude-body">
 
-              {/* Exchange 1 — Search */}
+              {/* Exchange 1, Search */}
               <div className="claude-user-row" style={{ animation: "card-in 0.3s ease 0.1s both" }}>
                 <div className="claude-user-bubble">
                   What did we decide about the auth approach for the new API? I can&apos;t remember.
@@ -57,7 +57,7 @@ export default function Home() {
                 </div>
 
                 <div className="note-card" style={{ animation: "card-in 0.3s ease 0.75s both" }}>
-                  <div className="note-title">Auth Architecture — JWT Decision</div>
+                  <div className="note-title">Auth Architecture, JWT Decision</div>
                   <div className="note-meta">
                     <span className="note-date">Apr 14</span>
                     <div className="note-tags">
@@ -73,7 +73,7 @@ export default function Home() {
                 </div>
 
                 <div className="note-card" style={{ animation: "card-in 0.3s ease 0.9s both" }}>
-                  <div className="note-title">1-on-1 Tom — API Security Review</div>
+                  <div className="note-title">1-on-1 Tom, API Security Review</div>
                   <div className="note-meta">
                     <span className="note-date">Mar 28</span>
                     <div className="note-tags">
@@ -89,7 +89,7 @@ export default function Home() {
                 </div>
 
                 <div className="note-card" style={{ animation: "card-in 0.3s ease 1.05s both" }}>
-                  <div className="note-title">Security Audit Findings — Q1</div>
+                  <div className="note-title">Security Audit Findings, Q1</div>
                   <div className="note-meta">
                     <span className="note-date">Mar 10</span>
                     <div className="note-tags">
@@ -109,14 +109,14 @@ export default function Home() {
                 <p className="claude-ai-text">
                   Based on your notes from April 14th: you chose <strong style={{ color: "#ededed" }}>JWT + refresh tokens</strong> over
                   session-based auth. The reasoning was that stateless tokens fit your horizontal scaling
-                  plan. Tom also emphasized keeping auth decoupled from payment logic — separate bounded
+                  plan. Tom also emphasized keeping auth decoupled from payment logic, separate bounded
                   contexts, no shared tables.
                 </p>
               </div>
 
               <div className="claude-thread-divider" />
 
-              {/* Exchange 2 — Save */}
+              {/* Exchange 2, Save */}
               <div className="claude-user-row" style={{ animation: "card-in 0.3s ease 1.5s both" }}>
                 <div className="claude-user-bubble">
                   Good. Also save this: we&apos;ve decided to drop the legacy PHP auth module entirely by Q3.
@@ -132,7 +132,7 @@ export default function Home() {
                 <div className="note-saved">
                   <span className="note-saved-icon">✓</span>
                   <div className="note-saved-body">
-                    <span className="note-saved-title">Legacy PHP Auth — Deprecation Decision</span>
+                    <span className="note-saved-title">Legacy PHP Auth, Deprecation Decision</span>
                     <div className="note-saved-meta">
                       <span className="note-saved-label">saved · May 3</span>
                       <div className="note-tags">
@@ -178,7 +178,7 @@ export default function Home() {
                 <div className="feature-title">Semantic search across languages</div>
                 <div className="feature-desc">
                   Finds notes by meaning, not just keywords. Powered by
-                  multilingual embeddings running fully offline — no API key needed.
+                  multilingual embeddings running fully offline, no API key needed.
                   Search in English, Korean, or mix both freely.
                 </div>
               </div>
@@ -190,7 +190,7 @@ export default function Home() {
                 <div className="feature-desc">
                   Works as an MCP server for Claude Desktop and Claude Code. Claude
                   searches your notes before answering and saves insights proactively at
-                  the end of conversations — no extra setup needed.
+                  the end of conversations, no extra setup needed.
                 </div>
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function Home() {
                 <div className="feature-title">Backlinks</div>
                 <div className="feature-desc">
                   Link notes with <code>[[Title]]</code> syntax. <code>get_note</code> automatically
-                  surfaces which other notes reference it — building a graph of connected thinking
+                  surfaces which other notes reference it, building a graph of connected thinking
                   without any manual wiring.
                 </div>
               </div>
@@ -260,7 +260,7 @@ export default function Home() {
                 <div className="step-title">Claude remembers</div>
                 <div className="step-desc">
                   Claude now searches your notes before answering questions and saves important
-                  context at the end of conversations — automatically, without being asked.
+                  context at the end of conversations, automatically, without being asked.
                 </div>
               </div>
             </div>
@@ -287,7 +287,7 @@ export default function Home() {
               </div>
               <div className="term-blank" />
               <div className="term-result">
-                <span className="tr-title">React Server Components — notes</span>
+                <span className="tr-title">React Server Components, notes</span>
                 <span className="tr-date">Apr 29</span>
                 <span className="tr-tags">#react #perf #nextjs</span>
               </div>
@@ -315,7 +315,7 @@ export default function Home() {
             </div>
             <div className="command-row">
               <span className="cmd">memex search &lt;query&gt;</span>
-              <span className="cmd-desc">Semantic search — supports <code>--from</code>, <code>--to</code>, <code>--tag</code></span>
+              <span className="cmd-desc">Semantic search, supports <code>--from</code>, <code>--to</code>, <code>--tag</code></span>
             </div>
             <div className="command-row">
               <span className="cmd">memex digest</span>
@@ -358,7 +358,7 @@ export default function Home() {
           <div className="privacy">
             <p>
               memex is designed for developers who don&apos;t want their notes in someone else&apos;s
-              database. All data is stored locally — notes as <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>.md</code> files
+              database. All data is stored locally, notes as <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>.md</code> files
               in your vault, embeddings in a local SQLite database. The embedding model runs
               entirely offline using <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>@huggingface/transformers</code>.
             </p>

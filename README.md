@@ -20,13 +20,13 @@
 
 > Make Claude smarter about you.
 
-Local-first second brain that connects to Claude via MCP. Notes are stored as plain Markdown and indexed with a local ML model — fully offline, no API keys, nothing leaves your machine.
+Local-first second brain that connects to Claude via MCP. Notes are stored as plain Markdown and indexed with a local ML model, fully offline, no API keys, nothing leaves your machine.
 
 ---
 
 ## The problem
 
-Claude is only as smart as what's in the conversation. Your decisions, your context, your thinking — invisible unless you paste them in every time.
+Claude is only as smart as what's in the conversation. Your decisions, your context, your thinking, invisible unless you paste them in every time.
 
 ```
 You:    What did we decide about the auth approach last sprint?
@@ -49,10 +49,10 @@ Claude: [memex · search_notes · "auth approach decision"]
 
         Based on your April 14th note: you went with JWT +
         refresh tokens. Tom also flagged keeping auth decoupled
-        from payment logic — separate bounded contexts.
+        from payment logic, separate bounded contexts.
 ```
 
-Claude searches your notes before answering and saves insights at the end of every conversation — automatically, without being asked.
+Claude searches your notes before answering and saves insights at the end of every conversation, automatically, without being asked.
 
 ---
 
@@ -74,19 +74,19 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 
 ## Features
 
-- **Semantic search** — finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
-- **Hybrid retrieval** — vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
-- **Date filter** — narrow search to a time range with `--from` / `--to`
-- **Note layers** — every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
-- **Flashback** — save and search automatically surface older notes from a *different folder* that are semantically related — "you wrote about this 124 days ago in a different context"
-- **Inference engine** — deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
-- **MCP server** — Claude searches and saves automatically. No extra CLAUDE.md setup needed
-- **Duplicate detection** — `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
-- **Backlinks** — link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
-- **Digest** — `memex digest` summarises notes saved in the last N days, grouped by folder
-- **CLI** — add, search, tag, browse, and index notes from the terminal
-- **Obsidian-compatible** — notes saved as `.md` files; works alongside existing vaults
-- **Local DB** — SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) at `~/.memex/memex.db`
+- **Semantic search**, finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
+- **Hybrid retrieval**, vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
+- **Date filter**, narrow search to a time range with `--from` / `--to`
+- **Note layers**, every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
+- **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
+- **Inference engine**, deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
+- **MCP server**, Claude searches and saves automatically. No extra CLAUDE.md setup needed
+- **Duplicate detection**, `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
+- **Backlinks**, link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
+- **Digest**, `memex digest` summarises notes saved in the last N days, grouped by folder
+- **CLI**, add, search, tag, browse, and index notes from the terminal
+- **Obsidian-compatible**, notes saved as `.md` files; works alongside existing vaults
+- **Local DB**, SQLite + [`sqlite-vec`](https://github.com/asg017/sqlite-vec) at `~/.memex/memex.db`
 
 ---
 
@@ -186,7 +186,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `save_note` | Save a note — requires `layer`, warns if a similar note already exists, surfaces flashbacks |
+| `save_note` | Save a note, requires `layer`, warns if a similar note already exists, surfaces flashbacks |
 | `search_notes` | Semantic search; supports `category`, `tag`, `date_from`, `date_to` filters; appends flashbacks for the top result |
 | `list_notes` | List recent notes |
 | `list_tags` | List all tags with note counts |
@@ -195,12 +195,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `update_note` | Update title or content. Refuses `past` notes (with `[Amendment]` suggestion) and `rule` notes (user-only) |
 | `delete_note` | Delete a note by ID |
 | `get_signals` | Deterministic un-synthesized patterns (hidden_arc / stale_state / dangling_link / tag_burst) |
-| `update_signal_status` | Triage a signal — dismiss or snooze |
+| `update_signal_status` | Triage a signal, dismiss or snooze |
 | `list_inferences` | List synthesized hypotheses (re-checks staleness first) |
 | `get_inference` | One inference with full provenance + change/delete markers |
-| `mint_inference` | Persist an approved hypothesis — requires explicit confirmation |
+| `mint_inference` | Persist an approved hypothesis, requires explicit confirmation |
 
-Inferences are kept separate from notes (excluded from search) and are cited as hypotheses, never facts. Detection stays deterministic; the only LLM step is synthesizing an inference's summary, which Claude does — never memex.
+Inferences are kept separate from notes (excluded from search) and are cited as hypotheses, never facts. Detection stays deterministic; the only LLM step is synthesizing an inference's summary, which Claude does, never memex.
 
 ### Note layers
 
@@ -208,19 +208,19 @@ Every note is classified into one of three layers based on mutability:
 
 | Layer | Meaning | Claude's permission |
 |-------|---------|---------------------|
-| `past` | Record of what happened — retros, meetings, decision rationale, debugging sessions | Append-only. `update_note` refuses, suggesting an `[Amendment]` note instead |
-| `state` | Current state or plans — project progress, roadmaps, a person's current role | Freely updatable |
-| `rule` | Behaviour guide for Claude — coding style, search policy | Claude is read-only. Only the user writes |
+| `past` | Record of what happened, retros, meetings, decision rationale, debugging sessions | Append-only. `update_note` refuses, suggesting an `[Amendment]` note instead |
+| `state` | Current state or plans, project progress, roadmaps, a person's current role | Freely updatable |
+| `rule` | Behaviour guide for Claude, coding style, search policy | Claude is read-only. Only the user writes |
 
 The CLI prints a colour-coded `[past]` / `[state]` / `[rule]` badge next to each note in `list`, `search`, and `show`.
 
 - `save_note` (MCP) and `memex add` (CLI) require an explicit `layer`. The classification rules are documented in the tool description so Claude picks correctly.
 - On first run, existing notes get a folder-based backfill: `projects`/`dev`/`herald` → `state`, `coding` → `rule`, everything else → `past`. Migration is idempotent.
-- `rule` notes are also auto-injected into the MCP server's instructions — see [Rule layer auto-inject](#rule-layer-auto-inject) below.
+- `rule` notes are also auto-injected into the MCP server's instructions, see [Rule layer auto-inject](#rule-layer-auto-inject) below.
 
 ### Flashback
 
-When you save a note or search, memex automatically surfaces older notes from a **different folder** that are semantically similar — "you wrote about this 124 days ago in a different context." Stored as system-generated backlinks (`note_links.source = 'flashback'`), separate from your `[[wikilinks]]` (`source = 'wiki'`).
+When you save a note or search, memex automatically surfaces older notes from a **different folder** that are semantically similar, "you wrote about this 124 days ago in a different context." Stored as system-generated backlinks (`note_links.source = 'flashback'`), separate from your `[[wikilinks]]` (`source = 'wiki'`).
 
 Tune via env:
 
@@ -232,7 +232,7 @@ Tune via env:
 
 ### Rule layer auto-inject
 
-Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation — no `search_notes` call required. This is the right home for coding style guides or other behavioural guidance.
+Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation, no `search_notes` call required. This is the right home for coding style guides or other behavioural guidance.
 
 | Env | Default | Behaviour |
 |-----|---------|-----------|
@@ -251,7 +251,7 @@ Config lives at `~/.memex/config.json`.
 |-----|---------|-------------|
 | `vault_path` | `~/Documents/Second Brain` | Directory where `.md` files are saved |
 | `sources` | `[]` | Additional directories to index (e.g. existing Obsidian vaults) |
-| `aliases` | `{}` | Search alias map, e.g. `{ "js": ["javascript", "ecmascript"] }` — values can be any language to bridge across scripts |
+| `aliases` | `{}` | Search alias map, e.g. `{ "js": ["javascript", "ecmascript"] }`, values can be any language to bridge across scripts |
 
 ```bash
 memex config set vault-path ~/my-vault
@@ -263,12 +263,12 @@ memex config set vault-path ~/my-vault
 
 ```
 ~/.memex/
-  config.json       — vault path, sources, and aliases
-  memex.db          — SQLite DB (notes + vec embeddings + FTS5 index)
-  models/           — cached embedding model
+  config.json, vault path, sources, and aliases
+  memex.db, SQLite DB (notes + vec embeddings + FTS5 index)
+  models/, cached embedding model
 
 <vault>/
-  *.md              — notes (Obsidian-compatible)
+  *.md, notes (Obsidian-compatible)
 ```
 
 | Package | Role |
@@ -282,18 +282,18 @@ memex config set vault-path ~/my-vault
 
 ## The ecosystem
 
-**memex** is one of three local-first tools that share one principle — **your data stays on your machine, and the AI comes to it.** They interoperate through any MCP client, and none depends on the others.
+**memex** is one of three local-first tools that share one principle, **your data stays on your machine, and the AI comes to it.** They interoperate through any MCP client, and none depends on the others.
 
 ```mermaid
 flowchart TB
     U([You])
-    subgraph I["Interfaces — talk to your tools"]
+    subgraph I["Interfaces, talk to your tools"]
         direction LR
         CD[Claude Desktop]
         CC[Claude Code]
         H["Herald · voice"]
     end
-    subgraph T["Local-first tools — each owns its data, on your machine"]
+    subgraph T["Local-first tools, each owns its data, on your machine"]
         direction LR
         F["firma · money<br/>~/.firma"]
         M["memex · memory<br/>~/.memex"]
@@ -305,17 +305,17 @@ flowchart TB
     M <-.-> S
 ```
 
-- **[firma](https://github.com/evan-moon/firma)** · money — portfolio, net worth, cash flow
-- **[memex](https://github.com/evan-moon/memex)** · memory — notes and the context behind them, across sessions
-- **[skope](https://github.com/evan-moon/skope)** · news — a personalized lens on the world
+- **[firma](https://github.com/evan-moon/firma)** · money, portfolio, net worth, cash flow
+- **[memex](https://github.com/evan-moon/memex)** · memory, notes and the context behind them, across sessions
+- **[skope](https://github.com/evan-moon/skope)** · news, a personalized lens on the world
 
-You reach them through Claude Desktop, Claude Code, Cursor — or **[Herald](https://ai-herald.vercel.app)**, a voice interface. The tools compose through the model, never by calling each other.
+You reach them through Claude Desktop, Claude Code, Cursor, or **[Herald](https://ai-herald.vercel.app)**, a voice interface. The tools compose through the model, never by calling each other.
 
 ---
 
 ## llms.txt
 
-[`llms.txt`](llms.txt) is a machine-readable summary of this project for LLM agents — concise description with documentation links, following the [llms.txt standard](https://llmstxt.org/).
+[`llms.txt`](llms.txt) is a machine-readable summary of this project for LLM agents, concise description with documentation links, following the [llms.txt standard](https://llmstxt.org/).
 
 ---
 

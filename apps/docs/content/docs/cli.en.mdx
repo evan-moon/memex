@@ -22,13 +22,13 @@ memex classify                               # distribution of past / state / ru
 memex relayer <id> state                     # move a single note to a different layer
 ```
 
-`classify` prints the count per layer — useful right after the first-run migration to see how your folders mapped. `relayer` corrects individual notes (e.g. moving a roadmap note from `past` to `state`).
+`classify` prints the count per layer, useful right after the first-run migration to see how your folders mapped. `relayer` corrects individual notes (e.g. moving a roadmap note from `past` to `state`).
 
 ## Search
 
 ```bash
 memex search "semantic search query"
-memex search "knowledge management" --limit 10   # multilingual — Korean/Japanese notes match too
+memex search "knowledge management" --limit 10   # multilingual, Korean/Japanese notes match too
 memex search "auth" --tag backend                # filter by tag
 memex search "auth" --from 2025-04-01        # notes since a date
 memex search "auth" --from 2025-04-01 --to 2025-04-30
@@ -53,7 +53,7 @@ memex digest                # summary of notes saved in the last 7 days
 memex digest --days 30      # last 30 days
 ```
 
-Digest groups notes by folder and prints them with tags and dates, then ends with a **signal summary** and your **active/stale inferences** — a one-shot weekly review of both what you wrote and what's worth synthesizing.
+Digest groups notes by folder and prints them with tags and dates, then ends with a **signal summary** and your **active/stale inferences**, a one-shot weekly review of both what you wrote and what's worth synthesizing.
 
 ## Insights (signals & inferences)
 
@@ -85,7 +85,7 @@ memex schedule                 # print a cron/launchd snippet for a daily digest
 memex schedule --at 08:30      # at a specific time
 ```
 
-memex never runs a daemon. `schedule` prints a copy-paste cron line and launchd plist that run `memex digest` on a timer — the OS owns scheduling. Detection is dirty-flagged, so a scheduled run is free when nothing changed.
+memex never runs a daemon. `schedule` prints a copy-paste cron line and launchd plist that run `memex digest` on a timer, the OS owns scheduling. Detection is dirty-flagged, so a scheduled run is free when nothing changed.
 
 ## Edit & delete
 

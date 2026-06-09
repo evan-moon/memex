@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: "Local-first second brain with semantic search. MCP server for Claude Desktop and Claude Code.",
   openGraph: {
     title: "memex: The memory layer Claude doesn't have.",
-    description: "Local-first second brain with semantic search. Gives Claude persistent memory across conversations — all data stays on your machine.",
+    description: "Local-first second brain with semantic search. Gives Claude persistent memory across conversations. All data stays on your machine.",
     siteName: "memex",
     type: "website",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "memex" }],

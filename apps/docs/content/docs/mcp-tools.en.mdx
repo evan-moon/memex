@@ -3,7 +3,7 @@ title: MCP Tools
 description: The tools memex exposes to Claude via the Model Context Protocol.
 ---
 
-When you connect memex to Claude, it gets access to 13 tools. Claude uses these automatically — you don't have to ask.
+When you connect memex to Claude, it gets access to 13 tools. Claude uses these automatically, you don't have to ask.
 
 ## Tools
 
@@ -18,7 +18,7 @@ When you connect memex to Claude, it gets access to 13 tools. Claude uses these 
 | `update_note` | Update title, content, or tags. Refuses `past` notes (suggests an `[Amendment]` note) and `rule` notes (user-only). |
 | `delete_note` | Delete a note by ID. |
 | `get_signals` | Deterministic un-synthesized patterns (hidden_arc / stale_state / dangling_link / tag_burst). |
-| `update_signal_status` | Triage a signal — dismiss noise or snooze for later. |
+| `update_signal_status` | Triage a signal, dismiss noise or snooze for later. |
 | `list_inferences` | List synthesized hypotheses (re-checks staleness first). |
 | `get_inference` | One inference with full provenance (evidence + change/delete markers). |
 | `mint_inference` | Persist an approved hypothesis. Requires explicit confirmation. |
@@ -31,14 +31,14 @@ When you connect memex to Claude, it gets access to 13 tools. Claude uses these 
 | `limit` | number | Max results (default 10) |
 | `category` | string | Filter to a specific folder |
 | `tag` | string | Filter by tag |
-| `date_from` | string | ISO 8601 date — only notes on or after this date |
-| `date_to` | string | ISO 8601 date — only notes on or before this date |
+| `date_from` | string | ISO 8601 date, only notes on or after this date |
+| `date_to` | string | ISO 8601 date, only notes on or before this date |
 
 Example: _"What did we decide about auth last April?"_ → Claude calls `search_notes` with `query="auth decision"`, `date_from="2025-04-01"`, `date_to="2025-04-30"`.
 
 ## save_note behavior
 
-`save_note` requires a `layer` parameter — `past`, `state`, or `rule`. The classification rules are baked into the tool description so Claude picks correctly: past for records of what happened (default when in doubt), state for current plans, rule only when you explicitly ask.
+`save_note` requires a `layer` parameter, `past`, `state`, or `rule`. The classification rules are baked into the tool description so Claude picks correctly: past for records of what happened (default when in doubt), state for current plans, rule only when you explicitly ask.
 
 Before saving, Claude is instructed to:
 
@@ -48,7 +48,7 @@ Before saving, Claude is instructed to:
 
 If `save_note` returns a ⚠️ similar notes warning, Claude switches to `update_note` on the most relevant existing note instead of creating a duplicate.
 
-The response also includes any flashbacks — see [Flashback in tool responses](#flashback-in-tool-responses) below.
+The response also includes any flashbacks, see [Flashback in tool responses](#flashback-in-tool-responses) below.
 
 ## update_note layer guards
 
@@ -62,7 +62,7 @@ This keeps your audit trail intact (past records stay frozen) and prevents Claud
 
 ## House Rules auto-inject
 
-Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation — no `search_notes` call required. Coding style guides, personal preferences, and policy notes belong here.
+Notes with `layer = 'rule'` are appended to the MCP server's instructions on boot, under a `## House Rules` section. Claude sees them at the start of every conversation, no `search_notes` call required. Coding style guides, personal preferences, and policy notes belong here.
 
 | Env | Default | Behaviour |
 |-----|---------|-----------|
@@ -78,11 +78,11 @@ Both `save_note` and `search_notes` append a `🔗 Flashback` section when older
 ```
 Saved note #142: "Auth approach revisited"
 
-🔗 Flashback — older notes from a different context:
+🔗 Flashback, older notes from a different context:
 - 124 days ago: #48 "Auth Architecture Decision" (82% match)
 ```
 
-For `search_notes`, the flashback anchor is the top result. Claude is instructed to surface these to you when relevant — they're how "I wrote about this 3 months ago in a different project" connections actually become visible.
+For `search_notes`, the flashback anchor is the top result. Claude is instructed to surface these to you when relevant, they're how "I wrote about this 3 months ago in a different project" connections actually become visible.
 
 Tunable via env:
 
@@ -98,19 +98,19 @@ Tunable via env:
 
 ## Inference engine tools
 
-These expose the [inference engine](/en/docs/inference-engine) to Claude. Detection and invalidation stay deterministic in memex; the only LLM step is synthesizing an inference's summary, and Claude does that — never memex.
+These expose the [inference engine](/en/docs/inference-engine) to Claude. Detection and invalidation stay deterministic in memex; the only LLM step is synthesizing an inference's summary, and Claude does that, never memex.
 
-- `get_signals(type?, status?)` — lists un-synthesized patterns. Defaults to `new` and re-runs detection (dirty-flagged, so it's free on a static corpus). Use it when you ask "what threads are in my notes", "what haven't I synthesized", or "what should I write about".
-- `update_signal_status(id, status)` — dismiss noise so it never resurfaces, or snooze it. Claude confirms with you before dismissing.
-- `list_inferences(status?)` / `get_inference(id)` — read stored hypotheses. Staleness is re-checked first, so a changed source shows up as `stale`.
-- `mint_inference(...)` — persist a hypothesis.
+- `get_signals(type?, status?)`, lists un-synthesized patterns. Defaults to `new` and re-runs detection (dirty-flagged, so it's free on a static corpus). Use it when you ask "what threads are in my notes", "what haven't I synthesized", or "what should I write about".
+- `update_signal_status(id, status)`, dismiss noise so it never resurfaces, or snooze it. Claude confirms with you before dismissing.
+- `list_inferences(status?)` / `get_inference(id)`, read stored hypotheses. Staleness is re-checked first, so a changed source shows up as `stale`.
+- `mint_inference(...)`, persist a hypothesis.
 
 **Two guardrails make this safe to trust:**
 
-1. **Inferences are pull-only, never injected.** They're excluded from `search_notes` and never auto-loaded into Claude's context. Claude pulls them on purpose and cites them as *hypotheses* — `[Inference #42, conf 0.78, from notes #1, #2]` — never as facts you "know". This prevents the brain from echoing its own past guesses back as truth.
+1. **Inferences are pull-only, never injected.** They're excluded from `search_notes` and never auto-loaded into Claude's context. Claude pulls them on purpose and cites them as *hypotheses* (`[Inference #42, conf 0.78, from notes #1, #2]`) never as facts you "know". This prevents the brain from echoing its own past guesses back as truth.
 2. **No auto-mint.** `mint_inference` requires `confirmed: true`, which Claude only sets after you explicitly approve. It presents the hypothesis in chat first; minting in the background is refused at the code level, not just by instruction.
 
-On connect, the server greeting includes a startup *count* of new signals and stale inferences (a nudge to look) — but never their content.
+On connect, the server greeting includes a startup *count* of new signals and stale inferences (a nudge to look), but never their content.
 
 ## Claude's automatic behavior
 

@@ -1,19 +1,19 @@
 ---
 title: Flashback
-description: How memex surfaces forgotten cross-context connections — automatically, with zero LLM calls.
+description: How memex surfaces forgotten cross-context connections, automatically, with zero LLM calls.
 ---
 
-A second brain's real value isn't in what it stores, but in the connections it makes visible. **Flashback** is memex's mechanism for surfacing those connections — when you save or search, it automatically points at older notes from a *different folder* that are semantically related to what you're working on right now.
+A second brain's real value isn't in what it stores, but in the connections it makes visible. **Flashback** is memex's mechanism for surfacing those connections, when you save or search, it automatically points at older notes from a *different folder* that are semantically related to what you're working on right now.
 
-The classic case: you're writing a new note about an auth approach, and memex quietly says "you wrote about this 124 days ago in a different project — here's the note." That's the moment the second brain stops being a passive archive and starts being a thinking partner.
+The classic case: you're writing a new note about an auth approach, and memex quietly says "you wrote about this 124 days ago in a different project, here's the note." That's the moment the second brain stops being a passive archive and starts being a thinking partner.
 
 ## How it works
 
 Three axes, evaluated as a single SQL query with zero LLM calls:
 
-1. **Vector closeness** — cosine distance ≤ `MEMEX_FLASHBACK_DIST` (default `0.4`).
-2. **Age gap** — the candidate must be at least `MEMEX_FLASHBACK_DAYS` old (default `90`). This filters out "recently related" notes, which are usually just continuations rather than re-discoveries.
-3. **Different category** — the candidate must live in a different top-level folder from the anchor note. Cross-folder is where the real insight lives; intra-folder matches are usually just adjacent notes you already remember.
+1. **Vector closeness**, cosine distance ≤ `MEMEX_FLASHBACK_DIST` (default `0.4`).
+2. **Age gap**, the candidate must be at least `MEMEX_FLASHBACK_DAYS` old (default `90`). This filters out "recently related" notes, which are usually just continuations rather than re-discoveries.
+3. **Different category**, the candidate must live in a different top-level folder from the anchor note. Cross-folder is where the real insight lives; intra-folder matches are usually just adjacent notes you already remember.
 
 The result is capped at `MEMEX_FLASHBACK_LIMIT` (default 3) to keep noise low. False positives erode trust quickly, so the thresholds bias toward fewer-but-stronger surfaces.
 
@@ -21,18 +21,18 @@ The result is capped at `MEMEX_FLASHBACK_LIMIT` (default 3) to keep noise low. F
 
 Flashbacks appear in four places:
 
-- **MCP `save_note` response** — when Claude saves a note, the response includes a `🔗 Flashback` section. Claude is instructed to surface these to you when relevant.
-- **MCP `search_notes` response** — the top result acts as the anchor, and flashbacks are appended below the regular results.
-- **CLI `memex search`** — same flashback footer, in dimmed terminal text.
-- **CLI `memex add`** — printed after the save confirmation.
+- **MCP `save_note` response**, when Claude saves a note, the response includes a `🔗 Flashback` section. Claude is instructed to surface these to you when relevant.
+- **MCP `search_notes` response**, the top result acts as the anchor, and flashbacks are appended below the regular results.
+- **CLI `memex search`**, same flashback footer, in dimmed terminal text.
+- **CLI `memex add`**, printed after the save confirmation.
 
-For incoming links (notes where this one surfaced as a flashback to a *different* anchor), see `memex show <id>` — a "Surfaced as flashback in" section appears below the standard backlinks.
+For incoming links (notes where this one surfaced as a flashback to a *different* anchor), see `memex show <id>`, a "Surfaced as flashback in" section appears below the standard backlinks.
 
 ## Persistence
 
 Every flashback creates a row in `note_links` with `source = 'flashback'`. This is distinct from your `[[wikilink]]` backlinks, which are stored as `source = 'wiki'`. The composite primary key `(source_id, target_id, source)` lets the same pair of notes coexist as both a wikilink and a flashback link without colliding.
 
-Practically: when you re-save a note, only the wiki links get re-synced — flashback links stay put. They're a record of "memex once surfaced this connection," not a live derivation.
+Practically: when you re-save a note, only the wiki links get re-synced, flashback links stay put. They're a record of "memex once surfaced this connection," not a live derivation.
 
 ## Tunable knobs
 
@@ -48,10 +48,10 @@ If you start seeing too many false positives, tighten `_DIST` to `0.35`. If you 
 
 memex's design hypothesis is that the *connection density* between your notes matters more than the volume of notes you keep. 1,500 curated notes with strong cross-references beat 150,000 auto-ingested fragments every time. Flashback is the mechanism that forces those cross-references to be visible without you having to remember they exist.
 
-Automated synthesis (LLM-summarised "themes across your week") was considered and rejected as v1 — it's expensive, opaque, and prone to hallucinated patterns. Flashback is deterministic, cheap (one indexed SQL query), and points at *your own words* in your own notes. Trust comes from showing the raw connection, not from generating prose about it.
+Automated synthesis (LLM-summarised "themes across your week") was considered and rejected as v1, it's expensive, opaque, and prone to hallucinated patterns. Flashback is deterministic, cheap (one indexed SQL query), and points at *your own words* in your own notes. Trust comes from showing the raw connection, not from generating prose about it.
 
 ## Related
 
-- [Backlinks & Digest — Wiki backlinks vs flashback links](/en/docs/backlinks-digest#wiki-backlinks-vs-flashback-links)
-- [Note Layers](/en/docs/layers) — `past` notes are the primary flashback candidates
+- [Backlinks & Digest, Wiki backlinks vs flashback links](/en/docs/backlinks-digest#wiki-backlinks-vs-flashback-links)
+- [Note Layers](/en/docs/layers), `past` notes are the primary flashback candidates
 - [Semantic Search](/en/docs/search)

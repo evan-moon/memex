@@ -1,22 +1,22 @@
 ---
 title: 시맨틱 검색
-description: memex의 검색 방식 — 벡터 검색, BM25, 태그 매칭을 결합한 하이브리드 리트리벌.
+description: memex의 검색 방식, 벡터 검색, BM25, 태그 매칭을 결합한 하이브리드 리트리벌.
 ---
 
 ## 동작 방식
 
 memex는 Reciprocal Rank Fusion(RRF)으로 융합된 4개의 검색 소스를 사용합니다:
 
-1. **벡터 검색** — `sqlite-vec`을 통한 밀집 시맨틱 유사도. 정확한 단어가 없어도 의미로 노트를 찾습니다.
-2. **BM25 전문 검색** — 제목과 내용에 대한 FTS5. 정확한 키워드 매칭에 강합니다.
-3. **태그 매칭** — 노트 태그에 대한 정확 매칭. 매칭 태그가 많을수록 높은 순위.
-4. **제목 키워드 매칭** — `LIKE` 기반 제목 검색, 2배 가중치(제목 매칭은 강한 신호).
+1. **벡터 검색**, `sqlite-vec`을 통한 밀집 시맨틱 유사도. 정확한 단어가 없어도 의미로 노트를 찾습니다.
+2. **BM25 전문 검색**, 제목과 내용에 대한 FTS5. 정확한 키워드 매칭에 강합니다.
+3. **태그 매칭**, 노트 태그에 대한 정확 매칭. 매칭 태그가 많을수록 높은 순위.
+4. **제목 키워드 매칭**, `LIKE` 기반 제목 검색, 2배 가중치(제목 매칭은 강한 신호).
 
 4개 소스는 RRF(k=60)로 병합됩니다. 최종 순위는 의미, 키워드, 태그, 제목을 균형 있게 반영합니다.
 
 ## 임베딩 모델
 
-memex는 [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)를 사용합니다 — 완전 오프라인으로 동작하는 768차원 모델입니다. 한국어와 영어를 같은 벡터 공간에서 이해하므로, 한국어 쿼리로 영어 노트를 찾거나 반대도 가능합니다.
+memex는 [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)를 사용합니다, 완전 오프라인으로 동작하는 768차원 모델입니다. 한국어와 영어를 같은 벡터 공간에서 이해하므로, 한국어 쿼리로 영어 노트를 찾거나 반대도 가능합니다.
 
 최초 실행 시 `~/.memex/models/`에 한 번 다운로드됩니다(~450 MB).
 
@@ -53,7 +53,7 @@ MCP를 통해 특정 기간에 대해 질문하면 Claude가 `date_from`과 `dat
 새 노트를 저장할 때, memex는 임베딩을 계산하고 코사인 거리 0.5 미만인 기존 노트를 확인합니다. 유사한 노트가 있으면 `save_note`가 경고를 반환합니다:
 
 ```
-⚠️ Similar notes already exist — consider updating one instead:
+⚠️ Similar notes already exist, consider updating one instead:
 - #42 "Auth Architecture Decision" (distance: 0.312)
 ```
 

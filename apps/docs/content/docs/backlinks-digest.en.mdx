@@ -5,7 +5,7 @@ description: Connect your notes with wiki-links and get periodic summaries.
 
 ## Backlinks
 
-memex resolves `[[Title]]` wiki-link syntax — the same format used by Obsidian, Roam, and Logseq.
+memex resolves `[[Title]]` wiki-link syntax, the same format used by Obsidian, Roam, and Logseq.
 
 When you save or update a note, memex scans the content for `[[Title]]` patterns and creates links to matching notes. These are stored in a `note_links` table and surfaced when you view a note.
 
@@ -18,7 +18,7 @@ Discussed the auth approach with [[Tom]].
 This builds on the [[Auth Architecture Decision]] from April.
 ```
 
-When you later view the "Auth Architecture Decision" note — via `memex show <id>` or `get_note` — you'll see a "Referenced by" section listing every note that links to it.
+When you later view the "Auth Architecture Decision" note (via `memex show <id>` or `get_note`) you'll see a "Referenced by" section listing every note that links to it.
 
 ### Claude + backlinks
 
@@ -29,7 +29,7 @@ Claude is instructed to use `[[Title]]` syntax when saving notes:
 So if you have notes on "Alice" and "Project X", and Claude saves a note about a conversation you had with Alice about Project X, it will write:
 
 ```markdown
-Spoke with [[Alice]] about [[Project X]] — decided to delay the launch.
+Spoke with [[Alice]] about [[Project X]], decided to delay the launch.
 ```
 
 ### Viewing backlinks
@@ -38,16 +38,16 @@ Spoke with [[Alice]] about [[Project X]] — decided to delay the launch.
 memex show <id>    # includes "Referenced by" section
 ```
 
-Via Claude: use `get_note` — backlinks appear at the bottom.
+Via Claude: use `get_note`, backlinks appear at the bottom.
 
 ### Wiki backlinks vs flashback links
 
 `note_links` tracks two kinds of edges via a `source` column:
 
-- `source = 'wiki'` — created by you via `[[Title]]` syntax. Re-synced on every save/update of the source note.
-- `source = 'flashback'` — created by memex when a save or search surfaces an older cross-context note. Persistent across syncs.
+- `source = 'wiki'`, created by you via `[[Title]]` syntax. Re-synced on every save/update of the source note.
+- `source = 'flashback'`, created by memex when a save or search surfaces an older cross-context note. Persistent across syncs.
 
-`memex show <id>` lists both — the standard "Referenced by" block plus a "Surfaced as flashback in" block. The composite primary key `(source_id, target_id, source)` means the same pair can exist as both kinds simultaneously without colliding.
+`memex show <id>` lists both, the standard "Referenced by" block plus a "Surfaced as flashback in" block. The composite primary key `(source_id, target_id, source)` means the same pair can exist as both kinds simultaneously without colliding.
 
 ---
 
@@ -64,7 +64,7 @@ memex digest --days 30    # last month
 Output is grouped by folder:
 
 ```
-Digest — last 7 day(s) since 2025-04-27
+Digest, last 7 day(s) since 2025-04-27
 
 conversations/tom
   #48 Auth approach follow-up  [auth, backend]  Apr 28
@@ -77,6 +77,6 @@ decisions/memex
 ```
 
 Use digest for:
-- **Weekly review** — what did I capture this week?
-- **Catch-up** — coming back from vacation or a break
-- **Handoff context** — before a meeting, see what's been logged recently
+- **Weekly review**, what did I capture this week?
+- **Catch-up**, coming back from vacation or a break
+- **Handoff context**, before a meeting, see what's been logged recently

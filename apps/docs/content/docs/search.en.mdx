@@ -1,22 +1,22 @@
 ---
 title: Semantic Search
-description: How memex finds notes — hybrid retrieval with vector search, BM25, and tag matching.
+description: How memex finds notes, hybrid retrieval with vector search, BM25, and tag matching.
 ---
 
 ## How it works
 
 memex uses four search sources fused via Reciprocal Rank Fusion (RRF):
 
-1. **Vector search** — dense semantic similarity via `sqlite-vec`. Finds notes by meaning even if exact words don't match.
-2. **BM25 full-text search** — FTS5 over title and content. Strong on exact keyword matches.
-3. **Tag matching** — exact match against note tags. Notes with more matching tags rank higher.
-4. **Title keyword match** — `LIKE`-based title search, weighted 2× because title matches are a strong signal.
+1. **Vector search**, dense semantic similarity via `sqlite-vec`. Finds notes by meaning even if exact words don't match.
+2. **BM25 full-text search**, FTS5 over title and content. Strong on exact keyword matches.
+3. **Tag matching**, exact match against note tags. Notes with more matching tags rank higher.
+4. **Title keyword match**, `LIKE`-based title search, weighted 2× because title matches are a strong signal.
 
 All four sources are merged using RRF (k=60). The final ranking balances meaning, keywords, tags, and titles.
 
 ## The embedding model
 
-memex uses [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base) — a 768-dimensional model that runs fully offline. It understands Korean and English in the same vector space, so Korean queries find English notes and vice versa.
+memex uses [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base), a 768-dimensional model that runs fully offline. It understands Korean and English in the same vector space, so Korean queries find English notes and vice versa.
 
 The model is downloaded once on first run (~450 MB) to `~/.memex/models/`.
 
@@ -46,14 +46,14 @@ Create shorthand aliases that expand at search time:
 }
 ```
 
-Set via `~/.memex/config.json`. Searching "js" will also match notes containing "javascript" or "ecmascript". Values can be any language — useful for bridging across scripts (e.g. mapping an English alias to its Korean or Japanese term).
+Set via `~/.memex/config.json`. Searching "js" will also match notes containing "javascript" or "ecmascript". Values can be any language, useful for bridging across scripts (e.g. mapping an English alias to its Korean or Japanese term).
 
 ## Duplicate detection
 
 When saving a new note, memex computes its embedding and checks for existing notes with cosine distance below 0.5. If similar notes exist, `save_note` returns a warning:
 
 ```
-⚠️ Similar notes already exist — consider updating one instead:
+⚠️ Similar notes already exist, consider updating one instead:
 - #42 "Auth Architecture Decision" (distance: 0.312)
 ```
 
@@ -61,7 +61,7 @@ Claude is instructed to switch to `update_note` when this warning appears.
 
 ## Flashback in results
 
-After the ranked results, both `memex search` and the MCP `search_notes` tool append a `🔗 Flashback` hint pointing to older notes (≥ 90 days old, default) from a *different folder* that are semantically related to the top result. This is how cross-context connections — "I wrote about this in a different project months ago" — actually become visible. See the dedicated [Flashback](/en/docs/flashback) page for the full story.
+After the ranked results, both `memex search` and the MCP `search_notes` tool append a `🔗 Flashback` hint pointing to older notes (≥ 90 days old, default) from a *different folder* that are semantically related to the top result. This is how cross-context connections ("I wrote about this in a different project months ago") actually become visible. See the dedicated [Flashback](/en/docs/flashback) page for the full story.
 
 ## CLI search options
 
