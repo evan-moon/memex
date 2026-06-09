@@ -1,38 +1,63 @@
 ---
 title: Ecosystem
-description: "memex is one of three local-first tools — firma (money), memex (memory), skope (news) — that interoperate through any MCP client. They share one principle: your data stays on your machine, and the AI comes to it."
+description: "memex is one of three local-first tools (firma for money, memex for memory, skope for news) that interoperate through any MCP client. They share one principle: your data stays on your machine, and the AI comes to it."
 ---
 
 ## Three tools, one principle
 
-- **memex** — *you are here.* Persistent memory: your notes and the context behind them, across every session.
-- **firma** — financial intelligence: portfolio · net worth · cash flow, in `~/.firma/firma.db`.
-- **skope** — news intelligence: a personalized lens on the world, the news that reaches *you*.
+- **memex**, *you are here.* Persistent memory: your notes and the context behind them, across every session.
+- **firma**, financial intelligence: portfolio · net worth · cash flow, in `~/.firma/firma.db`.
+- **skope**, news intelligence: a personalized lens on the world, the news that reaches *you*.
 
-Each is an independent MCP server you install on its own. None depends on the others — but an AI client can hold all three at once, and that's where they compound: memex remembers the decisions you made in firma last month, and recalls why you started following a story skope first surfaced.
+Each is an independent MCP server you install on its own. None depends on the others, but an AI client can hold all three at once, and that's where they compound: memex remembers the decisions you made in firma last month, and recalls why you started following a story skope first surfaced.
 
 ## How you use them
 
-The tools are the core. You reach them through whatever MCP client you like — the interface is just a front-end:
+The tools are the core. You reach them through whatever MCP client you like, the interface is just a front-end:
 
-- **Claude Desktop · Claude Code · Cursor** — the text way.
-- **[Herald](https://ai-herald.vercel.app)** — a voice interface, if you'd rather talk to your stack out loud (macOS).
+- **Claude Desktop · Claude Code · Cursor**, the text way.
+- **[Herald](https://ai-herald.vercel.app)**, a voice interface, if you'd rather talk to your stack out loud (macOS).
 
 Nothing sits *above* the tools. The AI client orchestrates them, and you swap interfaces freely.
 
 ## Federation, not lock-in
 
-The tools never call each other. Each owns its own data and exposes its own MCP tools; the AI client is the only thing that sees across them. Add or drop any one and the rest keep working — **compose through the model, not through a backend.**
+The tools never call each other. Each owns its own data and exposes its own MCP tools; the AI client is the only thing that sees across them. Add or drop any one and the rest keep working. **Compose through the model, not through a backend.**
+
+## Better together
+
+You don't need all three. Each works on its own. But *memory* is the difference between an assistant that re-asks what you already decided and one that doesn't. Here's one morning, then the same holding three weeks later:
+
+```
+You:     Morning, anything I should know today?
+Claude:  [skope] New US chip-export rules, one of three stories that
+         actually reach you. [firma] It hits your book twice: Nvidia
+         directly, plus an index reshuffle that trims your Apple and
+         Microsoft. ~18% of the portfolio sits in this cluster.
+You:     I'll hold. The thesis hasn't broken.
+Claude:  [memex] Saved, "held the chip cluster through the export-rule
+         shock, thesis intact." I'll bring it back when it's relevant.
+
+         · · ·  three weeks later  · · ·
+
+You:     Nvidia's sliding again. Remind me why I'm still in?
+Claude:  [memex] You decided to hold on the 9th, thesis intact through
+         the export shock. [skope] Today is that same rule re-priced, not
+         fresh damage. [firma] The cluster's at 16% now, down from 18%.
+         Your call still holds.
+```
+
+Notice the spine: skope and firma are the *senses* that read the world and your book. **memex is where the decision lives**, so the second conversation doesn't start from zero. That's the whole point of a local stack with memory at its core, and none of it leaves your machine.
 
 ## Explore the rest
 
-### firma — your money
+### firma: your money
 
-Drop your trade history into Claude and get the full picture — portfolio, net worth, cash flow — in one local SQLite file. No account, no cloud.
+Drop your trade history into Claude and get the full picture (portfolio, net worth, cash flow) in one local SQLite file. No account, no cloud.
 
 [GitHub →](https://github.com/evan-moon/firma) · `npm install -g @evan-moon/firma`
 
-### skope — your news
+### skope: your news
 
 A lens **and** a watcher on the world. Claude scans the news, skope keeps only what has a causal path to you, and warns you when your attention collapses into a bubble.
 
