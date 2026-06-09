@@ -280,12 +280,36 @@ memex config set vault-path ~/my-vault
 
 ---
 
-## Part of a personal AI stack
+## The ecosystem
 
-memex is the memory layer of the [Herald](https://ai-herald.vercel.app) ambient voice assistant stack.
+**memex** is one of three local-first tools that share one principle — **your data stays on your machine, and the AI comes to it.** They interoperate through any MCP client, and none depends on the others.
 
-**Herald + memex + [Firma](https://github.com/evan-moon/firma)**
-— ambient voice, persistent memory, and financial intelligence.
+```mermaid
+flowchart TB
+    U([You])
+    subgraph I["Interfaces — talk to your tools"]
+        direction LR
+        CD[Claude Desktop]
+        CC[Claude Code]
+        H["Herald · voice"]
+    end
+    subgraph T["Local-first tools — each owns its data, on your machine"]
+        direction LR
+        F["firma · money<br/>~/.firma"]
+        M["memex · memory<br/>~/.memex"]
+        S["skope · news<br/>~/.skope"]
+    end
+    U --> I
+    I -- MCP --> F & M & S
+    F <-. never call each other .-> M
+    M <-.-> S
+```
+
+- **[firma](https://github.com/evan-moon/firma)** · money — portfolio, net worth, cash flow
+- **[memex](https://github.com/evan-moon/memex)** · memory — notes and the context behind them, across sessions
+- **[skope](https://github.com/evan-moon/skope)** · news — a personalized lens on the world
+
+You reach them through Claude Desktop, Claude Code, Cursor — or **[Herald](https://ai-herald.vercel.app)**, a voice interface. The tools compose through the model, never by calling each other.
 
 ---
 
