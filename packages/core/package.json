@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@memex/db": "workspace:*",
-    "@memex/utils": "workspace:*",
     "@types/node": "^22",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@memex/db": "workspace:*",
+    "@memex/utils": "workspace:*"
   }
 }
