@@ -333,6 +333,7 @@ __metadata:
   dependencies:
     "@clack/prompts": "npm:^0.9.1"
     "@huggingface/transformers": "npm:^3.5.1"
+    "@memex/core": "workspace:*"
     "@memex/db": "workspace:*"
     "@memex/embed": "workspace:*"
     "@memex/mcp": "workspace:*"
@@ -685,6 +686,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@memex/core@workspace:*, @memex/core@workspace:packages/core":
+  version: 0.0.0-use.local
+  resolution: "@memex/core@workspace:packages/core"
+  dependencies:
+    "@memex/db": "workspace:*"
+    "@memex/utils": "workspace:*"
+    "@types/node": "npm:^22"
+    tsup: "npm:^8.4.0"
+    typescript: "npm:^5.8.3"
+  languageName: unknown
+  linkType: soft
+
 "@memex/db@workspace:*, @memex/db@workspace:packages/db":
   version: 0.0.0-use.local
   resolution: "@memex/db@workspace:packages/db"
@@ -734,6 +747,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@memex/mcp@workspace:apps/mcp"
   dependencies:
+    "@memex/core": "workspace:*"
     "@memex/db": "workspace:*"
     "@memex/embed": "workspace:*"
     "@memex/utils": "workspace:*"

@@ -30,6 +30,7 @@ type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
 const sanitizeFilename = (title: string): string =>
   title
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from filenames is intentional
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
     .replace(/\s+/g, '-')
     .toLowerCase()

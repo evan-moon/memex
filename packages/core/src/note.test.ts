@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { insertNote, openDb, saveEmbedding, type MemexClient } from '@memex/db';
 import { editNote, isEditRejection, saveNote } from './note.ts';
 
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
@@ -38,7 +38,9 @@ describe('editNote — layer guards', () => {
       layer: 'past',
     });
 
-    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'edit attempt' });
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
+      content: 'edit attempt',
+    });
     expect(isEditRejection(result)).toBe(true);
     if (!isEditRejection(result)) return;
     expect(result.error).toBe('PAST_IMMUTABLE');
@@ -58,7 +60,9 @@ describe('editNote — layer guards', () => {
       layer: 'rule',
     });
 
-    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'OOP first' });
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
+      content: 'OOP first',
+    });
     expect(isEditRejection(result)).toBe(true);
     if (!isEditRejection(result)) return;
     expect(result.error).toBe('RULE_USER_ONLY');
@@ -107,7 +111,7 @@ describe('saveNote — flashbacks', () => {
     expect(flashbacks.map((f) => f.id)).toContain(old.id);
 
     const links = client.sqlite
-      .prepare("SELECT source FROM note_links WHERE source_id = ? AND target_id = ?")
+      .prepare('SELECT source FROM note_links WHERE source_id = ? AND target_id = ?')
       .all(note.id, old.id) as { source: string }[];
     expect(links.some((l) => l.source === 'flashback')).toBe(true);
   });

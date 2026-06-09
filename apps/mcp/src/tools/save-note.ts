@@ -1,7 +1,7 @@
 import type { MemexClient, NoteSource } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { saveNote } from '../services/note.ts';
+import { saveNote } from '@memex/core';
 
 type Embedder = (text: string) => Promise<number[]>;
 

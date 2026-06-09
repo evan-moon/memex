@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { findFlashbacks, type FlashbackOptions, type MemexClient } from '@memex/db';
-import { semanticSearch } from '../services/note.ts';
+import { semanticSearch } from '@memex/core';
 
 type Embedder = (text: string) => Promise<number[]>;
 

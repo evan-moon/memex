@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { findFlashbacks, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
-import { semanticSearch } from '../services/note.ts';
+import { semanticSearch } from '@memex/core';
 import { layerBadge } from '../layer.ts';
 
 export const registerSearch = (program: Command) => {

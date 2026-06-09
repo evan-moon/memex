@@ -4,7 +4,7 @@ import type { Command } from 'commander';
 import { openDb, getNote } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
-import { editNote, isEditRejection } from '../services/note.ts';
+import { editNote, isEditRejection } from '@memex/core';
 import pc from 'picocolors';
 
 export const registerEdit = (program: Command) => {

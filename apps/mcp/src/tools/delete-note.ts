@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
 import { getNote } from '@memex/db';
-import { removeNote } from '../services/note.ts';
+import { removeNote } from '@memex/core';
 
 export const registerDeleteNote = (server: McpServer, client: MemexClient) => {
   server.tool(

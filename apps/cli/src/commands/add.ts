@@ -5,7 +5,7 @@ import pc from 'picocolors';
 import { openDb, type NoteLayer, type NoteSource } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
-import { saveNote } from '../services/note.ts';
+import { saveNote } from '@memex/core';
 
 const LAYERS: ReadonlyArray<NoteLayer> = ['past', 'state', 'rule'];
 

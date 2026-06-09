@@ -15,6 +15,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@memex/core": "workspace:*",
     "@memex/db": "workspace:*",
     "@memex/embed": "workspace:*",
     "@memex/utils": "workspace:*",

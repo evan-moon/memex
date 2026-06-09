@@ -3,7 +3,7 @@ import { confirm, isCancel, cancel } from '@clack/prompts';
 import pc from 'picocolors';
 import { openDb, getNote } from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
-import { removeNote } from '../services/note.ts';
+import { removeNote } from '@memex/core';
 
 export const registerDelete = (program: Command) => {
   program

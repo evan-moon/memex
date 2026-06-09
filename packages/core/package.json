@@ -1,0 +1,19 @@
+{
+  "name": "@memex/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@memex/db": "workspace:*",
+    "@memex/utils": "workspace:*",
+    "@types/node": "^22",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  }
+}
