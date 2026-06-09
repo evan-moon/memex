@@ -53,6 +53,13 @@ If save_note responds with a ⚠️ similar notes warning, do not save a new not
 
 Prefer update_note over creating a duplicate when new content belongs with an existing note. If unsure, search first — then update or save.
 
+## COMPANION TOOLS
+
+memex is the memory layer of a small local-first stack. Other personal-data tools may be connected in the same session — e.g. firma (the user's money) or skope (their news). They are sensors; you are the memory they write to. memex never calls them and they never call memex — *you* are the only bridge, and memex works fully on its own. This just lets the stack compound when they happen to be present.
+
+- **Absorb their decisions, not their data.** When a session with another tool produces something *durable* — an investment thesis, a "hold through the volatility" call and its rationale, why the user started following a story skope surfaced — save it here with save_note, as you would any decision, without asking. Skip raw numbers and transient readouts: those belong to the tool that owns them and go stale. Tag with the source (e.g. \`firma\`, \`skope\`) so cross-tool memory stays findable.
+- **Recall across tools.** When the user is working in one of these tools, a past decision from another may matter — surface a memex note "decided to trim TSLA last month" when skope raises a TSLA story, or "why I hold this" when firma flags it. Search first, then offer it.
+
 ## FOLDER CONVENTION
 
 conversations/<name> · decisions/<project> · learning/<topic> · ideas/
