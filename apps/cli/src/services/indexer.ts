@@ -1,17 +1,18 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative } from 'node:path';
-import { buildEmbeddingText, extractCategory } from '@memex/utils';
 import {
+  deleteNote,
   getNoteByFilePath,
   insertNote,
   listNotesByPathPrefix,
+  type MemexClient,
+  parseAuthoredAt,
   parseTags,
   saveEmbedding,
   updateNote,
-  deleteNote,
-  type MemexClient,
 } from '@memex/db';
+import { buildEmbeddingText, extractCategory } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -63,8 +64,17 @@ const indexFile = async (
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
   const category = extractCategory(folder);
 
+  // Temporal signals (flashback, hidden_arc spans, date filters) need the real
+  // authoring date — created_at here is just the moment the file was indexed.
+  const authoredAt = parseAuthoredAt(title, body) ?? undefined;
+
   if (existing) {
-    updateNote(client, existing.id, { title, content: body, category: category ?? undefined });
+    updateNote(client, existing.id, {
+      title,
+      content: body,
+      category: category ?? undefined,
+      authoredAt,
+    });
     const tags = parseTags(existing.tags);
     const embedding = await embedder(buildEmbeddingText(title, body, folder, tags));
     client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(existing.id));
@@ -72,7 +82,14 @@ const indexFile = async (
     stats.updated++;
   } else {
     try {
-      const note = insertNote(client, { title, content: body, filePath, source: 'index', category: category ?? undefined });
+      const note = insertNote(client, {
+        title,
+        content: body,
+        filePath,
+        source: 'index',
+        category: category ?? undefined,
+        authoredAt,
+      });
       const embedding = await embedder(buildEmbeddingText(title, body, folder));
       saveEmbedding(client, note.id, embedding);
       stats.added++;
@@ -123,7 +140,10 @@ export const indexDirectory = async (
 
   const fileSet = new Set(files);
   for (const note of listNotesByPathPrefix(client, dirPath)) {
-    if (isIgnoredPath(note.filePath) || (!fileSet.has(note.filePath) && !existsSync(note.filePath))) {
+    if (
+      isIgnoredPath(note.filePath) ||
+      (!fileSet.has(note.filePath) && !existsSync(note.filePath))
+    ) {
       client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(note.id));
       deleteNote(client, note.id);
       stats.removed++;

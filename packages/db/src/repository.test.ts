@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openDb, type MemexClient } from './client.ts';
+import { type MemexClient, openDb } from './client.ts';
 import {
   findFlashbacks,
   getBacklinks,
@@ -10,6 +10,7 @@ import {
   insertNote,
   parseTags,
   saveEmbedding,
+  searchNotes,
   serializeTags,
   syncLinks,
   updateNote,
@@ -114,9 +115,10 @@ describe('note_links source column', () => {
   });
 
   it('has a source column defaulting to wiki', () => {
-    const cols = client.sqlite
-      .prepare('PRAGMA table_info(note_links)')
-      .all() as { name: string; dflt_value: string | null }[];
+    const cols = client.sqlite.prepare('PRAGMA table_info(note_links)').all() as {
+      name: string;
+      dflt_value: string | null;
+    }[];
     const sourceCol = cols.find((c) => c.name === 'source');
     expect(sourceCol).toBeDefined();
     expect(sourceCol?.dflt_value).toContain('wiki');
@@ -168,7 +170,7 @@ describe('note_links source column', () => {
     syncLinks(client, src.id, src.content);
 
     const rows = client.sqlite
-      .prepare("SELECT source FROM note_links WHERE source_id = ?")
+      .prepare('SELECT source FROM note_links WHERE source_id = ?')
       .all(src.id) as { source: string }[];
     expect(rows.some((r) => r.source === 'flashback')).toBe(true);
   });
@@ -211,6 +213,9 @@ describe('findFlashbacks', () => {
 
   const setCreatedAt = (id: number, ms: number) =>
     client.sqlite.prepare('UPDATE notes SET created_at = ? WHERE id = ?').run(ms, id);
+
+  const setAuthoredAt = (id: number, ms: number) =>
+    client.sqlite.prepare('UPDATE notes SET authored_at = ? WHERE id = ?').run(ms, id);
 
   const fakeEmbedding = new Array(768).fill(0.1);
 
@@ -323,5 +328,130 @@ describe('findFlashbacks', () => {
     const flashbacks = findFlashbacks(client, fresh.id, now, { minDaysGap: 30, limit: 1 });
     expect(flashbacks).toHaveLength(1);
     expect(flashbacks[0].id).toBe(a.id);
+  });
+
+  it('measures the gap from authored_at when present (freshly imported old note)', () => {
+    const now = Date.now();
+    const imported = insertNote(client, {
+      title: 'imported-old',
+      content: 'x',
+      filePath: join(dbDir, 'i.md'),
+      source: 'index',
+      layer: 'past',
+      category: 'memory',
+    });
+    // created_at = import time (now), but the thought is 100 days old
+    setAuthoredAt(imported.id, now - 100 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, imported.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, now);
+    const flash = flashbacks.find((f) => f.id === imported.id);
+    expect(flash).toBeDefined();
+    expect(flash?.daysAgo).toBeGreaterThanOrEqual(90);
+  });
+
+  it('excludes a note whose authored_at is recent even if created_at is old', () => {
+    const now = Date.now();
+    const note = insertNote(client, {
+      title: 'recently-authored',
+      content: 'x',
+      filePath: join(dbDir, 'ra.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'memory',
+    });
+    setCreatedAt(note.id, now - 200 * 86_400_000);
+    setAuthoredAt(note.id, now - 10 * 86_400_000);
+
+    const fresh = insertNote(client, {
+      title: 'fresh',
+      content: 'x',
+      filePath: join(dbDir, 'f.md'),
+      source: 'manual',
+      layer: 'past',
+      category: 'projects',
+    });
+    saveEmbedding(client, note.id, fakeEmbedding);
+    saveEmbedding(client, fresh.id, fakeEmbedding);
+
+    const flashbacks = findFlashbacks(client, fresh.id, now);
+    expect(flashbacks.map((f) => f.id)).not.toContain(note.id);
+  });
+});
+
+describe('searchNotes date filters', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-search-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const fakeEmbedding = new Array(768).fill(0.1);
+  const DAY = 86_400_000;
+
+  it('filters on authored_at when present, falling back to created_at', () => {
+    const now = Date.now();
+    // Authored 100 days ago, imported just now.
+    const importedOld = insertNote(client, {
+      title: 'april retro',
+      content: 'x',
+      filePath: join(dbDir, 'a.md'),
+      source: 'index',
+      layer: 'past',
+      authoredAt: now - 100 * DAY,
+    });
+    // No authored_at — created_at (now) is the effective date.
+    const freshNote = insertNote(client, {
+      title: 'april retro follow-up',
+      content: 'x',
+      filePath: join(dbDir, 'b.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    saveEmbedding(client, importedOld.id, fakeEmbedding);
+    saveEmbedding(client, freshNote.id, fakeEmbedding);
+
+    const oldWindow = searchNotes(
+      client,
+      'april retro',
+      fakeEmbedding,
+      10,
+      undefined,
+      undefined,
+      now - 110 * DAY,
+      now - 90 * DAY,
+    );
+    expect(oldWindow.map((r) => r.id)).toContain(importedOld.id);
+    expect(oldWindow.map((r) => r.id)).not.toContain(freshNote.id);
+
+    const recentWindow = searchNotes(
+      client,
+      'april retro',
+      fakeEmbedding,
+      10,
+      undefined,
+      undefined,
+      now - 1 * DAY,
+      undefined,
+    );
+    expect(recentWindow.map((r) => r.id)).toContain(freshNote.id);
+    expect(recentWindow.map((r) => r.id)).not.toContain(importedOld.id);
   });
 });

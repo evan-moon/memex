@@ -218,7 +218,7 @@ export const detectStaleState = (
            AND k = ?
            AND n.id != ?
            AND n.layer = 'past'
-           AND n.created_at > ?
+           AND COALESCE(n.authored_at, n.created_at) > ?
            AND e.distance < ?
          ORDER BY e.distance`,
       )

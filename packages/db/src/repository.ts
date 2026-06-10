@@ -1,11 +1,15 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
-import { notes, type NewNote, type Note } from './schema.ts';
+import { type NewNote, type Note, notes } from './schema.ts';
 
 type SearchResult = Note & { distance: number };
 
 export const parseTags = (raw: string): string[] => {
-  try { return JSON.parse(raw) as string[]; } catch { return []; }
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
 };
 
 export const serializeTags = (tags: string[]): string => JSON.stringify(tags);
@@ -62,13 +66,19 @@ export const searchNotes = (
   const vec = new Float32Array(embedding);
   const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
   const aliasedCategoryFilter = category ? 'AND n.category = ?' : '';
-  const aliasedTagFilter = tag ? "AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)" : '';
+  const aliasedTagFilter = tag
+    ? 'AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)'
+    : '';
   const categoryFilter = category ? ' AND category = ?' : '';
-  const tagFilter = tag ? " AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)" : '';
-  const dateFromFilterAliased = dateFrom ? ' AND n.created_at >= ?' : '';
-  const dateToFilterAliased = dateTo ? ' AND n.created_at <= ?' : '';
-  const dateFromFilter = dateFrom ? ' AND created_at >= ?' : '';
-  const dateToFilter = dateTo ? ' AND created_at <= ?' : '';
+  const tagFilter = tag ? ' AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)' : '';
+  // Date filters compare the note's effective date: authored_at (real authoring
+  // time, parsed from frontmatter/title) when present, created_at (import time)
+  // otherwise. Raw created_at would make "notes from April" miss anything
+  // imported in May.
+  const dateFromFilterAliased = dateFrom ? ' AND COALESCE(n.authored_at, n.created_at) >= ?' : '';
+  const dateToFilterAliased = dateTo ? ' AND COALESCE(n.authored_at, n.created_at) <= ?' : '';
+  const dateFromFilter = dateFrom ? ' AND COALESCE(authored_at, created_at) >= ?' : '';
+  const dateToFilter = dateTo ? ' AND COALESCE(authored_at, created_at) <= ?' : '';
   const dateArgs = [...(dateFrom ? [dateFrom] : []), ...(dateTo ? [dateTo] : [])];
 
   const rrf = buildRrf();
@@ -89,11 +99,18 @@ export const searchNotes = (
     .all(Buffer.from(vec.buffer), limit * 5, ...filterArgs, ...dateArgs) as SearchResult[];
   rrf.add(vectorResults);
 
-  const normTokens = [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))];
+  const normTokens = [
+    ...new Set(
+      query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((t) => t.length >= 2),
+    ),
+  ];
 
   if (normTokens.length > 0) {
     const ftsTokens = normTokens
-      .map((t) => t.replace(/["'*^()\[\]{}\\]/g, '').trim())
+      .map((t) => t.replace(/["'*^()[\]{}\\]/g, '').trim())
       .filter((t) => t.length >= 2);
     if (ftsTokens.length > 0) {
       try {
@@ -113,8 +130,7 @@ export const searchNotes = (
           )
           .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Note[];
         rrf.add(ftsResults);
-      } catch {
-      }
+      } catch {}
     }
 
     const tagPlaceholders = normTokens.map(() => '?').join(', ');
@@ -161,7 +177,11 @@ export const getNoteByFilePath = (client: MemexClient, filePath: string): Note |
   client.db.select().from(notes).where(eq(notes.filePath, filePath)).get();
 
 export const listNotesByPathPrefix = (client: MemexClient, prefix: string): Note[] =>
-  client.db.select().from(notes).where(like(notes.filePath, `${prefix}%`)).all();
+  client.db
+    .select()
+    .from(notes)
+    .where(like(notes.filePath, `${prefix}%`))
+    .all();
 
 export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
@@ -172,7 +192,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
 export const updateNote = (
   client: MemexClient,
   id: number,
-  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags'>>,
+  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt'>>,
 ): Note => {
   const [updated] = client.db
     .update(notes)
@@ -273,7 +293,12 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
     .all(targetId) as Note[];
 
 export const listNotesSince = (client: MemexClient, sinceMs: number): Note[] =>
-  client.db.select().from(notes).where(gte(notes.createdAt, sinceMs)).orderBy(desc(notes.createdAt)).all();
+  client.db
+    .select()
+    .from(notes)
+    .where(gte(notes.createdAt, sinceMs))
+    .orderBy(desc(notes.createdAt))
+    .all();
 
 export type Flashback = Note & {
   distance: number;
@@ -305,9 +330,7 @@ export const findFlashbacks = (
   const source = client.db.select().from(notes).where(eq(notes.id, noteId)).get();
   const sourceCategory = source?.category ?? null;
 
-  const categoryFilter = sourceCategory
-    ? 'AND (n.category IS NULL OR n.category != ?)'
-    : '';
+  const categoryFilter = sourceCategory ? 'AND (n.category IS NULL OR n.category != ?)' : '';
   const args: (number | Buffer | string)[] = [
     embRow.embedding,
     limit * 5,
@@ -322,6 +345,7 @@ export const findFlashbacks = (
       `SELECT n.id, n.title, n.content,
               n.file_path  AS filePath,
               n.category,  n.tags, n.source, n.layer,
+              n.authored_at AS authoredAt,
               n.created_at AS createdAt,
               n.updated_at AS updatedAt,
               e.distance
@@ -330,7 +354,7 @@ export const findFlashbacks = (
        WHERE e.embedding MATCH ?
          AND k = ?
          AND n.id != ?
-         AND n.created_at < ?
+         AND COALESCE(n.authored_at, n.created_at) < ?
          AND e.distance < ?
          ${categoryFilter}
        ORDER BY e.distance
@@ -338,9 +362,12 @@ export const findFlashbacks = (
     )
     .all(...args) as (Note & { distance: number })[];
 
+  // The rediscovery gap measures distance from when the thought was written,
+  // not when it was imported — otherwise a freshly imported vault stays
+  // flashback-silent for minDaysGap days.
   return rows.map((r) => ({
     ...r,
-    daysAgo: Math.floor((now - r.createdAt) / 86_400_000),
+    daysAgo: Math.floor((now - (r.authoredAt ?? r.createdAt)) / 86_400_000),
   }));
 };
 

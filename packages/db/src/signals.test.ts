@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { insertNote, saveEmbedding, serializeTags, updateNote } from './repository.ts';
+import { insertNote, saveEmbedding, serializeTags } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,
@@ -49,6 +49,7 @@ const addNote = (
     category: string;
     createdAt: number;
     updatedAt: number;
+    authoredAt: number;
     embedding: number[];
   }> = {},
 ) => {
@@ -60,6 +61,7 @@ const addNote = (
     layer: opts.layer ?? 'past',
     category: opts.category,
     tags: serializeTags(opts.tags ?? []),
+    authoredAt: opts.authoredAt,
   });
   if (opts.createdAt !== undefined || opts.updatedAt !== undefined) {
     client.sqlite
@@ -152,6 +154,16 @@ describe('detectStaleState', () => {
     const t0 = Date.now() - 100 * DAY;
     addNote({ layer: 'state', embedding: unit(0), createdAt: t0, updatedAt: t0 });
     addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(0);
+  });
+
+  it('does not count freshly imported notes that were authored before the state update', () => {
+    const t0 = Date.now() - 100 * DAY;
+    addNote({ layer: 'state', embedding: unit(0), createdAt: t0, updatedAt: t0 });
+    // Imported after t0 (created_at = now) but authored long before — old
+    // knowledge entering the index must not read as "newer evidence".
+    addNote({ layer: 'past', embedding: unit(0), authoredAt: t0 - 20 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), authoredAt: t0 - 30 * DAY });
     expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(0);
   });
 });
