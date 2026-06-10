@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { registerAdd } from './commands/add.ts';
+import { registerCaptureCommit } from './commands/capture-commit.ts';
 import { registerClassify } from './commands/classify.ts';
 import { registerConfig } from './commands/config.ts';
 import { registerDelete } from './commands/delete.ts';
@@ -47,5 +48,6 @@ registerMint(program);
 registerInferences(program);
 registerSchedule(program);
 registerStats(program);
+registerCaptureCommit(program);
 
 program.parse();
