@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdirSync } from 'node:fs';
-import { listInferences, listSignals, openDb } from '@memex/db';
-import { createEmbedder } from '@memex/embed';
+import { ensureEmbeddingModel, listInferences, listSignals, openDb } from '@memex/db';
+import { createEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from './config.ts';
@@ -23,6 +23,11 @@ const vaultPath = expandPath(config.vault_path);
 mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
 const client = openDb(CONFIG_DIR);
+if (ensureEmbeddingModel(client, EMBEDDING_MODEL_ID) === 'model-changed') {
+  console.error(
+    '[memex] embedding model changed — stale vectors cleared. Semantic search is keyword-only until `memex reembed` is run.',
+  );
+}
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
 const baseInstructions = `

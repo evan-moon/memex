@@ -1,9 +1,10 @@
-import type { Command } from 'commander';
 import { spinner } from '@clack/prompts';
-import pc from 'picocolors';
 import { openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
+import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
+import type { Command } from 'commander';
+import pc from 'picocolors';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 import { indexDirectory } from '../services/indexer.ts';
 
 export const registerIndex = (program: Command) => {
@@ -19,16 +20,23 @@ export const registerIndex = (program: Command) => {
         const config = loadConfig();
         const vaultPath = expandPath(config.vault_path);
         const client = openDb(CONFIG_DIR);
+        guardEmbeddingModel(client);
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
         const dirs = [vaultPath, ...config.sources.map((src) => src.path)];
-        let total = { added: 0, updated: 0, removed: 0, skipped: 0 };
+        const total = { added: 0, updated: 0, removed: 0, skipped: 0 };
 
         for (const dir of dirs) {
           s.message(`Indexing ${dir}...`);
-          const stats = await indexDirectory(client, embedder, dir, (file) => {
-            s.message(`Indexing ${file.split('/').slice(-2).join('/')}`);
-          }, force);
+          const stats = await indexDirectory(
+            client,
+            embedder,
+            dir,
+            (file) => {
+              s.message(`Indexing ${file.split('/').slice(-2).join('/')}`);
+            },
+            force,
+          );
           total.added += stats.added;
           total.updated += stats.updated;
           total.removed += stats.removed;

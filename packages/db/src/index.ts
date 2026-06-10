@@ -1,6 +1,12 @@
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
 export { parseAuthoredAt } from './dates.ts';
+export {
+  type EmbeddingModelStatus,
+  ensureEmbeddingModel,
+  markReembedded,
+  needsReembed,
+} from './index-meta.ts';
 export type {
   EvidenceEdge,
   EvidenceInput,

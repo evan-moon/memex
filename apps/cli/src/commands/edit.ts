@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { intro, outro, text, isCancel, cancel, spinner } from '@clack/prompts';
-import type { Command } from 'commander';
-import { openDb, getNote } from '@memex/db';
-import { createEmbedder } from '@memex/embed';
-import { loadConfig, expandPath, CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
+import { cancel, intro, isCancel, outro, spinner, text } from '@clack/prompts';
 import { editNote, isEditRejection } from '@memex/core';
+import { getNote, openDb } from '@memex/db';
+import { createEmbedder } from '@memex/embed';
+import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
+import type { Command } from 'commander';
 import pc from 'picocolors';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 export const registerEdit = (program: Command) => {
   program
@@ -18,6 +19,7 @@ export const registerEdit = (program: Command) => {
       const config = loadConfig();
       const vaultPath = expandPath(config.vault_path);
       const client = openDb(CONFIG_DIR);
+      guardEmbeddingModel(client);
       const note = getNote(client, Number(id));
 
       if (!note) {
@@ -35,14 +37,20 @@ export const registerEdit = (program: Command) => {
           message: 'Title',
           initialValue: note.title,
         });
-        if (isCancel(titleRes)) { cancel(); process.exit(0); }
+        if (isCancel(titleRes)) {
+          cancel();
+          process.exit(0);
+        }
         title = titleRes as string;
 
         const contentRes = await text({
           message: 'Content',
           initialValue: note.content,
         });
-        if (isCancel(contentRes)) { cancel(); process.exit(0); }
+        if (isCancel(contentRes)) {
+          cancel();
+          process.exit(0);
+        }
         content = contentRes as string;
       }
 
@@ -61,7 +69,11 @@ export const registerEdit = (program: Command) => {
         if (isEditRejection(result)) {
           s.stop(pc.yellow(result.message));
           if (result.error === 'PAST_IMMUTABLE') {
-            console.log(pc.dim(`Suggested: memex add --layer past -t "${result.suggestion.title}" (link with ${result.suggestion.link})`));
+            console.log(
+              pc.dim(
+                `Suggested: memex add --layer past -t "${result.suggestion.title}" (link with ${result.suggestion.link})`,
+              ),
+            );
           }
           process.exit(1);
         }

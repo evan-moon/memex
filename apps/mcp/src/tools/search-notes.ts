@@ -1,7 +1,7 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { findFlashbacks, type FlashbackOptions, type MemexClient } from '@memex/db';
 import { semanticSearch } from '@memex/core';
+import { type FlashbackOptions, findFlashbacks, type MemexClient, needsReembed } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -12,16 +12,10 @@ const readFlashbackOptions = (): FlashbackOptions => ({
   maxDistance: process.env.MEMEX_FLASHBACK_DIST
     ? Number(process.env.MEMEX_FLASHBACK_DIST)
     : undefined,
-  limit: process.env.MEMEX_FLASHBACK_LIMIT
-    ? Number(process.env.MEMEX_FLASHBACK_LIMIT)
-    : undefined,
+  limit: process.env.MEMEX_FLASHBACK_LIMIT ? Number(process.env.MEMEX_FLASHBACK_LIMIT) : undefined,
 });
 
-export const registerSearchNotes = (
-  server: McpServer,
-  client: MemexClient,
-  embedder: Embedder,
-) => {
+export const registerSearchNotes = (server: McpServer, client: MemexClient, embedder: Embedder) => {
   server.tool(
     'search_notes',
     'Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose.',
@@ -45,12 +39,13 @@ export const registerSearchNotes = (
     async ({ query, limit, category, tag, date_from, date_to }) => {
       const parseDate = (s: string, label: string): number => {
         const ms = new Date(s).getTime();
-        if (isNaN(ms)) throw new Error(`Invalid ${label}: "${s}". Use ISO 8601 format, e.g. "2026-04-01".`);
+        if (Number.isNaN(ms))
+          throw new Error(`Invalid ${label}: "${s}". Use ISO 8601 format, e.g. "2026-04-01".`);
         return ms;
       };
       const dateFrom = date_from ? parseDate(date_from, 'date_from') : undefined;
       const dateTo = date_to
-        ? parseDate(date_to.includes('T') ? date_to : date_to + 'T23:59:59.999Z', 'date_to')
+        ? parseDate(date_to.includes('T') ? date_to : `${date_to}T23:59:59.999Z`, 'date_to')
         : undefined;
       const results = await semanticSearch(
         client,
@@ -62,16 +57,14 @@ export const registerSearchNotes = (
         dateFrom,
         dateTo,
       );
+      const reembedWarning = needsReembed(client)
+        ? '\n\n⚠️ The embedding model changed and vectors have not been rebuilt — these results are keyword-only. Tell the user to run `memex reembed` to restore semantic search.'
+        : '';
       if (results.length === 0) {
-        return { content: [{ type: 'text', text: 'No notes found.' }] };
+        return { content: [{ type: 'text', text: `No notes found.${reembedWarning}` }] };
       }
 
-      const flashbacks = findFlashbacks(
-        client,
-        results[0].id,
-        Date.now(),
-        readFlashbackOptions(),
-      );
+      const flashbacks = findFlashbacks(client, results[0].id, Date.now(), readFlashbackOptions());
       const flashbackHint =
         flashbacks.length > 0
           ? `\n\n---\n🔗 Flashback for top result — older notes from a different context:\n${flashbacks
@@ -82,7 +75,9 @@ export const registerSearchNotes = (
       const text =
         results
           .map((r, i) => `## ${i + 1}. ${r.title} (id: ${r.id})\n\n${r.content}`)
-          .join('\n\n---\n\n') + flashbackHint;
+          .join('\n\n---\n\n') +
+        flashbackHint +
+        reembedWarning;
       return { content: [{ type: 'text', text }] };
     },
   );

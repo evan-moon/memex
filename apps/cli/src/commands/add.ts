@@ -6,6 +6,7 @@ import { createEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 const LAYERS: ReadonlyArray<NoteLayer> = ['past', 'state', 'rule'];
 
@@ -92,6 +93,7 @@ export const registerAdd = (program: Command) => {
           const config = loadConfig();
           const vaultPath = expandPath(config.vault_path);
           const client = openDb(CONFIG_DIR);
+          guardEmbeddingModel(client);
           const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
           s.message('Saving note...');

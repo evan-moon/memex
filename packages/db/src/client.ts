@@ -41,6 +41,13 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS index_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+
   const embRow = sqlite
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_embeddings'")
     .get() as { sql: string } | undefined;
