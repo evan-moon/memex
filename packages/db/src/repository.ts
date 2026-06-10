@@ -83,6 +83,12 @@ export const searchNotes = (
 
   const rrf = buildRrf();
 
+  // k is applied by the ANN index BEFORE the joined WHERE filters, so a
+  // filtered search needs a much larger candidate pool or relevant notes get
+  // crowded out by nearer-but-filtered-away ones. Cheap at personal scale.
+  const hasFilters = Boolean(category || tag || dateFrom || dateTo);
+  const vectorK = hasFilters ? Math.max(limit * 5, 250) : limit * 5;
+
   const vectorResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
@@ -96,7 +102,7 @@ export const searchNotes = (
        ${dateToFilterAliased}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), limit * 5, ...filterArgs, ...dateArgs) as SearchResult[];
+    .all(Buffer.from(vec.buffer), vectorK, ...filterArgs, ...dateArgs) as SearchResult[];
   rrf.add(vectorResults);
 
   const normTokens = [
