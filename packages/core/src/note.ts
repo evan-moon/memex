@@ -44,6 +44,32 @@ const generateFilePath = (vaultPath: string, title: string, folder?: string): st
   return join(dir, `${sanitizeFilename(title)}-${Date.now()}.md`);
 };
 
+// A note file has one of three shapes, and a write must not corrupt the two
+// shapes that originate outside memex (the interop contract: files stay
+// editable in Obsidian and re-indexable without drift):
+// - frontmatter file (indexed from an external vault): the DB content IS the
+//   full file, frontmatter included — write it back verbatim, only syncing the
+//   frontmatter `title:` field so a title edit survives the next reindex.
+// - H1 file (indexed, or a memex note that came back through `memex index`):
+//   the content already carries its heading — rewrite the first H1 instead of
+//   prepending a second one.
+// - memex-native content (no heading): the file gets its `# title` header.
+export const renderNoteFile = (title: string, content: string): string => {
+  if (content.startsWith('---')) {
+    const end = content.indexOf('\n---', 3);
+    if (end !== -1 && /^title:/m.test(content.slice(3, end))) {
+      return (
+        content.slice(0, end).replace(/^title:\s*.*$/m, `title: ${title}`) + content.slice(end)
+      );
+    }
+    return content;
+  }
+  if (/^#\s/.test(content)) {
+    return content.replace(/^#\s.*$/m, `# ${title}`);
+  }
+  return `# ${title}\n\n${content}`;
+};
+
 const readFlashbackOptions = (): FlashbackOptions => ({
   minDaysGap: process.env.MEMEX_FLASHBACK_DAYS
     ? Number(process.env.MEMEX_FLASHBACK_DAYS)
@@ -108,7 +134,7 @@ export const saveNote = async (
   const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
 
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
-  writeFileSync(filePath, `# ${params.title}\n\n${params.content}`, 'utf8');
+  writeFileSync(filePath, renderNoteFile(params.title, params.content), 'utf8');
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
@@ -194,7 +220,7 @@ export const editNote = async (
   const content = patch.content ?? note.content;
   const resolvedTags = patch.tags ?? parseTags(note.tags);
 
-  writeFileSync(updated.filePath, `# ${title}\n\n${content}`, 'utf8');
+  writeFileSync(updated.filePath, renderNoteFile(title, content), 'utf8');
 
   const relDir = relative(vaultPath, dirname(note.filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;

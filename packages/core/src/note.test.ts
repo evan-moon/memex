@@ -1,11 +1,97 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { editNote, isEditRejection, isSaveRejection, removeNote, saveNote } from './note.ts';
+import {
+  editNote,
+  isEditRejection,
+  isSaveRejection,
+  removeNote,
+  renderNoteFile,
+  saveNote,
+} from './note.ts';
 
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
+
+describe('renderNoteFile', () => {
+  it('prepends an H1 to memex-native content', () => {
+    expect(renderNoteFile('My Note', 'plain body')).toBe('# My Note\n\nplain body');
+  });
+
+  it('rewrites the existing H1 instead of stacking a second one', () => {
+    expect(renderNoteFile('New Title', '# Old Title\n\nbody')).toBe('# New Title\n\nbody');
+  });
+
+  it('keeps frontmatter at the top of the file and syncs its title field', () => {
+    const content = '---\ntitle: Old\ndate: 2026-01-02\n---\n\nbody';
+    expect(renderNoteFile('New', content)).toBe('---\ntitle: New\ndate: 2026-01-02\n---\n\nbody');
+  });
+
+  it('leaves frontmatter without a title field untouched', () => {
+    const content = '---\ndate: 2026-01-02\n---\n\n# Heading\n\nbody';
+    expect(renderNoteFile('Whatever', content)).toBe(content);
+  });
+});
+
+describe('editNote — file round-trip', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-roundtrip-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-roundtrip-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  it('does not push frontmatter out of position when editing an indexed note', async () => {
+    const fileContent = '---\ntitle: Portfolio\ndate: 2026-01-02\n---\n\nholdings: A, B';
+    const filePath = join(vaultDir, 'portfolio.md');
+    writeFileSync(filePath, fileContent, 'utf8');
+    const note = insertNote(client, {
+      title: 'Portfolio',
+      content: fileContent,
+      filePath,
+      source: 'index',
+      layer: 'state',
+    });
+
+    const newContent = '---\ntitle: Portfolio\ndate: 2026-01-02\n---\n\nholdings: A, B, C';
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
+      content: newContent,
+    });
+    expect(isEditRejection(result)).toBe(false);
+
+    const written = readFileSync(filePath, 'utf8');
+    expect(written.startsWith('---\n')).toBe(true);
+    expect(written).not.toContain('# Portfolio');
+  });
+
+  it('does not accumulate duplicate H1 headers across edits', async () => {
+    const note = insertNote(client, {
+      title: 'Roadmap',
+      content: '# Roadmap\n\nv1 shipped',
+      filePath: join(vaultDir, 'roadmap.md'),
+      source: 'index',
+      layer: 'state',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
+      content: '# Roadmap\n\nv2 planning',
+    });
+    expect(isEditRejection(result)).toBe(false);
+
+    const written = readFileSync(note.filePath, 'utf8');
+    expect(written.match(/^# Roadmap$/gm)).toHaveLength(1);
+  });
+});
 
 describe('editNote — layer guards', () => {
   let dbDir: string;
