@@ -12,6 +12,7 @@ import {
 import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 export const registerDigest = (program: Command) => {
   program
@@ -20,7 +21,7 @@ export const registerDigest = (program: Command) => {
     .option('-d, --days <n>', 'Number of days to look back', '7')
     .action((opts: { days: string }) => {
       const days = Number(opts.days);
-      if (isNaN(days) || days <= 0) {
+      if (Number.isNaN(days) || days <= 0) {
         console.error(pc.red('Error: --days must be a positive number'));
         process.exit(1);
       }
@@ -29,6 +30,7 @@ export const registerDigest = (program: Command) => {
       const sinceDate = formatDate(new Date(sinceMs));
 
       const client = openDb(CONFIG_DIR);
+      guardEmbeddingModel(client);
       const notesResult = listNotesSince(client, sinceMs);
 
       if (notesResult.length === 0) {

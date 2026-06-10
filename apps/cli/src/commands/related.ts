@@ -1,7 +1,8 @@
+import { findRelatedNotes, getNote, openDb } from '@memex/db';
+import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { openDb, getNote, findRelatedNotes } from '@memex/db';
-import { CONFIG_DIR } from '@memex/utils';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 export const registerRelated = (program: Command) => {
   program
@@ -10,6 +11,7 @@ export const registerRelated = (program: Command) => {
     .option('-l, --limit <n>', 'Max results', '10')
     .action((id: string, opts: { limit: string }) => {
       const client = openDb(CONFIG_DIR);
+      guardEmbeddingModel(client);
 
       const source = getNote(client, Number(id));
       if (!source) {
@@ -28,12 +30,10 @@ export const registerRelated = (program: Command) => {
 
       for (const note of results) {
         const pct = Math.round(note.score * 100);
-        const bar = pct >= 80 ? pc.green(`${pct}%`) : pct >= 50 ? pc.yellow(`${pct}%`) : pc.dim(`${pct}%`);
+        const bar =
+          pct >= 80 ? pc.green(`${pct}%`) : pct >= 50 ? pc.yellow(`${pct}%`) : pc.dim(`${pct}%`);
         const category = note.category ? pc.dim(`[${note.category}]`) : '';
-        const tags =
-          note.sharedTags.length > 0
-            ? pc.cyan(note.sharedTags.join(', '))
-            : '';
+        const tags = note.sharedTags.length > 0 ? pc.cyan(note.sharedTags.join(', ')) : '';
 
         console.log(`${bar.padEnd(8)} ${pc.bold(`#${note.id}`)} ${note.title}  ${category}`);
         if (tags) console.log(`         ${tags}`);

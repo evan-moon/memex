@@ -11,6 +11,7 @@ import {
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 const TYPE_LABEL: Record<SignalType, (s: string) => string> = {
   hidden_arc: pc.magenta,
@@ -67,6 +68,7 @@ export const registerSignals = (program: Command) => {
     .option('--no-refresh', 'Skip detection; just list stored signals')
     .action((opts: { status: string; type?: SignalType; refresh: boolean }) => {
       const client = openDb(CONFIG_DIR);
+      guardEmbeddingModel(client);
 
       if (opts.refresh) refreshSignals(client, detectorOptions());
 
