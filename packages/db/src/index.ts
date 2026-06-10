@@ -78,3 +78,11 @@ export {
   setSignalStatus,
   upsertSignal,
 } from './signals.ts';
+export {
+  type CorpusStats,
+  type CountByKey,
+  type FlashbackStats,
+  getCorpusStats,
+  getFlashbackStats,
+  type ResurfacedNote,
+} from './stats.ts';

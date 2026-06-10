@@ -19,6 +19,7 @@ import { registerSearch } from './commands/search.ts';
 import { registerShow } from './commands/show.ts';
 import { registerSignals } from './commands/signals.ts';
 import { registerSource } from './commands/source.ts';
+import { registerStats } from './commands/stats.ts';
 import { registerTags } from './commands/tags.ts';
 
 const program = new Command();
@@ -45,5 +46,6 @@ registerSignals(program);
 registerMint(program);
 registerInferences(program);
 registerSchedule(program);
+registerStats(program);
 
 program.parse();
