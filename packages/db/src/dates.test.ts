@@ -13,8 +13,18 @@ describe('parseAuthoredAt', () => {
   });
 
   it('prefers frontmatter over the title date', () => {
-    const ms = parseAuthoredAt('thing (2020-01-01)', 'date: 2024-04-11');
+    const ms = parseAuthoredAt('thing (2020-01-01)', '---\ndate: 2024-04-11\n---\nbody');
     expect(ms).toBe(Date.parse('2024-04-11'));
+  });
+
+  it('ignores a date: mention in the body outside frontmatter', () => {
+    const ms = parseAuthoredAt('plain title', 'the due date: 2024-04-11 is firm');
+    expect(ms).toBeNull();
+  });
+
+  it('ignores date: lines in the body when frontmatter has no date', () => {
+    const ms = parseAuthoredAt('plain title', '---\ntitle: x\n---\nrelease date: 2024-04-11');
+    expect(ms).toBeNull();
   });
 
   it('returns null when no date is present', () => {
