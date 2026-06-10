@@ -124,7 +124,9 @@ export const indexDirectory = async (
   const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0 };
 
   const files: string[] = [];
-  for await (const file of glob('**/*.md', { cwd: dirPath, exclude: (f) => IGNORE_DIRS.includes(f) })) {
+  // The exclude callback sees paths like "sub/node_modules", so match path
+  // segments — a bare-name check only prunes ignored dirs at the top level.
+  for await (const file of glob('**/*.md', { cwd: dirPath, exclude: (f) => isIgnoredPath(f) })) {
     files.push(join(dirPath, file));
   }
 
