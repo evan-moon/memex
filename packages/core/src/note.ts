@@ -65,6 +65,15 @@ const persistFlashbackLinks = (
   for (const f of flashbacks) insert.run(sourceId, f.id);
 };
 
+/** Who is driving the write. MCP tool handlers are always 'agent'; only the CLI passes 'user'. */
+export type WriteActor = 'user' | 'agent';
+
+export type RuleWriteRejection = { error: 'RULE_USER_ONLY'; message: string };
+
+export const isSaveRejection = (
+  result: { note: Note } | RuleWriteRejection,
+): result is RuleWriteRejection => 'error' in result;
+
 export const saveNote = async (
   client: MemexClient,
   embedder: Embedder,
@@ -76,8 +85,23 @@ export const saveNote = async (
     layer: NoteLayer;
     folder?: string;
     tags?: string[];
+    actor?: WriteActor;
   },
-): Promise<{ note: Note; similar: SimilarNote[]; flashbacks: Flashback[]; signal?: Signal }> => {
+): Promise<
+  | { note: Note; similar: SimilarNote[]; flashbacks: Flashback[]; signal?: Signal }
+  | RuleWriteRejection
+> => {
+  // Rule notes become SERVER_INSTRUCTIONS on the next startup — letting the agent channel write
+  // them is a self-poisoning / prompt-injection escalation path, so creation is user-only, like
+  // editing. The agent surfaces the proposed rule text instead.
+  if (params.layer === 'rule' && params.actor !== 'user') {
+    return {
+      error: 'RULE_USER_ONLY',
+      message:
+        'rule notes can only be created by the user. Show the proposed rule text in chat and ' +
+        'suggest they run: memex add --layer rule',
+    };
+  }
   const embedding = await embedder(
     buildEmbeddingText(params.title, params.content, params.folder, params.tags),
   );
@@ -89,8 +113,9 @@ export const saveNote = async (
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
   const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
+  const { actor: _actor, ...noteParams } = params;
   const note = insertNote(client, {
-    ...params,
+    ...noteParams,
     filePath,
     category: category ?? undefined,
     tags,
@@ -189,7 +214,22 @@ export const isEditRejection = (
 ): result is EditNoteRejection =>
   result !== null && typeof result === 'object' && 'error' in result;
 
-export const removeNote = (client: MemexClient, id: number, filePath: string): void => {
+export const removeNote = (
+  client: MemexClient,
+  id: number,
+  filePath: string,
+  options: { actor?: WriteActor } = {},
+): RuleWriteRejection | undefined => {
+  // Deleting a rule removes a constraint on the agent — the same self-modification surface as
+  // creating or editing one, so it is user-only too.
+  const note = getNote(client, id);
+  if (note?.layer === 'rule' && options.actor !== 'user') {
+    return {
+      error: 'RULE_USER_ONLY',
+      message: `rule notes can only be deleted by the user. Suggest they run: memex delete ${String(id)}`,
+    };
+  }
   if (existsSync(filePath)) unlinkSync(filePath);
   deleteNote(client, id);
+  return undefined;
 };

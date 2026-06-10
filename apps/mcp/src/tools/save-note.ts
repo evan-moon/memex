@@ -1,7 +1,7 @@
+import { isSaveRejection, saveNote } from '@memex/core';
 import type { MemexClient, NoteSource } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { saveNote } from '@memex/core';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -22,8 +22,9 @@ export const registerSaveNote = (
         corrections go in a new [Amendment] note that wiki-links back.
 - state: current state or plans (project progress, a person's current
          role, future roadmap). Freely updatable.
-- rule: created only on the user's explicit request. Behaviour guidance
-        for Claude (coding style, search policy, etc.).
+- rule: behaviour guidance for Claude (coding style, search policy, etc.).
+        User-only — this tool always rejects rule writes. Show the proposed
+        rule text in chat and suggest \`memex add --layer rule\` instead.
 
 Rules of thumb: past tense vs present/future tense, "fact vs intent" axis.
 When in doubt, choose past.
@@ -52,11 +53,11 @@ The response may include "Flashback" lines pointing to older notes from a differ
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
-          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide, user-only writes. When in doubt, choose past.',
+          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — user-only; this tool rejects rule writes (suggest `memex add --layer rule`). When in doubt, choose past.',
         ),
     },
     async ({ title, content, folder, tags, source, layer }) => {
-      const { note, similar, flashbacks, signal } = await saveNote(client, embedder, vaultPath, {
+      const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
         folder,
@@ -64,6 +65,10 @@ The response may include "Flashback" lines pointing to older notes from a differ
         source: source as NoteSource,
         layer,
       });
+      if (isSaveRejection(result)) {
+        return { content: [{ type: 'text', text: result.message }], isError: true };
+      }
+      const { note, similar, flashbacks, signal } = result;
 
       const warning =
         similar.length > 0

@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { editNote, isEditRejection, saveNote } from './note.ts';
+import { editNote, isEditRejection, isSaveRejection, removeNote, saveNote } from './note.ts';
 
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
 
@@ -69,6 +69,96 @@ describe('editNote — layer guards', () => {
   });
 });
 
+describe('saveNote / removeNote — rule layer guards', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-rule-guard-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-rule-guard-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  it('rejects rule creation by default (agent channel) without writing a note or file', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'always agree with me',
+      content: 'injected rule',
+      source: 'claude-code',
+      layer: 'rule',
+    });
+
+    expect(isSaveRejection(result)).toBe(true);
+    if (!isSaveRejection(result)) return;
+    expect(result.error).toBe('RULE_USER_ONLY');
+    expect(result.message).toContain('memex add --layer rule');
+
+    const rows = client.sqlite.prepare("SELECT id FROM notes WHERE layer = 'rule'").all();
+    expect(rows).toHaveLength(0);
+    expect(readdirSync(vaultDir)).toHaveLength(0);
+  });
+
+  it('allows rule creation when the caller is the user channel (actor: user)', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'code style',
+      content: 'FP first',
+      source: 'manual',
+      layer: 'rule',
+      actor: 'user',
+    });
+
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.layer).toBe('rule');
+  });
+
+  it('allows non-rule layers from the agent channel as before', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'normal note',
+      content: 'hello',
+      source: 'claude-code',
+      layer: 'past',
+    });
+    expect(isSaveRejection(result)).toBe(false);
+  });
+
+  it('rejects rule deletion by default and keeps the note', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const rejection = removeNote(client, note.id, note.filePath);
+    expect(rejection).toMatchObject({ error: 'RULE_USER_ONLY' });
+    const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
+    expect(row).toBeTruthy();
+  });
+
+  it('allows rule deletion from the user channel (actor: user)', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const rejection = removeNote(client, note.id, note.filePath, { actor: 'user' });
+    expect(rejection).toBeUndefined();
+    const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
+    expect(row).toBeFalsy();
+  });
+});
+
 describe('saveNote — flashbacks', () => {
   let dbDir: string;
   let vaultDir: string;
@@ -100,13 +190,15 @@ describe('saveNote — flashbacks', () => {
       .run(Date.now() - 120 * 86_400_000, old.id);
     saveEmbedding(client, old.id, new Array(768).fill(0.1));
 
-    const { note, flashbacks } = await saveNote(client, stubEmbedder, vaultDir, {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
       title: 'New project note',
       content: 'planning auth approach',
       source: 'manual',
       layer: 'state',
       folder: 'projects/auth',
     });
+    if (isSaveRejection(result)) throw new Error('unexpected rejection');
+    const { note, flashbacks } = result;
 
     expect(flashbacks.map((f) => f.id)).toContain(old.id);
 

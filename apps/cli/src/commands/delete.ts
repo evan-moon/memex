@@ -1,9 +1,9 @@
-import type { Command } from 'commander';
-import { confirm, isCancel, cancel } from '@clack/prompts';
-import pc from 'picocolors';
-import { openDb, getNote } from '@memex/db';
-import { CONFIG_DIR } from '@memex/utils';
+import { cancel, confirm, isCancel } from '@clack/prompts';
 import { removeNote } from '@memex/core';
+import { getNote, openDb } from '@memex/db';
+import { CONFIG_DIR } from '@memex/utils';
+import type { Command } from 'commander';
+import pc from 'picocolors';
 
 export const registerDelete = (program: Command) => {
   program
@@ -21,10 +21,13 @@ export const registerDelete = (program: Command) => {
 
       if (!opts.yes) {
         const confirmed = await confirm({ message: `Delete "${note.title}"?` });
-        if (isCancel(confirmed) || !confirmed) { cancel(); process.exit(0); }
+        if (isCancel(confirmed) || !confirmed) {
+          cancel();
+          process.exit(0);
+        }
       }
 
-      removeNote(client, note.id, note.filePath);
+      removeNote(client, note.id, note.filePath, { actor: 'user' });
       console.log(pc.green(`Deleted note #${note.id}: "${note.title}"`));
     });
 };
