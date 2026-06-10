@@ -7,9 +7,11 @@ import {
   insertNote,
   listNotesByPathPrefix,
   type MemexClient,
+  type NoteLayer,
   parseAuthoredAt,
   parseTags,
   saveEmbedding,
+  serializeTags,
   updateNote,
 } from '@memex/db';
 import { buildEmbeddingText, extractCategory } from '@memex/utils';
@@ -23,22 +25,60 @@ type IndexStats = {
   skipped: number;
 };
 
-const extractNote = (content: string, filePath: string): { title: string; body: string } => {
-  if (content.startsWith('---')) {
-    const end = content.indexOf('\n---', 3);
-    if (end !== -1) {
-      const frontmatter = content.slice(3, end);
-      const titleMatch = frontmatter.match(/^title:\s*["']?(.+?)["']?\s*$/m);
-      if (titleMatch) {
-        return { title: titleMatch[1].trim(), body: content };
-      }
-    }
+type ExtractedNote = {
+  title: string;
+  body: string;
+  tags: string[];
+  layer?: NoteLayer;
+};
+
+const unquote = (value: string): string =>
+  value
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/^#/, '');
+
+// Obsidian writes tags either inline (`tags: [a, b]` / `tags: a, b`) or as a
+// block list (`tags:` followed by `- a` lines). Both must survive indexing or
+// vault tags never reach the tag search arm.
+const parseFrontmatterTags = (frontmatter: string): string[] => {
+  const lines = frontmatter.split('\n');
+  const idx = lines.findIndex((l) => /^tags:/.test(l));
+  if (idx === -1) return [];
+
+  const inline = lines[idx].slice('tags:'.length).trim();
+  if (inline.length > 0) {
+    const inner = inline.startsWith('[') && inline.endsWith(']') ? inline.slice(1, -1) : inline;
+    return inner.split(',').map(unquote).filter(Boolean);
   }
 
-  const h1 = content.match(/^#\s+(.+)$/m);
-  if (h1) return { title: h1[1].trim(), body: content };
+  const items: string[] = [];
+  for (let i = idx + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*-\s+(.*)$/);
+    if (!m) break;
+    items.push(unquote(m[1]));
+  }
+  return items.filter(Boolean);
+};
 
-  return { title: basename(filePath, extname(filePath)), body: content };
+const extractNote = (content: string, filePath: string): ExtractedNote => {
+  const frontmatter =
+    content.startsWith('---') && content.indexOf('\n---', 3) !== -1
+      ? content.slice(3, content.indexOf('\n---', 3))
+      : undefined;
+
+  const tags = frontmatter ? parseFrontmatterTags(frontmatter) : [];
+  const layer = frontmatter?.match(/^layer:\s*["']?(past|state|rule)["']?\s*$/m)?.[1] as
+    | NoteLayer
+    | undefined;
+
+  const fmTitle = frontmatter?.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]?.trim();
+  if (fmTitle) return { title: fmTitle, body: content, tags, layer };
+
+  const h1 = content.match(/^#\s+(.+)$/m);
+  if (h1) return { title: h1[1].trim(), body: content, tags, layer };
+
+  return { title: basename(filePath, extname(filePath)), body: content, tags, layer };
 };
 
 const indexFile = async (
@@ -58,7 +98,7 @@ const indexFile = async (
   }
 
   const content = readFileSync(filePath, 'utf8');
-  const { title, body } = extractNote(content, filePath);
+  const { title, body, tags: fmTags, layer } = extractNote(content, filePath);
 
   const relDir = relative(dirPath, dirname(filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
@@ -69,13 +109,16 @@ const indexFile = async (
   const authoredAt = parseAuthoredAt(title, body) ?? undefined;
 
   if (existing) {
+    // The file is the source of truth for frontmatter tags; tags added in-app
+    // survive only when the file declares none.
+    const tags = fmTags.length > 0 ? fmTags : parseTags(existing.tags);
     updateNote(client, existing.id, {
       title,
       content: body,
       category: category ?? undefined,
       authoredAt,
+      tags: serializeTags(tags),
     });
-    const tags = parseTags(existing.tags);
     const embedding = await embedder(buildEmbeddingText(title, body, folder, tags));
     client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(existing.id));
     saveEmbedding(client, existing.id, embedding);
@@ -89,8 +132,10 @@ const indexFile = async (
         source: 'index',
         category: category ?? undefined,
         authoredAt,
+        tags: serializeTags(fmTags),
+        layer,
       });
-      const embedding = await embedder(buildEmbeddingText(title, body, folder));
+      const embedding = await embedder(buildEmbeddingText(title, body, folder, fmTags));
       saveEmbedding(client, note.id, embedding);
       stats.added++;
     } catch {
