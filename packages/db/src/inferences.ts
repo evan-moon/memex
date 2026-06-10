@@ -26,6 +26,7 @@ export type Inference = {
   status: InferenceStatus;
   modelId: string | null;
   promptVersion: string | null;
+  promptText: string | null; // evidence bundle snapshot at mint time
   createdAt: number;
   updatedAt: number;
 };
@@ -54,7 +55,36 @@ export type MintInferenceInput = {
   confidence?: number;
   modelId?: string;
   promptVersion?: string;
+  promptText?: string;
   fromSignalId?: number;
+};
+
+// The plain-text evidence bundle an agent synthesizes from. Built here so the
+// CLI bundle view and the mint-time prompt snapshot can never drift apart.
+export const buildEvidenceBundle = (
+  client: MemexClient,
+  input: { evidenceIds: number[]; reasoning?: string | null },
+): string => {
+  const lines: string[] = [];
+  if (input.reasoning) lines.push(input.reasoning, '');
+  lines.push('Evidence notes:');
+  for (const id of input.evidenceIds) {
+    const note = client.sqlite
+      .prepare('SELECT id, title, content, authored_at, created_at FROM notes WHERE id = ?')
+      .get(id) as
+      | {
+          id: number;
+          title: string;
+          content: string;
+          authored_at: number | null;
+          created_at: number;
+        }
+      | undefined;
+    if (!note) continue;
+    const date = new Date(note.authored_at ?? note.created_at).toISOString().slice(0, 10);
+    lines.push('', `#${note.id} ${note.title} (${date})`, note.content.trim());
+  }
+  return lines.join('\n');
 };
 
 type InferenceRow = {
@@ -65,6 +95,7 @@ type InferenceRow = {
   status: InferenceStatus;
   model_id: string | null;
   prompt_version: string | null;
+  prompt_text: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -77,6 +108,7 @@ const rowToInference = (r: InferenceRow): Inference => ({
   status: r.status,
   modelId: r.model_id,
   promptVersion: r.prompt_version,
+  promptText: r.prompt_text,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -103,8 +135,8 @@ export const mintInference = (client: MemexClient, input: MintInferenceInput): I
     const { lastInsertRowid } = client.sqlite
       .prepare(
         `INSERT INTO inferences
-           (title, summary, confidence, status, model_id, prompt_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'active', ?, ?, ?, ?)`,
+           (title, summary, confidence, status, model_id, prompt_version, prompt_text, created_at, updated_at)
+         VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
       )
       .run(
         input.title,
@@ -112,6 +144,7 @@ export const mintInference = (client: MemexClient, input: MintInferenceInput): I
         input.confidence ?? null,
         input.modelId ?? null,
         input.promptVersion ?? null,
+        input.promptText ?? null,
         now,
         now,
       );

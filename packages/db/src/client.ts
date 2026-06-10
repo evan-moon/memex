@@ -220,5 +220,13 @@ export const openDb = (dbDir: string): MemexClient => {
     sqlite.exec('ALTER TABLE inference_evidence ADD COLUMN source_excerpt TEXT');
   }
 
+  // prompt_text: the exact evidence bundle the agent synthesized from at mint
+  // time, kept verbatim so "why did the AI think that?" stays answerable even
+  // after the source notes change.
+  const infCols = sqlite.prepare('PRAGMA table_info(inferences)').all() as { name: string }[];
+  if (!infCols.some((c) => c.name === 'prompt_text')) {
+    sqlite.exec('ALTER TABLE inferences ADD COLUMN prompt_text TEXT');
+  }
+
   return { db: drizzle(sqlite, { schema }), sqlite };
 };

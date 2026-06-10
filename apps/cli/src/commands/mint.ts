@@ -1,4 +1,12 @@
-import { getNote, getSignal, mintInference, openDb, parseTags, type Signal } from '@memex/db';
+import {
+  buildEvidenceBundle,
+  getNote,
+  getSignal,
+  mintInference,
+  openDb,
+  parseTags,
+  type Signal,
+} from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
@@ -92,6 +100,12 @@ export const registerMint = (program: Command) => {
           confidence,
           modelId: opts.model,
           promptVersion: opts.promptVersion,
+          // Snapshot the exact bundle the agent synthesized from, so the
+          // inference stays explainable after its source notes drift.
+          promptText: buildEvidenceBundle(client, {
+            evidenceIds: signal.evidenceIds,
+            reasoning: signal.reasoning,
+          }),
           evidence: signal.evidenceIds.map((noteId) => ({ noteId })),
           fromSignalId: signal.id,
         });

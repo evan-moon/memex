@@ -1,4 +1,5 @@
 import {
+  buildEvidenceBundle,
   checkInferenceStale,
   getInference,
   getSignal,
@@ -62,12 +63,20 @@ export const registerInferences = (server: McpServer, client: MemexClient) => {
           return `  - #${e.noteId} ${e.title ?? '(deleted)'} ${mark}`;
         })
         .join('\n');
+      // Surface the mint-time snapshot when the live sources have drifted —
+      // that is exactly when "what did the AI actually see?" matters.
+      const drifted = evidence.some((e) => e.changed || e.missing);
+      const snapshot =
+        drifted && inference.promptText
+          ? `\n\nMint-time evidence snapshot (sources have changed since):\n${inference.promptText}`
+          : '';
       const text =
         `#${inference.id} ${inference.title}\n` +
         `status: ${inference.status}` +
         (inference.confidence !== null ? ` | confidence: ${inference.confidence}` : '') +
         (inference.modelId ? ` | via ${inference.modelId}` : '') +
-        `\n\n${inference.summary}\n\nEvidence:\n${ev}`;
+        `\n\n${inference.summary}\n\nEvidence:\n${ev}` +
+        snapshot;
       return { content: [{ type: 'text', text }] };
     },
   );
@@ -129,11 +138,18 @@ Provide either fromSignalId (sources are taken from that signal) or evidenceNote
         };
       }
 
+      const signal = fromSignalId !== undefined ? getSignal(client, fromSignalId) : undefined;
       const inf = mintInference(client, {
         title,
         summary,
         confidence,
         modelId,
+        // Snapshot the evidence bundle at mint time so the inference stays
+        // explainable after its source notes drift.
+        promptText: buildEvidenceBundle(client, {
+          evidenceIds: [...ids],
+          reasoning: signal?.reasoning,
+        }),
         evidence: [...ids].map((noteId) => ({ noteId })),
         fromSignalId,
       });

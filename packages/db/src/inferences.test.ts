@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
 import {
+  buildEvidenceBundle,
   checkInferenceStale,
   getInference,
   listInferences,
@@ -57,6 +58,28 @@ describe('mintInference', () => {
     expect(found.evidence).toHaveLength(2);
     expect(found.evidence.every((e) => !e.changed && !e.missing)).toBe(true);
     expect(found.evidence.find((e) => e.noteId === b.id)?.role).toBe('supports');
+  });
+
+  it('stores the mint-time prompt snapshot and keeps it after sources drift', () => {
+    const a = addNote('A', 'alpha');
+    const bundle = buildEvidenceBundle(client, { evidenceIds: [a.id], reasoning: 'an arc' });
+    expect(bundle).toContain('an arc');
+    expect(bundle).toContain('#' + String(a.id) + ' A');
+    expect(bundle).toContain('alpha');
+
+    const inf = mintInference(client, {
+      title: 'Synthesis',
+      summary: 'a implies x',
+      promptText: bundle,
+      evidence: [{ noteId: a.id }],
+    });
+
+    updateNote(client, a.id, { content: 'alpha rewritten' });
+    checkInferenceStale(client, inf.id);
+
+    const found = getInference(client, inf.id)!;
+    expect(found.inference.status).toBe('stale');
+    expect(found.inference.promptText).toBe(bundle);
   });
 
   it('marks the originating signal as minted', () => {

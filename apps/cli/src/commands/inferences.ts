@@ -49,6 +49,9 @@ export const registerInferences = (program: Command) => {
             .join('\n    ');
           console.log(`    ${ev}`);
           if (inf.modelId) console.log(pc.dim(`    via ${inf.modelId}`));
+          if (inf.promptText) {
+            console.log(pc.dim(`    mint-time evidence snapshot: ${inf.promptText.length} chars`));
+          }
         }
         console.log();
       }

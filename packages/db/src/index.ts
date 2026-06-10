@@ -16,6 +16,7 @@ export type {
   MintInferenceInput,
 } from './inferences.ts';
 export {
+  buildEvidenceBundle,
   checkInferenceStale,
   getInference,
   listInferences,
