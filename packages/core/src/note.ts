@@ -44,6 +44,15 @@ const generateFilePath = (vaultPath: string, title: string, folder?: string): st
   return join(dir, `${sanitizeFilename(title)}-${Date.now()}.md`);
 };
 
+export type NoteFileMeta = {
+  title: string;
+  content: string;
+  tags: string[];
+  layer: NoteLayer;
+  /** Effective date written to frontmatter: authoredAt when known, else now. */
+  date: number;
+};
+
 // A note file has one of three shapes, and a write must not corrupt the two
 // shapes that originate outside memex (the interop contract: files stay
 // editable in Obsidian and re-indexable without drift):
@@ -52,9 +61,12 @@ const generateFilePath = (vaultPath: string, title: string, folder?: string): st
 //   frontmatter `title:` field so a title edit survives the next reindex.
 // - H1 file (indexed, or a memex note that came back through `memex index`):
 //   the content already carries its heading — rewrite the first H1 instead of
-//   prepending a second one.
-// - memex-native content (no heading): the file gets its `# title` header.
-export const renderNoteFile = (title: string, content: string): string => {
+//   prepending a second one, and don't force frontmatter onto a file the user
+//   shaped themselves.
+// - memex-native content: generate frontmatter (title/date/tags/layer) so the
+//   note's metadata survives the Obsidian -> `memex index` round-trip instead
+//   of living only in the DB.
+export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMeta): string => {
   if (content.startsWith('---')) {
     const end = content.indexOf('\n---', 3);
     if (end !== -1 && /^title:/m.test(content.slice(3, end))) {
@@ -67,7 +79,9 @@ export const renderNoteFile = (title: string, content: string): string => {
   if (/^#\s/.test(content)) {
     return content.replace(/^#\s.*$/m, `# ${title}`);
   }
-  return `# ${title}\n\n${content}`;
+  const isoDate = new Date(date).toISOString().slice(0, 10);
+  const tagsLine = tags.length > 0 ? `\ntags: [${tags.join(', ')}]` : '';
+  return `---\ntitle: ${title}\ndate: ${isoDate}${tagsLine}\nlayer: ${layer}\n---\n\n# ${title}\n\n${content}`;
 };
 
 const readFlashbackOptions = (): FlashbackOptions => ({
@@ -133,12 +147,23 @@ export const saveNote = async (
   );
   const similar = findSimilarByEmbedding(client, embedding, 0.5, 3);
 
+  const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
+
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
-  writeFileSync(filePath, renderNoteFile(params.title, params.content), 'utf8');
+  writeFileSync(
+    filePath,
+    renderNoteFile({
+      title: params.title,
+      content: params.content,
+      tags: params.tags ?? [],
+      layer: params.layer,
+      date: authoredAt ?? Date.now(),
+    }),
+    'utf8',
+  );
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
   const { actor: _actor, ...noteParams } = params;
   const note = insertNote(client, {
     ...noteParams,
@@ -220,7 +245,17 @@ export const editNote = async (
   const content = patch.content ?? note.content;
   const resolvedTags = patch.tags ?? parseTags(note.tags);
 
-  writeFileSync(updated.filePath, renderNoteFile(title, content), 'utf8');
+  writeFileSync(
+    updated.filePath,
+    renderNoteFile({
+      title,
+      content,
+      tags: resolvedTags,
+      layer: note.layer,
+      date: note.authoredAt ?? note.createdAt,
+    }),
+    'utf8',
+  );
 
   const relDir = relative(vaultPath, dirname(note.filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;

@@ -15,22 +15,41 @@ import {
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
 
 describe('renderNoteFile', () => {
-  it('prepends an H1 to memex-native content', () => {
-    expect(renderNoteFile('My Note', 'plain body')).toBe('# My Note\n\nplain body');
+  const meta = { tags: [], layer: 'past' as const, date: Date.parse('2026-06-11') };
+
+  it('generates frontmatter for memex-native content', () => {
+    const file = renderNoteFile({
+      ...meta,
+      title: 'My Note',
+      content: 'plain body',
+      tags: ['a', 'b'],
+    });
+    expect(file).toBe(
+      '---\ntitle: My Note\ndate: 2026-06-11\ntags: [a, b]\nlayer: past\n---\n\n# My Note\n\nplain body',
+    );
+  });
+
+  it('omits the tags line when there are no tags', () => {
+    const file = renderNoteFile({ ...meta, title: 'My Note', content: 'plain body' });
+    expect(file).toBe(
+      '---\ntitle: My Note\ndate: 2026-06-11\nlayer: past\n---\n\n# My Note\n\nplain body',
+    );
   });
 
   it('rewrites the existing H1 instead of stacking a second one', () => {
-    expect(renderNoteFile('New Title', '# Old Title\n\nbody')).toBe('# New Title\n\nbody');
+    const file = renderNoteFile({ ...meta, title: 'New Title', content: '# Old Title\n\nbody' });
+    expect(file).toBe('# New Title\n\nbody');
   });
 
   it('keeps frontmatter at the top of the file and syncs its title field', () => {
     const content = '---\ntitle: Old\ndate: 2026-01-02\n---\n\nbody';
-    expect(renderNoteFile('New', content)).toBe('---\ntitle: New\ndate: 2026-01-02\n---\n\nbody');
+    const file = renderNoteFile({ ...meta, title: 'New', content });
+    expect(file).toBe('---\ntitle: New\ndate: 2026-01-02\n---\n\nbody');
   });
 
   it('leaves frontmatter without a title field untouched', () => {
     const content = '---\ndate: 2026-01-02\n---\n\n# Heading\n\nbody';
-    expect(renderNoteFile('Whatever', content)).toBe(content);
+    expect(renderNoteFile({ ...meta, title: 'Whatever', content })).toBe(content);
   });
 });
 
