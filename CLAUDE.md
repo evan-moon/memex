@@ -8,15 +8,31 @@ Evan's second brain — semantic search over personal notes, powered by SQLite +
 
 ```
 apps/
-├── cli/    # memex CLI (add, search, list, edit, delete, source, config)
+├── cli/    # memex CLI — the safety net (see surface policy below)
 └── mcp/    # MCP server — exposes memex tools to Claude
 packages/
+├── core/   # Note service shared by cli/mcp (save/edit/search/delete)
 ├── db/     # SQLite client, schema, repository (drizzle + sqlite-vec)
 ├── embed/  # Embedding model wrapper (@huggingface/transformers)
 └── utils/  # Config loader, path helpers, formatters
 ```
 
 DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
+
+## Surface policy
+
+**MCP-first. The CLI is the safety net.**
+
+Users interact with memex through the MCP server (Claude Desktop / Claude Code / Cursor): search and save happen in conversation, not at a prompt. The CLI exists only for what the MCP path cannot or must not do. New features default to MCP-only; a CLI command is added only when it fits one of these groups (mirrored in `memex --help`):
+
+- **Setup**: `mcp`, `config`
+- **Capture** (manual entry + AI-mistake correction, and the user-only writes the agent is forbidden from): `add`, `edit`, `delete`, `capture-commit`
+- **Vault** (external sources & embeddings): `source`, `index`, `reembed`
+- **Verify** (read-only — inspect what landed in the DB, nothing more): `search`, `list`, `show`, `related`, `tags`
+- **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
+- **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`), `schedule`
+
+Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`). The MCP tool surface is deliberately small (13 tools) — duplicate read paths give the model more ways to pick wrong; consolidate before enumerating.
 
 ## Memex MCP Usage
 
