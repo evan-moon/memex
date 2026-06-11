@@ -7,6 +7,7 @@ import { registerConfig } from './commands/config.ts';
 import { registerDelete } from './commands/delete.ts';
 import { registerDigest } from './commands/digest.ts';
 import { registerEdit } from './commands/edit.ts';
+import { registerEval } from './commands/eval.ts';
 import { registerIndex } from './commands/index.ts';
 import { registerInferences } from './commands/inferences.ts';
 import { registerList } from './commands/list.ts';
@@ -49,5 +50,6 @@ registerInferences(program);
 registerSchedule(program);
 registerStats(program);
 registerCaptureCommit(program);
+registerEval(program);
 
 program.parse();
