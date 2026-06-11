@@ -18,7 +18,7 @@ const readFlashbackOptions = (): FlashbackOptions => ({
 export const registerSearchNotes = (server: McpServer, client: MemexClient, embedder: Embedder) => {
   server.tool(
     'search_notes',
-    'Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose.',
+    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, search MORE THAN ONCE with different phrasings: once in the user's language and once in English, or once with their wording and once with the underlying concept. Short keyword queries work better than long sentences.",
     {
       query: z.string().describe('Search query in any language'),
       limit: z.number().int().min(1).max(20).optional().default(5),
