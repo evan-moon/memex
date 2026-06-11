@@ -13,7 +13,7 @@ import pc from 'picocolors';
 
 // Assemble the evidence bundle + a synthesis prompt for a signal. memex never
 // calls an LLM itself (core principle): the agent reads this, synthesizes, then
-// persists via `memex mint <id> --title ... --summary ...`.
+// persists via `memex signals mint <id> --title ... --summary ...`.
 const printBundle = (client: ReturnType<typeof openDb>, signal: Signal) => {
   console.log();
   console.log(pc.bold(`Signal #${signal.id} [${signal.type}]`));
@@ -37,7 +37,7 @@ const printBundle = (client: ReturnType<typeof openDb>, signal: Signal) => {
   );
   console.log(
     pc.green(
-      `  memex mint ${signal.id} \\\n` +
+      `  memex signals mint ${signal.id} \\\n` +
         `    --title "<short title>" \\\n` +
         `    --summary "<the inference + why the evidence supports it>" \\\n` +
         `    --confidence 0.7 --model <model-id>`,
@@ -46,8 +46,8 @@ const printBundle = (client: ReturnType<typeof openDb>, signal: Signal) => {
   console.log();
 };
 
-export const registerMint = (program: Command) => {
-  program
+export const registerMint = (signals: Command) => {
+  signals
     .command('mint <signalId>')
     .description('Assemble a signal for synthesis, or persist a synthesized inference')
     .option('--title <title>', 'Inference title (persists the inference)')

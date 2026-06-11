@@ -12,6 +12,7 @@ import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
+import { registerMint } from './mint.ts';
 
 const TYPE_LABEL: Record<SignalType, (s: string) => string> = {
   hidden_arc: pc.magenta,
@@ -116,4 +117,6 @@ export const registerSignals = (program: Command) => {
     .command('snooze <id>')
     .description('Snooze a signal')
     .action((id: string) => triage(id, 'snoozed'));
+
+  registerMint(signals);
 };

@@ -23,7 +23,7 @@ export const registerInferences = (program: Command) => {
 
       const list = listInferences(client, { status: opts.status });
       if (list.length === 0) {
-        console.log(pc.dim('No inferences yet. Mint one: memex signals → memex mint <id>'));
+        console.log(pc.dim('No inferences yet. Mint one: memex signals → memex signals mint <id>'));
         return;
       }
 

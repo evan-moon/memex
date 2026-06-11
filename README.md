@@ -101,8 +101,8 @@ memex add --title "Note title" --content "..." --folder conversations/tom --laye
 memex add --title "Note title" --content "..." -T typescript -T architecture --layer past
 
 # Layers
-memex classify                               # distribution of past / state / rule
-memex relayer <id> state                     # move a note to a different layer
+memex layer                               # distribution of past / state / rule
+memex layer <id> state                     # move a note to a different layer
 
 # Search
 memex search "semantic search query"         # multilingual
@@ -124,8 +124,8 @@ memex digest --days 30                       # summary of last 30 days
 memex signals                                # detect un-synthesized patterns
 memex signals --type hidden_arc              # one type only
 memex signals dismiss <id>                   # triage (also: snooze)
-memex mint <signalId>                        # print evidence bundle to synthesize
-memex mint <signalId> --title "..." --summary "..." --confidence 0.7
+memex signals mint <signalId>                        # print evidence bundle to synthesize
+memex signals mint <signalId> --title "..." --summary "..." --confidence 0.7
 memex inferences                             # list inferences (auto-flags stale)
 memex schedule                               # print cron/launchd snippet (no daemon)
 

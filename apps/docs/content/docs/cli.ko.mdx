@@ -18,11 +18,11 @@ memex add --title "노트 제목" --content "..." -T typescript -T architecture 
 ## 레이어
 
 ```bash
-memex classify                               # past / state / rule 분포 확인
-memex relayer <id> state                     # 특정 노트의 layer 정정
+memex layer                               # past / state / rule 분포 확인
+memex layer <id> state                     # 특정 노트의 layer 정정
 ```
 
-`classify`는 layer별 노트 수를 출력합니다, 첫 마이그레이션 직후 폴더가 어떻게 매핑됐는지 확인할 때 유용합니다. `relayer`는 개별 노트를 정정할 때 사용합니다 (예: 로드맵 노트를 `past`에서 `state`로 이동).
+인자 없이 실행하면 `memex layer`가 layer별 노트 수를 출력합니다, 첫 마이그레이션 직후 폴더가 어떻게 매핑됐는지 확인할 때 유용합니다. `<id> <layer>`를 주면 개별 노트를 정정합니다 (예: 로드맵 노트를 `past`에서 `state`로 이동).
 
 ## 검색
 
@@ -66,15 +66,15 @@ memex signals --no-refresh          # 재탐지 없이 저장된 신호만 나�
 memex signals dismiss <id>          # triage: 이 신호 다시 안 뜨게
 memex signals snooze <id>
 
-memex mint <signalId>               # 근거 번들 + 종합 프롬프트 출력 (읽기 전용)
-memex mint <signalId> \             # 종합된 추론 저장
+memex signals mint <signalId>               # 근거 번들 + 종합 프롬프트 출력 (읽기 전용)
+memex signals mint <signalId> \             # 종합된 추론 저장
   --title "..." --summary "..." --confidence 0.7 --model claude-opus-4-8
 
 memex inferences                    # 추론 목록 (먼저 staleness 재확인)
 memex inferences archive <id>       # 아카이브 (출처용 보존, staleness에서 제외)
 ```
 
-`mint`은 LLM을 안 쓰는 2단계 흐름입니다: `memex mint <id>`가 출처 노트와 종합 프롬프트를 모아주면, 당신(또는 Claude)이 추론을 써서 `--title`/`--summary`로 저장합니다. 추론은 모든 출처의 content 해시 스냅샷을 저장하므로, 나중에 출처 노트가 바뀌면 자동으로 `[!] STALE`로 전환됩니다.
+`mint`은 LLM을 안 쓰는 2단계 흐름입니다: `memex signals mint <id>`가 출처 노트와 종합 프롬프트를 모아주면, 당신(또는 Claude)이 추론을 써서 `--title`/`--summary`로 저장합니다. 추론은 모든 출처의 content 해시 스냅샷을 저장하므로, 나중에 출처 노트가 바뀌면 자동으로 `[!] STALE`로 전환됩니다.
 
 탐지 임계값은 env로 조정합니다: `MEMEX_ARC_DIST`(기본 `0.45`), `MEMEX_ARC_MIN_MEMBERS`, `MEMEX_ARC_MAX_MEMBERS`, `MEMEX_ARC_MIN_SPAN_DAYS`, `MEMEX_STALE_DIST`, `MEMEX_STALE_MIN_NEWER`, `MEMEX_BURST_DORMANT_DAYS`, `MEMEX_BURST_MIN`.
 

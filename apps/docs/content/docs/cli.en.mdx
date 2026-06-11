@@ -18,11 +18,11 @@ memex add --title "Note title" --content "..." -T typescript -T architecture --l
 ## Layers
 
 ```bash
-memex classify                               # distribution of past / state / rule
-memex relayer <id> state                     # move a single note to a different layer
+memex layer                               # distribution of past / state / rule
+memex layer <id> state                     # move a single note to a different layer
 ```
 
-`classify` prints the count per layer, useful right after the first-run migration to see how your folders mapped. `relayer` corrects individual notes (e.g. moving a roadmap note from `past` to `state`).
+With no arguments, `memex layer` prints the count per layer, useful right after the first-run migration to see how your folders mapped. With `<id> <layer>` it corrects an individual note (e.g. moving a roadmap note from `past` to `state`).
 
 ## Search
 
@@ -66,15 +66,15 @@ memex signals --no-refresh          # list stored signals without re-detecting
 memex signals dismiss <id>          # triage: never resurface this signal
 memex signals snooze <id>
 
-memex mint <signalId>               # print the evidence bundle + a synthesis prompt (read-only)
-memex mint <signalId> \             # persist a synthesized inference
+memex signals mint <signalId>               # print the evidence bundle + a synthesis prompt (read-only)
+memex signals mint <signalId> \             # persist a synthesized inference
   --title "..." --summary "..." --confidence 0.7 --model claude-opus-4-8
 
 memex inferences                    # list inferences (re-checks staleness first)
 memex inferences archive <id>       # archive (kept for provenance, frozen from staleness)
 ```
 
-`mint` is a two-step, LLM-free flow: `memex mint <id>` assembles the source notes and a synthesis prompt; you (or Claude) write the inference and persist it with `--title`/`--summary`. An inference stores a content-hash snapshot of every source, so it auto-flips to `[!] STALE` if a source note later changes.
+`mint` is a two-step, LLM-free flow: `memex signals mint <id>` assembles the source notes and a synthesis prompt; you (or Claude) write the inference and persist it with `--title`/`--summary`. An inference stores a content-hash snapshot of every source, so it auto-flips to `[!] STALE` if a source note later changes.
 
 Detector thresholds are tunable via env: `MEMEX_ARC_DIST` (default `0.45`), `MEMEX_ARC_MIN_MEMBERS`, `MEMEX_ARC_MAX_MEMBERS`, `MEMEX_ARC_MIN_SPAN_DAYS`, `MEMEX_STALE_DIST`, `MEMEX_STALE_MIN_NEWER`, `MEMEX_BURST_DORMANT_DAYS`, `MEMEX_BURST_MIN`.
 

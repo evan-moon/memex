@@ -13,8 +13,8 @@ const DEFAULT_FILE = join(CONFIG_DIR, 'eval.json');
 
 const pct = (x: number): string => `${(x * 100).toFixed(0)}%`;
 
-export const registerEval = (program: Command) => {
-  program
+export const registerEval = (stats: Command) => {
+  stats
     .command('eval')
     .description('Score retrieval against a golden-query set (hit@1, hit@5, MRR)')
     .option('--file <path>', 'Eval cases file', DEFAULT_FILE)
@@ -33,7 +33,7 @@ export const registerEval = (program: Command) => {
 
       if (!existsSync(opts.file)) {
         console.error(
-          pc.red(`No eval file at ${opts.file}. Run \`memex eval --init\` to create one.`),
+          pc.red(`No eval file at ${opts.file}. Run \`memex stats eval --init\` to create one.`),
         );
         process.exit(1);
       }

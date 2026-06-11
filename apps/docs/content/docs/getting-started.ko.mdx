@@ -66,6 +66,6 @@ Claude에 memex를 연결한 뒤, 과거에 작업했던 내용에 대해 물어
 
 ## 기존 버전에서 업그레이드
 
-업그레이드 후 첫 실행 시, memex는 멱등한 스키마 마이그레이션을 적용합니다, 기존 노트에 `layer` 컬럼을 추가하고 (`projects` / `dev` / `herald` → `state`, `coding` → `rule`, 나머지 → `past`로 폴더 기반 백필), 플래시백 기능을 위해 `note_links`에 `source` 컬럼을 추가합니다. `memex classify`로 결과 분포를 확인하고, `memex relayer <id> <layer>`로 개별 노트를 정정할 수 있습니다.
+업그레이드 후 첫 실행 시, memex는 멱등한 스키마 마이그레이션을 적용합니다, 기존 노트에 `layer` 컬럼을 추가하고 (`projects` / `dev` / `herald` → `state`, `coding` → `rule`, 나머지 → `past`로 폴더 기반 백필), 플래시백 기능을 위해 `note_links`에 `source` 컬럼을 추가합니다. `memex layer`로 결과 분포를 확인하고, `memex layer <id> <layer>`로 개별 노트를 정정할 수 있습니다.
 
 각 레이어의 의미는 [노트 레이어](/ko/docs/layers) 페이지를 참조하세요.

@@ -2,6 +2,7 @@ import { type CountByKey, getCorpusStats, openDb } from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { registerEval } from './eval.ts';
 
 const printCounts = (label: string, counts: CountByKey[]) => {
   if (counts.length === 0) return;
@@ -10,7 +11,7 @@ const printCounts = (label: string, counts: CountByKey[]) => {
 };
 
 export const registerStats = (program: Command) => {
-  program
+  const stats = program
     .command('stats')
     .description('Corpus and flashback metrics — is cross-pollination being picked up?')
     .action(() => {
@@ -47,4 +48,6 @@ export const registerStats = (program: Command) => {
       }
       console.log();
     });
+
+  registerEval(stats);
 };

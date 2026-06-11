@@ -66,6 +66,6 @@ Once you've connected memex to Claude, try asking Claude about something you've 
 
 ## Upgrading from an older version
 
-On first run after upgrading, memex applies idempotent schema migrations, it adds a `layer` column to existing notes (folder-based backfill: `projects` / `dev` / `herald` → `state`, `coding` → `rule`, everything else → `past`) and a `source` column to `note_links` for the flashback feature. Run `memex classify` to see the resulting distribution, and `memex relayer <id> <layer>` to correct any individual notes.
+On first run after upgrading, memex applies idempotent schema migrations, it adds a `layer` column to existing notes (folder-based backfill: `projects` / `dev` / `herald` → `state`, `coding` → `rule`, everything else → `past`) and a `source` column to `note_links` for the flashback feature. Run `memex layer` to see the resulting distribution, and `memex layer <id> <layer>` to correct any individual notes.
 
 See [Note layers](/en/docs/layers) for what each layer means.
