@@ -389,6 +389,70 @@ describe('findFlashbacks', () => {
   });
 });
 
+describe('searchNotes — substring and link-expansion arms', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-arms-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const fakeEmbedding = new Array(768).fill(0.1);
+
+  it('matches inside agglutinated Korean words (substring arm)', () => {
+    const note = insertNote(client, {
+      title: '어제 한 일',
+      content: '오후 내내 검색했다',
+      filePath: join(dbDir, 'k.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+
+    const results = searchNotes(client, '검색', fakeEmbedding, 5);
+    expect(results.map((r) => r.id)).toContain(note.id);
+  });
+
+  it('pulls 1-hop linked neighbours of top candidates into the results', () => {
+    const hit = insertNote(client, {
+      title: 'auth architecture decision',
+      content: 'we picked JWT',
+      filePath: join(dbDir, 'hit.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    const neighbour = insertNote(client, {
+      title: '회의 기록',
+      content: '관련 후속 논의',
+      filePath: join(dbDir, 'n.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    const unrelated = insertNote(client, {
+      title: '점심 메뉴',
+      content: '김치찌개',
+      filePath: join(dbDir, 'u.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    client.sqlite
+      .prepare("INSERT INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')")
+      .run(neighbour.id, hit.id);
+
+    const results = searchNotes(client, 'auth architecture', fakeEmbedding, 5);
+    const ids = results.map((r) => r.id);
+    expect(ids).toContain(hit.id);
+    expect(ids).toContain(neighbour.id);
+    expect(ids.indexOf(hit.id)).toBeLessThan(ids.indexOf(neighbour.id));
+    expect(ids).not.toContain(unrelated.id);
+  });
+});
+
 describe('searchNotes date filters', () => {
   let dbDir: string;
   let client: MemexClient;

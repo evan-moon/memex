@@ -50,7 +50,13 @@ const buildRrf = () => {
       .slice(0, k)
       .map(([id], rank) => ({ ...cache.get(id)!, distance: rank / k }));
 
-  return { add, topK };
+  const topIds = (k: number): number[] =>
+    [...scores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, k)
+      .map(([id]) => id);
+
+  return { add, topK, topIds };
 };
 
 export const searchNotes = (
@@ -165,6 +171,53 @@ export const searchNotes = (
       )
       .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, ...dateArgs, limit) as Note[];
     rrf.add(titleResults, 2.0);
+
+    // Substring arm: unicode61 FTS tokenizes Korean by whitespace, so "검색"
+    // never matches inside "검색했다" — and a trigram tokenizer can't match the
+    // very common 2-char Korean words. A LIKE scan has neither hole, and a
+    // full scan is cheap at personal scale. Ranked by distinct tokens matched.
+    const likeMatchCount = normTokens
+      .map(() => "(lower(content) LIKE '%' || ? || '%')")
+      .join(' + ');
+    const likeWhere = normTokens.map(() => "lower(content) LIKE '%' || ? || '%'").join(' OR ');
+    const substringResults = client.sqlite
+      .prepare(
+        `SELECT *, (${likeMatchCount}) AS match_count
+         FROM notes
+         WHERE (${likeWhere})
+         ${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter}
+         ORDER BY match_count DESC
+         LIMIT ?`,
+      )
+      .all(...normTokens, ...normTokens, ...filterArgs, ...dateArgs, limit * 3) as Note[];
+    rrf.add(substringResults);
+  }
+
+  // Link-expansion arm: pull 1-hop note_links neighbours of the current top
+  // candidates into the pool at low weight. The link graph (wiki + flashback)
+  // encodes curated context that pure text similarity misses — this is the
+  // cheapest deterministic slice of the "graph topology" direction.
+  const seeds = rrf.topIds(limit);
+  if (seeds.length > 0) {
+    const ph = seeds.map(() => '?').join(', ');
+    const neighbours = client.sqlite
+      .prepare(
+        `SELECT n.*, COUNT(*) AS hits
+         FROM note_links l
+         JOIN notes n
+           ON n.id = CASE WHEN l.source_id IN (${ph}) THEN l.target_id ELSE l.source_id END
+         WHERE (l.source_id IN (${ph}) OR l.target_id IN (${ph}))
+           AND n.id NOT IN (${ph})
+           ${aliasedCategoryFilter}
+           ${aliasedTagFilter}
+           ${dateFromFilterAliased}
+           ${dateToFilterAliased}
+         GROUP BY n.id
+         ORDER BY hits DESC
+         LIMIT ?`,
+      )
+      .all(...seeds, ...seeds, ...seeds, ...seeds, ...filterArgs, ...dateArgs, limit * 2) as Note[];
+    rrf.add(neighbours, 0.5);
   }
 
   return rrf.topK(limit);
