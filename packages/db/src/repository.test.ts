@@ -519,3 +519,69 @@ describe('searchNotes date filters', () => {
     expect(recentWindow.map((r) => r.id)).not.toContain(importedOld.id);
   });
 });
+
+describe('state recency tiebreaker', () => {
+  let dbDir: string;
+  let client: MemexClient;
+  const embA = new Array(768).fill(0.1); // close to query
+  const embFar = new Array(768).fill(0.9); // far from query
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-recency-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  it('breaks a tie in favour of the fresher state note', () => {
+    // Identical title/content/embedding → every arm scores them equally.
+    // Only layer differs, so the state-recency factor is the sole tiebreaker.
+    const pastNote = insertNote(client, {
+      title: 'alpha beta plan',
+      content: 'alpha beta plan body',
+      filePath: join(dbDir, 'past.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    const stateNote = insertNote(client, {
+      title: 'alpha beta plan',
+      content: 'alpha beta plan body',
+      filePath: join(dbDir, 'state.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+    saveEmbedding(client, pastNote.id, embA);
+    saveEmbedding(client, stateNote.id, embA);
+
+    const results = searchNotes(client, 'alpha beta plan', embA, 5);
+    expect(results[0].id).toBe(stateNote.id);
+  });
+
+  it('does not overtake a clearly more relevant note', () => {
+    // A: past but a strong multi-arm match (vector rank0 + fts + title + substring).
+    // B: state + fresh but only a weak, distant vector hit.
+    // The 6% recency factor must not flip A and B.
+    const strongPast = insertNote(client, {
+      title: 'alpha beta plan',
+      content: 'alpha beta plan body',
+      filePath: join(dbDir, 'strong.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+    const weakState = insertNote(client, {
+      title: 'zzz qqq',
+      content: 'zzz qqq unrelated',
+      filePath: join(dbDir, 'weak.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+    saveEmbedding(client, strongPast.id, embA);
+    saveEmbedding(client, weakState.id, embFar);
+
+    const results = searchNotes(client, 'alpha beta plan', embA, 5);
+    expect(results[0].id).toBe(strongPast.id);
+  });
+});

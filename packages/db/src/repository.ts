@@ -33,6 +33,30 @@ export const saveEmbedding = (client: MemexClient, noteId: number, embedding: nu
 
 const RRF_K = 60;
 
+// Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
+// `state`-layer notes (the "current state / plan" layer) a small bump that
+// decays with time since last edit, so "what's the current X?" surfaces the
+// freshest plan instead of an older draft. Deliberately scoped:
+//   - past notes (immutable records) and rule notes get factor 1 → flashback's
+//     intentional surfacing of OLD notes is untouched.
+//   - multiplicative with a small alpha keeps it a *tiebreaker*: it reorders
+//     near-equal candidates but will not overtake a clearly more relevant note.
+//   - applied only to the final ranking (topK), never to the link-expansion
+//     seeds (topIds), so graph expansion stays relevance-pure.
+const STATE_RECENCY_ALPHA = 0.06;
+const STATE_RECENCY_TAU_DAYS = 120;
+
+const stateRecencyFactor = (note: Note, now: number): number => {
+  if (note.layer !== 'state') return 1;
+  // Search arms select raw rows (`SELECT *`), so keys may be snake_case at
+  // runtime despite the camelCase Note type — read both defensively.
+  const raw = note as unknown as Record<string, unknown>;
+  const ts = Number(raw.updatedAt ?? raw.updated_at ?? raw.createdAt ?? raw.created_at ?? 0);
+  if (!Number.isFinite(ts) || ts <= 0) return 1;
+  const ageDays = Math.max(0, (now - ts) / 86_400_000);
+  return 1 + STATE_RECENCY_ALPHA * Math.exp(-ageDays / STATE_RECENCY_TAU_DAYS);
+};
+
 const buildRrf = () => {
   const scores = new Map<number, number>();
   const cache = new Map<number, Note>();
@@ -44,12 +68,14 @@ const buildRrf = () => {
     });
   };
 
-  const topK = (k: number): SearchResult[] =>
+  const topK = (k: number, now: number = Date.now()): SearchResult[] =>
     [...scores.entries()]
+      .map(([id, score]) => [id, score * stateRecencyFactor(cache.get(id)!, now)] as const)
       .sort((a, b) => b[1] - a[1])
       .slice(0, k)
       .map(([id], rank) => ({ ...cache.get(id)!, distance: rank / k }));
 
+  // Seeds for link-expansion use the un-adjusted RRF order (relevance-pure).
   const topIds = (k: number): number[] =>
     [...scores.entries()]
       .sort((a, b) => b[1] - a[1])
