@@ -22,9 +22,18 @@ import { registerSource } from './commands/source.ts';
 import { registerStats } from './commands/stats.ts';
 import { registerTags } from './commands/tags.ts';
 
+declare const __MEMEX_VERSION__: string;
+const VERSION = (() => {
+  try {
+    return __MEMEX_VERSION__;
+  } catch {
+    return '0.0.0-dev';
+  }
+})();
+
 const program = new Command();
 
-program.name('memex').description('Local-first second brain with semantic search').version('0.1.0');
+program.name('memex').description('Local-first second brain with semantic search').version(VERSION);
 
 registerMcp(program);
 registerConfig(program);

@@ -17,6 +17,15 @@ import { registerSearchNotes } from './tools/search-notes.ts';
 import { registerSignals } from './tools/signals.ts';
 import { registerUpdateNote } from './tools/update-note.ts';
 
+declare const __MEMEX_VERSION__: string;
+const VERSION = (() => {
+  try {
+    return __MEMEX_VERSION__;
+  } catch {
+    return '0.0.0-dev';
+  }
+})();
+
 const config = loadConfig();
 const vaultPath = expandPath(config.vault_path);
 
@@ -106,7 +115,7 @@ const nudge =
 const instructions =
   (ruleSection ? `${baseInstructions}\n\n${ruleSection}` : baseInstructions) + nudge;
 
-const server = new McpServer({ name: 'memex', version: '0.1.0' }, { instructions });
+const server = new McpServer({ name: 'memex', version: VERSION }, { instructions });
 
 registerSaveNote(server, client, embedder, vaultPath);
 registerSearchNotes(server, client, embedder);
