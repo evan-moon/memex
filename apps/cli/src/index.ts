@@ -12,6 +12,7 @@ import { registerInferences } from './commands/inferences.ts';
 import { registerLayer } from './commands/layer.ts';
 import { registerList } from './commands/list.ts';
 import { registerMcp } from './commands/mcp.ts';
+import { registerRecall } from './commands/recall.ts';
 import { registerReembed } from './commands/reembed.ts';
 import { registerRelated } from './commands/related.ts';
 import { registerSchedule } from './commands/schedule.ts';
@@ -36,6 +37,7 @@ const program = new Command();
 program.name('memex').description('Local-first second brain with semantic search').version(VERSION);
 
 registerMcp(program);
+registerRecall(program);
 registerConfig(program);
 registerAdd(program);
 registerEdit(program);
@@ -60,7 +62,7 @@ registerSchedule(program);
 // the CLI is the safety net. Help mirrors that hierarchy instead of dumping a
 // flat command list.
 const COMMAND_GROUPS: ReadonlyArray<{ title: string; names: ReadonlyArray<string> }> = [
-  { title: 'Setup', names: ['mcp', 'config'] },
+  { title: 'Setup', names: ['mcp', 'recall', 'config'] },
   { title: 'Capture', names: ['add', 'edit', 'delete', 'capture-commit'] },
   { title: 'Vault', names: ['source', 'index', 'reembed'] },
   { title: 'Verify (read-only)', names: ['search', 'list', 'show', 'related', 'tags'] },
