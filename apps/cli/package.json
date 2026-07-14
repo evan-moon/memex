@@ -13,7 +13,8 @@
   "author": "Evan Moon <bboydart91@gmail.com> (https://github.com/evan-moon)",
   "bin": {
     "memex": "./dist/index.js",
-    "memex-mcp": "./dist/mcp.js"
+    "memex-mcp": "./dist/mcp.js",
+    "memex-recall": "./dist/recall.js"
   },
   "files": [
     "dist",

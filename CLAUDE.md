@@ -25,7 +25,7 @@ DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
 Users interact with memex through the MCP server (Claude Desktop / Claude Code / Cursor): search and save happen in conversation, not at a prompt. The CLI exists only for what the MCP path cannot or must not do. New features default to MCP-only; a CLI command is added only when it fits one of these groups (mirrored in `memex --help`):
 
-- **Setup**: `mcp`, `config`
+- **Setup**: `mcp`, `recall`, `config`
 - **Capture** (manual entry + AI-mistake correction, and the user-only writes the agent is forbidden from): `add`, `edit`, `delete`, `capture-commit`
 - **Vault** (external sources & embeddings): `source`, `index`, `reembed`
 - **Verify** (read-only — inspect what landed in the DB, nothing more): `search`, `list`, `show`, `related`, `tags`

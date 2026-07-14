@@ -70,6 +70,18 @@ memex mcp install
 
 That's it. On first run, the embedding model (~450MB) downloads once to `~/.memex/models/`.
 
+### Auto-recall (optional)
+
+```bash
+memex recall install
+```
+
+Turns retrieval from something Claude has to *decide* to do into something that just happens. Every prompt you type is semantically searched against your notes, and the top 3 titles are injected as context before Claude answers — the same way native memory works. Claude then pulls full notes with `get_note` when a title looks relevant.
+
+A background daemon keeps the embedding model warm (`~/.memex/recall.sock`), so a lookup costs ~30ms instead of the ~1.5s a cold CLI search spends loading the model. It idles out after 2 hours.
+
+Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt. Remove with `memex recall uninstall`.
+
 ---
 
 ## Features
@@ -81,6 +93,7 @@ That's it. On first run, the embedding model (~450MB) downloads once to `~/.meme
 - **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
 - **Inference engine**, deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
 - **MCP server**, Claude searches and saves automatically. No extra CLAUDE.md setup needed
+- **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
 - **Duplicate detection**, `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
 - **Backlinks**, link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
 - **Digest**, `memex digest` summarises notes saved in the last N days, grouped by folder
@@ -148,6 +161,10 @@ memex config set vault-path ~/Documents/Second\ Brain
 
 # MCP
 memex mcp install                            # register with Claude Code
+
+# Auto-recall
+memex recall install                         # search notes on every prompt, inject hits
+memex recall uninstall                       # remove the hook
 memex mcp path                               # print MCP binary path
 ```
 
