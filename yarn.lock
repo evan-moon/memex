@@ -352,6 +352,7 @@ __metadata:
   bin:
     memex: ./dist/index.js
     memex-mcp: ./dist/mcp.js
+    memex-recall: ./dist/recall.js
   languageName: unknown
   linkType: soft
 
