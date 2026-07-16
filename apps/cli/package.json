@@ -1,7 +1,7 @@
 {
   "name": "@evan-moon/memex",
   "mcpName": "io.github.evan-moon/memex",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Local-first second brain with semantic search. MCP server for Claude Desktop and Claude Code.",
   "homepage": "https://github.com/evan-moon/memex#readme",
