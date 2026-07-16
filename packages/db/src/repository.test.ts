@@ -451,6 +451,37 @@ describe('searchNotes — substring and link-expansion arms', () => {
     expect(ids.indexOf(hit.id)).toBeLessThan(ids.indexOf(neighbour.id));
     expect(ids).not.toContain(unrelated.id);
   });
+
+  it('attaches an FTS match snippet around the matched term', () => {
+    const note = insertNote(client, {
+      title: 'meeting notes',
+      content: `${'filler '.repeat(100)}the quorum decision was postponed until friday`,
+      filePath: join(dbDir, 's.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+
+    const results = searchNotes(client, 'quorum', fakeEmbedding, 5);
+    const hit = results.find((r) => r.id === note.id);
+    expect(hit?.matchSnippet).toContain('quorum');
+    expect(hit?.matchSnippet?.length ?? 0).toBeLessThan(note.content.length);
+  });
+
+  it('returns camelCase timestamps from raw-row search arms', () => {
+    const note = insertNote(client, {
+      title: 'timestamp check',
+      content: 'raw row normalization',
+      filePath: join(dbDir, 't.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+
+    const results = searchNotes(client, 'normalization', fakeEmbedding, 5);
+    const hit = results.find((r) => r.id === note.id);
+    expect(hit?.createdAt).toBeTypeOf('number');
+    expect(Number.isFinite(hit?.createdAt)).toBe(true);
+    expect(new Date(hit?.authoredAt ?? hit?.createdAt ?? Number.NaN).toISOString()).toBeTruthy();
+  });
 });
 
 describe('searchNotes date filters', () => {

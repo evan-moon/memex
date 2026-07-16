@@ -1,9 +1,26 @@
-import { semanticSearch } from '@memex/core';
-import { type FlashbackOptions, findFlashbacks, type MemexClient, needsReembed } from '@memex/db';
+import { semanticSearchMulti } from '@memex/core';
+import {
+  type FlashbackOptions,
+  findFlashbacks,
+  type MemexClient,
+  needsReembed,
+  parseTags,
+} from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
+
+const SNIPPET_MAX_CHARS = 200;
+
+export const toSnippet = (content: string): string => {
+  const body = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
+  const flat = body.replace(/\s+/g, ' ').trim();
+  return flat.length > SNIPPET_MAX_CHARS ? `${flat.slice(0, SNIPPET_MAX_CHARS)}…` : flat;
+};
+
+export const formatSize = (chars: number): string =>
+  chars >= 1000 ? `${(chars / 1000).toFixed(1)}k chars` : `${chars} chars`;
 
 const readFlashbackOptions = (): FlashbackOptions => ({
   minDaysGap: process.env.MEMEX_FLASHBACK_DAYS
@@ -18,9 +35,15 @@ const readFlashbackOptions = (): FlashbackOptions => ({
 export const registerSearchNotes = (server: McpServer, client: MemexClient, embedder: Embedder) => {
   server.tool(
     'search_notes',
-    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, search MORE THAN ONCE with different phrasings: once in the user's language and once in English, or once with their wording and once with the underlying concept. Short keyword queries work better than long sentences.",
+    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, pass MULTIPLE phrasings in one call: once in the user's language and once in English, or once with their wording and once with the underlying concept — results are fused server-side. Short keyword queries work better than long sentences. Returns a compact index (id, title, snippet) — call get_note with an id to read the full content of any result that looks relevant.",
     {
-      query: z.string().describe('Search query in any language'),
+      queries: z
+        .array(z.string())
+        .min(1)
+        .max(3)
+        .describe(
+          '1–3 query phrasings in any language (e.g. ["memex 검색 개선", "memex search improvements"]). One phrasing is fine for specific questions.',
+        ),
       limit: z.number().int().min(1).max(20).optional().default(5),
       category: z
         .string()
@@ -36,7 +59,7 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
         .optional()
         .describe('Filter notes created on or before this date (ISO 8601, e.g. "2026-05-01")'),
     },
-    async ({ query, limit, category, tag, date_from, date_to }) => {
+    async ({ queries, limit, category, tag, date_from, date_to }) => {
       const parseDate = (s: string, label: string): number => {
         const ms = new Date(s).getTime();
         if (Number.isNaN(ms))
@@ -47,10 +70,10 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
       const dateTo = date_to
         ? parseDate(date_to.includes('T') ? date_to : `${date_to}T23:59:59.999Z`, 'date_to')
         : undefined;
-      const results = await semanticSearch(
+      const results = await semanticSearchMulti(
         client,
         embedder,
-        query,
+        queries,
         limit,
         category,
         tag,
@@ -73,9 +96,22 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
           : '';
 
       const text =
-        results
-          .map((r, i) => `## ${i + 1}. ${r.title} (id: ${r.id})\n\n${r.content}`)
-          .join('\n\n---\n\n') +
+        `Compact index — call get_note(id) for full content of relevant results.\n\n${results
+          .map((r, i) => {
+            const tags = parseTags(r.tags);
+            const date = new Date(r.authoredAt ?? r.createdAt).toISOString().slice(0, 10);
+            const meta = [
+              r.category,
+              tags.length > 0 ? tags.join(', ') : undefined,
+              date,
+              formatSize(r.content.length),
+            ]
+              .filter(Boolean)
+              .join(' | ');
+            const snippet = r.matchSnippet ? toSnippet(r.matchSnippet) : toSnippet(r.content);
+            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}`;
+          })
+          .join('\n\n')}` +
         flashbackHint +
         reembedWarning;
       return { content: [{ type: 'text', text }] };

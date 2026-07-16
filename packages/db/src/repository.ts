@@ -2,7 +2,9 @@ import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
 import { type NewNote, type Note, notes } from './schema.ts';
 
-type SearchResult = Note & { distance: number };
+export type SearchResult = Note & { distance: number; matchSnippet?: string };
+
+type Candidate = Note & { matchSnippet?: string };
 
 export const parseTags = (raw: string): string[] => {
   try {
@@ -31,7 +33,7 @@ export const saveEmbedding = (client: MemexClient, noteId: number, embedding: nu
     .run(BigInt(noteId), Buffer.from(vec.buffer));
 };
 
-const RRF_K = 60;
+export const RRF_K = 60;
 
 // Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
 // `state`-layer notes (the "current state / plan" layer) a small bump that
@@ -48,23 +50,36 @@ const STATE_RECENCY_TAU_DAYS = 120;
 
 const stateRecencyFactor = (note: Note, now: number): number => {
   if (note.layer !== 'state') return 1;
-  // Search arms select raw rows (`SELECT *`), so keys may be snake_case at
-  // runtime despite the camelCase Note type — read both defensively.
-  const raw = note as unknown as Record<string, unknown>;
-  const ts = Number(raw.updatedAt ?? raw.updated_at ?? raw.createdAt ?? raw.created_at ?? 0);
+  const ts = Number(note.updatedAt ?? note.createdAt ?? 0);
   if (!Number.isFinite(ts) || ts <= 0) return 1;
   const ageDays = Math.max(0, (now - ts) / 86_400_000);
   return 1 + STATE_RECENCY_ALPHA * Math.exp(-ageDays / STATE_RECENCY_TAU_DAYS);
 };
 
+// Search arms select raw rows (`SELECT *`), so keys arrive snake_case at
+// runtime despite the camelCase Note type — normalize once at cache time.
+const normalizeCandidate = (row: Candidate): Candidate => {
+  const raw = row as unknown as Record<string, unknown>;
+  return {
+    ...row,
+    filePath: (raw.filePath ?? raw.file_path) as string,
+    authoredAt: (raw.authoredAt ?? raw.authored_at ?? null) as number | null,
+    createdAt: Number(raw.createdAt ?? raw.created_at),
+    updatedAt: Number(raw.updatedAt ?? raw.updated_at),
+  };
+};
+
 const buildRrf = () => {
   const scores = new Map<number, number>();
-  const cache = new Map<number, Note>();
+  const cache = new Map<number, Candidate>();
 
-  const add = (items: Note[], weight = 1.0) => {
+  const add = (items: Candidate[], weight = 1.0) => {
     items.forEach((note, rank) => {
       scores.set(note.id, (scores.get(note.id) ?? 0) + weight / (RRF_K + rank + 1));
-      if (!cache.has(note.id)) cache.set(note.id, note);
+      const cached = cache.get(note.id);
+      if (!cached) cache.set(note.id, normalizeCandidate(note));
+      else if (note.matchSnippet && !cached.matchSnippet)
+        cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
     });
   };
 
@@ -155,7 +170,7 @@ export const searchNotes = (
         const ftsQuery = ftsTokens.map((t) => `"${t}"`).join(' OR ');
         const ftsResults = client.sqlite
           .prepare(
-            `SELECT n.*
+            `SELECT n.*, snippet(notes_fts, 1, '', '', '…', 12) AS matchSnippet
              FROM notes_fts
              JOIN notes n ON n.id = notes_fts.rowid
              WHERE notes_fts MATCH ?
@@ -166,7 +181,7 @@ export const searchNotes = (
              ORDER BY bm25(notes_fts)
              LIMIT ?`,
           )
-          .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Note[];
+          .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Candidate[];
         rrf.add(ftsResults);
       } catch {}
     }

@@ -10,6 +10,7 @@ import {
   removeNote,
   renderNoteFile,
   saveNote,
+  semanticSearchMulti,
 } from './note.ts';
 
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
@@ -311,5 +312,57 @@ describe('saveNote — flashbacks', () => {
       .prepare('SELECT source FROM note_links WHERE source_id = ? AND target_id = ?')
       .all(note.id, old.id) as { source: string }[];
     expect(links.some((l) => l.source === 'flashback')).toBe(true);
+  });
+});
+
+describe('semanticSearchMulti', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-multi-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const insert = (title: string, content: string, file: string) =>
+    insertNote(client, {
+      title,
+      content,
+      filePath: join(dbDir, file),
+      source: 'manual',
+      layer: 'past',
+    });
+
+  it('fuses results across query phrasings', async () => {
+    const alpha = insert('alpha protocol', 'about alpha', 'a.md');
+    const beta = insert('beta protocol', 'about beta', 'b.md');
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 5);
+    const ids = results.map((r) => r.id);
+    expect(ids).toContain(alpha.id);
+    expect(ids).toContain(beta.id);
+  });
+
+  it('returns the single-query result list unchanged for one phrasing', async () => {
+    const alpha = insert('alpha protocol', 'about alpha', 'a.md');
+    insert('beta protocol', 'about beta', 'b.md');
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha'], 5);
+    expect(results[0]?.id).toBe(alpha.id);
+    expect(results.map((r) => r.id)).not.toContain(undefined);
+  });
+
+  it('ranks notes matched by multiple phrasings higher', async () => {
+    const both = insert('alpha beta summary', 'alpha beta', 'ab.md');
+    const alphaOnly = insert('alpha protocol', 'only alpha here', 'a.md');
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 5);
+    const ids = results.map((r) => r.id);
+    expect(ids.indexOf(both.id)).toBeLessThan(ids.indexOf(alphaOnly.id));
   });
 });

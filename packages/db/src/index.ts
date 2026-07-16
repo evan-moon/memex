@@ -30,6 +30,7 @@ export type {
   FlashbackOptions,
   FolderCount,
   RelatedNote,
+  SearchResult,
   SimilarNote,
   TagCount,
 } from './repository.ts';
@@ -49,6 +50,7 @@ export {
   listNotesByPathPrefix,
   listNotesSince,
   parseTags,
+  RRF_K,
   saveEmbedding,
   searchNotes,
   serializeTags,

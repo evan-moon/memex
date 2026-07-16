@@ -16,7 +16,9 @@ import {
   type NoteSource,
   parseAuthoredAt,
   parseTags,
+  RRF_K,
   refreshSignals,
+  type SearchResult,
   type Signal,
   type SimilarNote,
   saveEmbedding,
@@ -199,6 +201,42 @@ export const semanticSearch = async (
 ) => {
   const embedding = await embedder(query, 'query');
   return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
+};
+
+export const semanticSearchMulti = async (
+  client: MemexClient,
+  embedder: Embedder,
+  queries: string[],
+  limit: number,
+  category?: string,
+  tag?: string,
+  dateFrom?: number,
+  dateTo?: number,
+): Promise<SearchResult[]> => {
+  const lists = await Promise.all(
+    queries.map((q) => semanticSearch(client, embedder, q, limit, category, tag, dateFrom, dateTo)),
+  );
+  if (lists.length === 1) return lists[0];
+
+  const scores = new Map<number, number>();
+  const cache = new Map<number, SearchResult>();
+  lists.forEach((list) => {
+    list.forEach((note, rank) => {
+      scores.set(note.id, (scores.get(note.id) ?? 0) + 1 / (RRF_K + rank + 1));
+      const cached = cache.get(note.id);
+      if (!cached) cache.set(note.id, note);
+      else if (note.matchSnippet && !cached.matchSnippet)
+        cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
+    });
+  });
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id], rank) => {
+      const note = cache.get(id);
+      if (!note) throw new Error(`Fused note #${id} missing from cache`);
+      return { ...note, distance: rank / limit };
+    });
 };
 
 export type EditNoteRejection =
