@@ -4,7 +4,7 @@ import { type NewNote, type Note, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
 
-type Candidate = Note & { matchSnippet?: string };
+type Candidate = Note & { matchSnippet?: string; distance?: number };
 
 export const parseTags = (raw: string): string[] => {
   try {
@@ -88,7 +88,10 @@ const buildRrf = () => {
       .map(([id, score]) => [id, score * stateRecencyFactor(cache.get(id)!, now)] as const)
       .sort((a, b) => b[1] - a[1])
       .slice(0, k)
-      .map(([id], rank) => ({ ...cache.get(id)!, distance: rank / k }));
+      .map(([id]) => {
+        const candidate = cache.get(id)!;
+        return { ...candidate, distance: candidate.distance ?? Number.POSITIVE_INFINITY };
+      });
 
   // Seeds for link-expansion use the un-adjusted RRF order (relevance-pure).
   const topIds = (k: number): number[] =>
