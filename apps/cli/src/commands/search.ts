@@ -2,7 +2,7 @@ import { spinner } from '@clack/prompts';
 import { semanticSearch } from '@memex/core';
 import { findFlashbacks, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
-import { CONFIG_DIR, MODEL_CACHE_DIR } from '@memex/utils';
+import { CONFIG_DIR, MODEL_CACHE_DIR, stripFrontmatter } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { layerBadge } from '../layer.ts';
@@ -64,8 +64,9 @@ export const registerSearch = (program: Command) => {
           console.log(
             `${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`,
           );
-          const preview = note.content.slice(0, 200).replace(/\n/g, ' ');
-          console.log(pc.dim(preview + (note.content.length > 200 ? '…' : '')));
+          const body = stripFrontmatter(note.content);
+          const preview = body.slice(0, 200).replace(/\n/g, ' ');
+          console.log(pc.dim(preview + (body.length > 200 ? '…' : '')));
         }
 
         const flashbacks = findFlashbacks(client, results[0].id, Date.now());

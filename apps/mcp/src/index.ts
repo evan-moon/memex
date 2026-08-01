@@ -91,7 +91,11 @@ memex is the memory layer of a small local-first stack. Other personal-data tool
 
 ## FOLDER CONVENTION
 
-conversations/<name> · decisions/<project> · learning/<topic> · ideas/
+Subject first, never note type — what kind of note it is already lives in \`layer\` and \`tags\`, so a decision and a work log about the same project belong in the same folder.
+
+projects/<name> · work/people/<name> · work/toss · work/interviews · investing/ · writing/ · learning/<topic> · coding/ · personal/
+
+Call list_folders before saving and reuse an existing folder. Never create decisions/, dev/, conversations/, ideas/ or drafts/ — they split one subject across parallel trees.
 
 ## TAGS
 

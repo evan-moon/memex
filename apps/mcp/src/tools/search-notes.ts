@@ -6,6 +6,7 @@ import {
   needsReembed,
   parseTags,
 } from '@memex/db';
+import { stripFrontmatter } from '@memex/utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -14,8 +15,7 @@ type Embedder = (text: string) => Promise<number[]>;
 const SNIPPET_MAX_CHARS = 200;
 
 export const toSnippet = (content: string): string => {
-  const body = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
-  const flat = body.replace(/\s+/g, ' ').trim();
+  const flat = stripFrontmatter(content).replace(/\s+/g, ' ').trim();
   return flat.length > SNIPPET_MAX_CHARS ? `${flat.slice(0, SNIPPET_MAX_CHARS)}…` : flat;
 };
 
@@ -48,7 +48,7 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
       category: z
         .string()
         .optional()
-        .describe('Filter by top-level folder (e.g. "conversations", "decisions", "learning")'),
+        .describe('Filter by top-level folder (e.g. "projects", "work", "learning")'),
       tag: z.string().optional().describe('Filter by a single tag (e.g. "typescript")'),
       date_from: z
         .string()

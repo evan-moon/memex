@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEmbeddingText, extractCategory, formatDate } from './format.ts';
+import { buildEmbeddingText, extractCategory, formatDate, stripFrontmatter } from './format.ts';
 
 describe('formatDate', () => {
   it('formats date as YYYY-MM-DD', () => {
@@ -49,12 +49,34 @@ describe('buildEmbeddingText', () => {
   });
 
   it('includes both folder prefix and tags', () => {
-    expect(buildEmbeddingText('T', 'B', 'ideas', ['x', 'y'])).toBe(
-      '[ideas] T\ntags: x, y\n\nB',
-    );
+    expect(buildEmbeddingText('T', 'B', 'ideas', ['x', 'y'])).toBe('[ideas] T\ntags: x, y\n\nB');
   });
 
   it('omits tags line when tags array is empty', () => {
     expect(buildEmbeddingText('T', 'B', undefined, [])).toBe('T\n\nB');
+  });
+
+  it('drops frontmatter so YAML keys never reach the vector', () => {
+    const content =
+      '---\ntitle: T\ndate: 2026-08-01\ntags: [a, b]\nlayer: past\n---\n\n# T\n\nBody';
+    expect(buildEmbeddingText('T', content)).toBe('T\n\n# T\n\nBody');
+  });
+});
+
+describe('stripFrontmatter', () => {
+  it('removes a leading frontmatter block', () => {
+    expect(stripFrontmatter('---\ntitle: T\n---\nBody')).toBe('Body');
+  });
+
+  it('leaves content without frontmatter untouched', () => {
+    expect(stripFrontmatter('# T\n\nBody')).toBe('# T\n\nBody');
+  });
+
+  it('keeps a horizontal rule that appears later in the body', () => {
+    expect(stripFrontmatter('# T\n\n---\n\nBody')).toBe('# T\n\n---\n\nBody');
+  });
+
+  it('stops at the first closing delimiter', () => {
+    expect(stripFrontmatter('---\ntitle: T\n---\nBody\n---\nMore')).toBe('Body\n---\nMore');
   });
 });

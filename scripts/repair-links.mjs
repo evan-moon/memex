@@ -1,0 +1,143 @@
+#!/usr/bin/env node
+import { readFileSync, writeFileSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { join, relative, extname, basename } from 'node:path';
+import { homedir } from 'node:os';
+
+const usage = `Repoint wiki links whose target note was renamed after the link was written.
+
+  node scripts/repair-links.mjs [--vault <path>] [--min-ratio 0.85] [--apply]
+
+Only rewrites a link when exactly one note matches well above every runner-up.
+Everything below the bar is listed for a human to judge, never guessed at.`;
+
+const arg = (flag, fallback) => {
+  const i = process.argv.indexOf(flag);
+  return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+};
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(usage);
+  process.exit(0);
+}
+
+const VAULT = arg('--vault', join(homedir(), 'Documents', 'Second Brain')).replace(/\/$/, '');
+const MIN_RATIO = Number(arg('--min-ratio', '0.85'));
+const MARGIN = 0.05;
+const APPLY = process.argv.includes('--apply');
+
+const walk = async (dir) => {
+  const out = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...(await walk(full)));
+    else if (extname(entry.name) === '.md') out.push(full);
+  }
+  return out;
+};
+
+const files = await walk(VAULT);
+const texts = new Map(files.map((f) => [f, readFileSync(f, 'utf8')]));
+
+const aliasOf = (content) => {
+  if (!content.startsWith('---')) return null;
+  const end = content.indexOf('\n---', 3);
+  const match = content.slice(3, end).match(/^aliases:\s*\[(.+)\]\s*$/m);
+  if (!match) return null;
+  const raw = match[1].trim();
+  return raw.startsWith('"') && raw.endsWith('"')
+    ? raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+    : raw;
+};
+
+const resolvable = new Set();
+for (const [file, content] of texts) {
+  resolvable.add(basename(file, '.md').normalize('NFC'));
+  const alias = aliasOf(content);
+  if (alias) resolvable.add(alias.normalize('NFC'));
+}
+
+const LINK = /\[\[([^[\]]+?)\]\]/g;
+const broken = new Map();
+for (const content of texts.values()) {
+  for (const match of content.matchAll(LINK)) {
+    const target = match[1].split('|')[0].split('#')[0].trim().normalize('NFC');
+    if (target && !resolvable.has(target)) broken.set(target, (broken.get(target) ?? 0) + 1);
+  }
+}
+
+// Ratio of the longest common subsequence to total length — close enough to
+// difflib's SequenceMatcher for picking a renamed note out of a known pool.
+const similarity = (a, b) => {
+  if (a === b) return 1;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length === 0) return 0;
+  let prev = new Array(short.length + 1).fill(0);
+  for (let i = 1; i <= long.length; i++) {
+    const curr = new Array(short.length + 1).fill(0);
+    for (let j = 1; j <= short.length; j++) {
+      curr[j] = long[i - 1] === short[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], curr[j - 1]);
+    }
+    prev = curr;
+  }
+  return (2 * prev[short.length]) / (a.length + b.length);
+};
+
+const pool = [...resolvable];
+const confident = new Map();
+const uncertain = [];
+
+// A note retitled by appending (a date, an outcome) leaves links holding the old
+// prefix. When exactly one note extends the target, that is the note — no ratio
+// threshold is as precise here, and a tie means it stays a human's call.
+const uniquePrefixMatch = (target) => {
+  if (target.length < 8) return null;
+  const extensions = pool.filter((c) => c !== target && c.startsWith(target));
+  return extensions.length === 1 ? extensions[0] : null;
+};
+
+for (const [target, count] of [...broken].sort((a, b) => b[1] - a[1])) {
+  const ranked = pool
+    .map((candidate) => ({ candidate, ratio: similarity(target, candidate) }))
+    .sort((a, b) => b.ratio - a.ratio);
+  const [best, runnerUp] = ranked;
+  const prefix = uniquePrefixMatch(target);
+  const pick =
+    prefix ??
+    (best && best.ratio >= MIN_RATIO && best.ratio - (runnerUp?.ratio ?? 0) > MARGIN
+      ? best.candidate
+      : null);
+  if (pick) {
+    confident.set(target, pick);
+    const why = prefix ? 'prefix' : best.ratio.toFixed(2);
+    console.log(`fix  ${count}x  ${why}  ${target}\n            -> ${pick}`);
+  } else {
+    uncertain.push({ target, count, best: best?.candidate, ratio: best?.ratio ?? 0 });
+  }
+}
+
+let rewritten = 0;
+if (APPLY && confident.size > 0) {
+  for (const [file, content] of texts) {
+    const next = content.replace(LINK, (whole, inner) => {
+      const [head, label] = inner.split('|');
+      const [target, anchor] = head.split('#');
+      const replacement = confident.get(target.trim().normalize('NFC'));
+      if (!replacement) return whole;
+      rewritten++;
+      return `[[${replacement}${anchor ? `#${anchor}` : ''}${label ? `|${label}` : ''}]]`;
+    });
+    if (next !== content) writeFileSync(file, next);
+  }
+}
+
+console.log(`\nbroken targets: ${broken.size} | repaired: ${confident.size} | left: ${uncertain.length}`);
+if (APPLY) console.log(`link occurrences rewritten: ${rewritten}`);
+else console.log('nothing written — re-run with --apply');
+
+console.log('\n--- left for review (top 20 by usage) ---');
+for (const u of uncertain.slice(0, 20)) {
+  const hint = u.ratio > 0.5 ? `  ~ ${u.best} (${u.ratio.toFixed(2)})` : '';
+  console.log(`  ${String(u.count).padStart(2)}x  ${u.target}${hint}`);
+}

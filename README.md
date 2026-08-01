@@ -110,7 +110,7 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 memex add                                    # interactive prompt (asks for layer)
 memex add --title "Note title" --content "..." --layer past
 memex add --title "Note title" --file ./note.md --layer state
-memex add --title "Note title" --content "..." --folder conversations/tom --layer past
+memex add --title "Note title" --content "..." --folder work/people/tom --layer past
 memex add --title "Note title" --content "..." -T typescript -T architecture --layer past
 
 # Layers

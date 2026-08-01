@@ -52,6 +52,63 @@ describe('renderNoteFile', () => {
     const content = '---\ndate: 2026-01-02\n---\n\n# Heading\n\nbody';
     expect(renderNoteFile({ ...meta, title: 'Whatever', content })).toBe(content);
   });
+
+  it('quotes a title that would otherwise break YAML', () => {
+    const file = renderNoteFile({ ...meta, title: '3장. 세팅: 환경', content: 'body' });
+    expect(file).toContain('title: "3장. 세팅: 환경"');
+  });
+
+  it('adds an alias when the filename cannot carry the exact title', () => {
+    const file = renderNoteFile({ ...meta, title: 'A/B 테스트: 결과', content: 'body' });
+    expect(file).toContain('aliases: ["A/B 테스트: 결과"]');
+  });
+
+  it('omits the alias when the title survives as a filename', () => {
+    const file = renderNoteFile({ ...meta, title: 'Plain Title', content: 'body' });
+    expect(file).not.toContain('aliases:');
+  });
+});
+
+describe('saveNote — filename is the Obsidian link target', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-filename-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-filename-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  it('names the file after the title so [[Title]] resolves', async () => {
+    const title = 'Opula 유료화 전략 확정 (2026-06-25)';
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title,
+      content: 'body',
+      source: 'claude-code',
+      layer: 'past',
+    });
+    expect(isSaveRejection(result)).toBe(false);
+    expect(readdirSync(vaultDir)).toContain(`${title}.md`);
+  });
+
+  it('numbers a colliding filename instead of appending a timestamp', async () => {
+    for (const _ of [1, 2]) {
+      await saveNote(client, stubEmbedder, vaultDir, {
+        title: 'Same Title',
+        content: 'body',
+        source: 'claude-code',
+        layer: 'past',
+      });
+    }
+    expect(readdirSync(vaultDir).sort()).toEqual(['Same Title (2).md', 'Same Title.md']);
+  });
 });
 
 describe('editNote — file round-trip', () => {

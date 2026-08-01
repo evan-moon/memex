@@ -30,20 +30,42 @@ import { buildEmbeddingText, extractCategory } from '@memex/utils';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
-const sanitizeFilename = (title: string): string =>
-  title
+const FILENAME_MAX_BYTES = 200;
+
+// The filename IS the Obsidian link target: `[[Some Note]]` resolves to
+// "Some Note.md". Slugging the title (lowercase, spaces to hyphens) silently
+// breaks every wiki link pointing at the note, so the title is preserved and
+// only the characters Obsidian and the filesystem reject are replaced.
+const sanitizeFilename = (title: string): string => {
+  const cleaned = title
+    .replace(/\//g, '／')
     // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from filenames is intentional
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
-    .replace(/\s+/g, '-')
-    .toLowerCase()
+    .replace(/[<>:"\\|?*#^[\]\x00-\x1f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+|[.\s]+$/g, '');
+  const buf = Buffer.from(cleaned, 'utf8');
+  if (buf.byteLength <= FILENAME_MAX_BYTES) return cleaned;
+  return Buffer.from(buf.subarray(0, FILENAME_MAX_BYTES))
+    .toString('utf8')
+    .replace(/\uFFFD+$/, '')
     .trim();
+};
+
+const yamlString = (value: string): string =>
+  /[:#[\]{}&*!|>'"%@`,]|^\s|\s$/.test(value)
+    ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+    : value;
 
 const generateFilePath = (vaultPath: string, title: string, folder?: string): string => {
   const dir = folder ? join(vaultPath, folder) : vaultPath;
   mkdirSync(dir, { recursive: true });
-  const base = join(dir, `${sanitizeFilename(title)}.md`);
-  if (!existsSync(base)) return base;
-  return join(dir, `${sanitizeFilename(title)}-${Date.now()}.md`);
+  const base = sanitizeFilename(title) || 'untitled';
+  const first = join(dir, `${base}.md`);
+  if (!existsSync(first)) return first;
+  for (let n = 2; ; n++) {
+    const candidate = join(dir, `${base} (${n}).md`);
+    if (!existsSync(candidate)) return candidate;
+  }
 };
 
 export type NoteFileMeta = {
@@ -73,7 +95,8 @@ export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMe
     const end = content.indexOf('\n---', 3);
     if (end !== -1 && /^title:/m.test(content.slice(3, end))) {
       return (
-        content.slice(0, end).replace(/^title:\s*.*$/m, `title: ${title}`) + content.slice(end)
+        content.slice(0, end).replace(/^title:\s*.*$/m, `title: ${yamlString(title)}`) +
+        content.slice(end)
       );
     }
     return content;
@@ -83,7 +106,10 @@ export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMe
   }
   const isoDate = new Date(date).toISOString().slice(0, 10);
   const tagsLine = tags.length > 0 ? `\ntags: [${tags.join(', ')}]` : '';
-  return `---\ntitle: ${title}\ndate: ${isoDate}${tagsLine}\nlayer: ${layer}\n---\n\n# ${title}\n\n${content}`;
+  // sanitizeFilename may drop characters the filesystem rejects, which would
+  // leave `[[Exact Title]]` pointing at nothing — an alias restores the target.
+  const aliasLine = sanitizeFilename(title) === title ? '' : `\naliases: [${yamlString(title)}]`;
+  return `---\ntitle: ${yamlString(title)}\ndate: ${isoDate}${tagsLine}${aliasLine}\nlayer: ${layer}\n---\n\n# ${title}\n\n${content}`;
 };
 
 const readFlashbackOptions = (): FlashbackOptions => ({

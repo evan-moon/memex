@@ -51,4 +51,10 @@ Without asking the user, call `save_note` whenever any of these apply:
 
 Prefer `update_note` over creating a duplicate when new content belongs with an existing note.
 
-Folder convention: `conversations/<name>`, `decisions/<project>`, `learning/<topic>`, `ideas/`
+Folder convention — **subject first, never note type.** What kind of note it is lives in `layer` (past/state/rule) and `tags`, so a decision and a work log about the same project land in the same folder:
+
+- `projects/<name>` — active work (opula, firma, memex, herald, skope, agent-team)
+- `work/people/<name>` · `work/toss` · `work/interviews` · `work/quotalab` — colleagues, org history, hiring
+- `investing/` · `writing/` · `learning/<topic>` · `coding/` · `personal/`
+
+Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
