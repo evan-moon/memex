@@ -60,6 +60,28 @@ const needsQuote = (value) => /[:#[\]{}&*!|>'"%@`,]|^\s|\s$/.test(value);
 const yamlString = (value) =>
   needsQuote(value) ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
 
+// An unquoted title starting with `[` or carrying a colon is not valid YAML, so
+// Obsidian gives up on the whole block and renders it as body text. Re-quoting
+// the scalar is what makes the properties parse again.
+const QUOTED_SCALAR = /^\s*(['"]).*\1\s*$/;
+const requoteScalars = (frontmatter) =>
+  frontmatter
+    .split('\n')
+    .map((line) => {
+      const match = line.match(/^(title|aliases):[ \t]*(.*)$/);
+      if (!match) return line;
+      const [, key, raw] = match;
+      const value = raw.trim();
+      if (value.length === 0 || QUOTED_SCALAR.test(value)) return line;
+      if (key === 'aliases') {
+        const inner = value.startsWith('[') && value.endsWith(']') ? value.slice(1, -1) : value;
+        if (QUOTED_SCALAR.test(inner.trim())) return line;
+        return `aliases: [${yamlString(inner.trim())}]`;
+      }
+      return `${key}: ${yamlString(value)}`;
+    })
+    .join('\n');
+
 // macOS stores filenames decomposed (NFD) while titles from the DB are composed,
 // so every path comparison normalizes or identical paths look different.
 const nfc = (value) => value.normalize('NFC');
@@ -81,7 +103,7 @@ const readTitle = (filePath, fallback) => {
 };
 
 const backfillFrontmatter = () => {
-  const stats = { added: 0, patched: 0, ok: 0 };
+  const stats = { added: 0, patched: 0, requoted: 0, ok: 0 };
   for (const row of notes()) {
     const content = readFileSync(row.file_path, 'utf8');
     const date = new Date(row.authored_at ?? statSync(row.file_path).mtimeMs)
@@ -99,11 +121,17 @@ const backfillFrontmatter = () => {
 
     const end = content.indexOf('\n---', 3);
     const frontmatter = content.slice(3, end);
+    const quoted = requoteScalars(frontmatter);
     if (/^date:/m.test(frontmatter)) {
-      stats.ok++;
+      if (quoted === frontmatter) {
+        stats.ok++;
+        continue;
+      }
+      if (APPLY) writeFileSync(row.file_path, `---${quoted}${content.slice(end)}`);
+      stats.requoted++;
       continue;
     }
-    const patched = `---${frontmatter
+    const patched = `---${quoted
       .replace(/\n?^category:.*$/m, '')
       .trimEnd()}\ndate: ${date}${tagsLine}\nlayer: ${row.layer}${content.slice(end)}`;
     if (APPLY) writeFileSync(row.file_path, patched);

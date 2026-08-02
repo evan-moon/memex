@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
 import {
   findFlashbacks,
+  findUnresolvedLinks,
   getBacklinks,
   getNote,
   insertNote,
@@ -97,6 +98,52 @@ describe('notes.layer', () => {
     const updated = updateNote(client, note.id, { content: 'be even more terse' });
     expect(updated.content).toBe('be even more terse');
     expect(updated.layer).toBe('rule');
+  });
+});
+
+describe('findUnresolvedLinks', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-unresolved-'));
+    client = openDb(dbDir);
+    insertNote(client, {
+      title: 'Opula 유료화 전략',
+      content: 'x',
+      filePath: join(dbDir, 'a.md'),
+      source: 'manual',
+      layer: 'past',
+    });
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  it('returns nothing when every link matches a note title', () => {
+    expect(findUnresolvedLinks(client, 'see [[Opula 유료화 전략]] for context')).toEqual([]);
+  });
+
+  it('reports a link whose target does not exist', () => {
+    expect(findUnresolvedLinks(client, 'see [[Opula 유료화 전략]] and [[Nope]]')).toEqual(['Nope']);
+  });
+
+  it('resolves through the display-text form', () => {
+    expect(findUnresolvedLinks(client, '[[Opula 유료화 전략|그 결정]]')).toEqual([]);
+  });
+
+  it('ignores a heading anchor on the target', () => {
+    expect(findUnresolvedLinks(client, '[[Opula 유료화 전략#배경]]')).toEqual([]);
+  });
+
+  it('reports each dead target once', () => {
+    expect(findUnresolvedLinks(client, '[[1234]] then [[1234]] again')).toEqual(['1234']);
+  });
+
+  it('returns nothing when the content has no links', () => {
+    expect(findUnresolvedLinks(client, 'plain prose')).toEqual([]);
   });
 });
 

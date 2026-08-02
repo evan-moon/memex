@@ -58,3 +58,5 @@ Folder convention — **subject first, never note type.** What kind of note it i
 - `investing/` · `writing/` · `learning/<topic>` · `coding/` · `personal/`
 
 Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
+
+Link convention — notes are Obsidian files, so `[[Exact Note Title]]` is the only form that links. Search first and copy the title verbatim; `[[Title|display text]]` when the sentence needs other wording. Never `[[Title]](#1234)`, `[[1234]]`, `[label](path/note.md)`, or `[[some-memory-key]]` — those render as dead text. Reference an id in prose as plain `#1234`. `save_note`/`update_note` report links that resolve to nothing.

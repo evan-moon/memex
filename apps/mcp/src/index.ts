@@ -97,6 +97,14 @@ projects/<name> · work/people/<name> · work/toss · work/interviews · investi
 
 Call list_folders before saving and reuse an existing folder. Never create decisions/, dev/, conversations/, ideas/ or drafts/ — they split one subject across parallel trees.
 
+## LINKS
+
+Notes are Obsidian files, so \`[[Exact Note Title]]\` is the only link form that works. Search first and copy the title verbatim — a title you guessed at is a dead link. Use \`[[Title|display text]]\` when the sentence needs different wording.
+
+Never write: \`[[Title]](#1234)\` (the tail renders as literal text), \`[[1234]]\` (ids are not titles), \`[label](path/note.md)\` (breaks the moment a note moves), or \`[[some-memory-key]]\` (Claude's own memory files are not notes in this vault). To point at a note by id in prose, write #1234 as plain text.
+
+save_note and update_note report any link that resolves to nothing — fix those before moving on.
+
 ## TAGS
 
 Always include tags when saving or updating a note. Extract 3–7 semantic tags covering technologies, people, topics, and concepts — independent of the folder. Tags are the primary cross-category relationship mechanism (e.g. a "typescript" tag connects a conversation with Alice to a decision in decisions/memex).

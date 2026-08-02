@@ -1,5 +1,5 @@
 import { isSaveRejection, saveNote } from '@memex/core';
-import type { MemexClient, NoteSource } from '@memex/db';
+import { findUnresolvedLinks, type MemexClient, type NoteSource } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -91,7 +91,15 @@ The response may include "Flashback" lines pointing to older notes from a differ
         ? `\n\n💡 Proactive Signal: Note joined an un-synthesized ${signal.type.replace('_', ' ')} (#${signal.id}: ${signal.reasoning})`
         : '';
 
-      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}${signalSection}`;
+      const unresolved = findUnresolvedLinks(client, content);
+      const linkSection =
+        unresolved.length > 0
+          ? `\n\n🔗 These wiki links point at no note and render as dead links in Obsidian — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
+              .map((t) => `- [[${t}]]`)
+              .join('\n')}`
+          : '';
+
+      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}${linkSection}${signalSection}`;
 
       return { content: [{ type: 'text', text }] };
     },

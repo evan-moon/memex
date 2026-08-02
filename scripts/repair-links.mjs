@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 import { join, relative, extname, basename } from 'node:path';
 import { homedir } from 'node:os';
@@ -39,6 +40,57 @@ const walk = async (dir) => {
 
 const files = await walk(VAULT);
 const texts = new Map(files.map((f) => [f, readFileSync(f, 'utf8')]));
+
+const titleById = new Map(
+  JSON.parse(
+    execFileSync('sqlite3', [
+      join(homedir(), '.memex', 'memex.db'),
+      '-json',
+      `select id, title from notes where file_path like '${VAULT}%'`,
+    ]).toString() || '[]',
+  ).map((r) => [String(r.id), r.title]),
+);
+
+const NOTION_UUID = /\s*[0-9a-f]{32}$/i;
+
+// Only `[[Title]]` is a link in Obsidian. The other three shapes agents kept
+// writing render as literal text: a `(#id)` tail after a wiki link, a bare id,
+// and Notion's exported percent-encoded relative paths.
+const normalizeSyntax = (content) => {
+  const counts = { idTail: 0, idLink: 0, notionPath: 0 };
+  const next = content
+    .replace(/(\[\[[^[\]]+?\]\])\(#\d+\)/g, (_, link) => {
+      counts.idTail++;
+      return link;
+    })
+    .replace(/\[\[(\d+)\]\]/g, (whole, id) => {
+      const title = titleById.get(id);
+      if (!title) return whole;
+      counts.idLink++;
+      return `[[${title}]]`;
+    })
+    .replace(/\[([^\]]*)\]\(([^)\s]+\.md)\)/g, (whole, label, target) => {
+      if (/^https?:\/\//.test(target)) return whole;
+      const decoded = decodeURIComponent(target).replace(/\\/g, '/');
+      const clean = decoded.split('/').pop().replace(/\.md$/, '').replace(NOTION_UUID, '').trim();
+      if (!clean) return whole;
+      counts.notionPath++;
+      return label && label !== clean ? `[[${clean}|${label}]]` : `[[${clean}]]`;
+    });
+  return { next, counts };
+};
+
+const syntax = { idTail: 0, idLink: 0, notionPath: 0 };
+for (const [file, content] of texts) {
+  const { next, counts } = normalizeSyntax(content);
+  syntax.idTail += counts.idTail;
+  syntax.idLink += counts.idLink;
+  syntax.notionPath += counts.notionPath;
+  if (next === content) continue;
+  texts.set(file, next);
+  if (APPLY) writeFileSync(file, next);
+}
+console.log(`syntax normalized: ${JSON.stringify(syntax)}\n`);
 
 const aliasOf = (content) => {
   if (!content.startsWith('---')) return null;

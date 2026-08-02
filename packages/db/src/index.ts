@@ -40,6 +40,7 @@ export {
   findFlashbacks,
   findRelatedNotes,
   findSimilarByEmbedding,
+  findUnresolvedLinks,
   getBacklinks,
   getNote,
   getNoteByFilePath,

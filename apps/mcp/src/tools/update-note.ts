@@ -1,7 +1,7 @@
-import type { MemexClient } from '@memex/db';
+import { editNote, isEditRejection } from '@memex/core';
+import { findUnresolvedLinks, type MemexClient } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { editNote, isEditRejection } from '@memex/core';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -44,9 +44,20 @@ Layer rules:
         ? `\n\n💡 Proactive Signal: Note joined/extended an un-synthesized ${result.signal.type.replace('_', ' ')} (#${result.signal.id}: ${result.signal.reasoning})`
         : '';
 
+      const unresolved = content ? findUnresolvedLinks(client, content) : [];
+      const linkSection =
+        unresolved.length > 0
+          ? `\n\n🔗 These wiki links point at no note and render as dead links in Obsidian — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
+              .map((t) => `- [[${t}]]`)
+              .join('\n')}`
+          : '';
+
       return {
         content: [
-          { type: 'text', text: `Updated note #${result.id}: "${result.title}"${signalSection}` },
+          {
+            type: 'text',
+            text: `Updated note #${result.id}: "${result.title}"${linkSection}${signalSection}`,
+          },
         ],
       };
     },

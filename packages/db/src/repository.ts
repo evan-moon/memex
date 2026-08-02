@@ -385,6 +385,25 @@ export const syncLinks = (client: MemexClient, sourceId: number, content: string
   });
 };
 
+// A wiki link only works in Obsidian when a note carries that exact title (or
+// declares it as an alias), so an unmatched target is a dead link on disk, not
+// just a missing row in note_links.
+export const findUnresolvedLinks = (client: MemexClient, content: string): string[] => {
+  const targets = [
+    ...new Set(
+      [...content.matchAll(WIKI_LINK_RE)].map((m) =>
+        m[1].split('|')[0].split('#')[0].trim().normalize('NFC'),
+      ),
+    ),
+  ].filter(Boolean);
+  if (targets.length === 0) return [];
+
+  const findByTitle = client.sqlite.prepare(
+    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
+  );
+  return targets.filter((target) => !findByTitle.get(target));
+};
+
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
   client.sqlite
     .prepare(
