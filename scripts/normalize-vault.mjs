@@ -42,10 +42,13 @@ const write = (statements) => {
   execFileSync('sqlite3', [DB], { input: `begin;\n${statements.join('\n')}\ncommit;\n` });
 };
 const sqlPath = (p) => `'${p.replace(/'/g, "''")}'`;
+// Agents write to this vault while the script runs, so a row can outlive its
+// file. Those are stale until the next `memex index` prunes them — skipping
+// beats crashing halfway through a pass.
 const notes = () =>
   query(
     `select id, file_path, title, tags, layer, authored_at from notes where file_path like '${VAULT}%' order by id`,
-  );
+  ).filter((row) => existsSync(row.file_path));
 
 const parseTags = (raw) => {
   try {
@@ -244,6 +247,15 @@ const destinationOf = (row) => {
   const title = nfc(row.title);
   const rel = relOf(row.file_path);
   const has = (list) => list.some((t) => tags.includes(t));
+
+  // Mirrored Claude memory keeps its own subfolder: it is machine-written,
+  // slug-titled, and re-synced by import-claude-memory, so it should not be
+  // interleaved with the notes a human wrote about the same project.
+  if (has(['claude-memory'])) {
+    for (const [tag, dest] of PROJECT_TAGS) if (tags.includes(tag)) return `${dest}/memory`;
+    if (has(['blog'])) return 'writing/memory';
+    return 'projects/agent-team/memory';
+  }
 
   if (has(['category-theory', 'ctfp'])) return 'learning/Category Theory';
   if (has(['regex', '정규식'])) return 'learning/정규식';
