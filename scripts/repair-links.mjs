@@ -104,18 +104,29 @@ const aliasOf = (content) => {
 };
 
 const resolvable = new Set();
+const nameToFile = new Map();
 for (const [file, content] of texts) {
-  resolvable.add(basename(file, '.md').normalize('NFC'));
+  const stem = basename(file, '.md').normalize('NFC');
+  resolvable.add(stem);
+  nameToFile.set(stem, file);
   const alias = aliasOf(content);
-  if (alias) resolvable.add(alias.normalize('NFC'));
+  if (alias) {
+    resolvable.add(alias.normalize('NFC'));
+    nameToFile.set(alias.normalize('NFC'), file);
+  }
 }
+
+// Obsidian resolves link targets case-insensitively, so [[Firma]] finding
+// firma.md is not a broken link and must not be "repaired".
+const resolvableLower = new Set([...resolvable].map((v) => v.toLowerCase()));
 
 const LINK = /\[\[([^[\]]+?)\]\]/g;
 const broken = new Map();
 for (const content of texts.values()) {
   for (const match of content.matchAll(LINK)) {
     const target = match[1].split('|')[0].split('#')[0].trim().normalize('NFC');
-    if (target && !resolvable.has(target)) broken.set(target, (broken.get(target) ?? 0) + 1);
+    if (target && !resolvableLower.has(target.toLowerCase()))
+      broken.set(target, (broken.get(target) ?? 0) + 1);
   }
 }
 
@@ -140,13 +151,67 @@ const pool = [...resolvable];
 const confident = new Map();
 const uncertain = [];
 
-// A note retitled by appending (a date, an outcome) leaves links holding the old
-// prefix. When exactly one note extends the target, that is the note — no ratio
-// threshold is as precise here, and a tie means it stays a human's call.
-const uniquePrefixMatch = (target) => {
-  if (target.length < 8) return null;
-  const extensions = pool.filter((c) => c !== target && c.startsWith(target));
-  return extensions.length === 1 ? extensions[0] : null;
+// Links drift from titles in three mechanical ways, all recoverable without
+// guessing: the link text was truncated (often with a trailing ellipsis), the
+// note was later retitled by appending, or a prefix like "완료·대체됨 " was put
+// in front of it. Comparing on a folded form catches all three — including the
+// fullwidth solidus a title picks up when it becomes a filename.
+const fold = (value) =>
+  value
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/／/g, '/')
+    .replace(/[.·\s…]+$/u, '')
+    .trim();
+
+// Candidates are counted per note, not per string: a sanitized filename and the
+// alias carrying its original title both name the SAME note, and treating them
+// as two matches makes every such note fail the uniqueness test.
+const foldedPool = [...nameToFile].map(([value, file]) => ({
+  candidate: value,
+  folded: fold(value),
+  file,
+}));
+
+const uniqueByFile = (matches) => {
+  const files = new Set(matches.map((m) => m.file));
+  if (files.size !== 1) return null;
+  return matches.reduce((a, b) => (a.candidate.length <= b.candidate.length ? a : b)).candidate;
+};
+
+const uniqueMatch = (target) => {
+  const folded = fold(target);
+  if (folded.length < 8) return null;
+
+  const exact = uniqueByFile(foldedPool.filter((c) => c.folded === folded));
+  if (exact) return { pick: exact, why: 'folded' };
+
+  const prefixed = uniqueByFile(
+    foldedPool.filter((c) => c.folded !== folded && c.folded.startsWith(folded)),
+  );
+  if (prefixed) return { pick: prefixed, why: 'prefix' };
+
+  // A containment match is looser, so it needs the target to carry real signal:
+  // short fragments would match half the vault.
+  if (folded.length >= 16) {
+    const contained = uniqueByFile(
+      foldedPool.filter((c) => c.folded !== folded && c.folded.includes(folded)),
+    );
+    if (contained) return { pick: contained, why: 'contains' };
+  }
+
+  // Retitles that grow in the middle ("완료·대체됨 X (date, 종결)" for "X (date)")
+  // break every substring rule, but the note is still pinned by two independent
+  // anchors: a long shared opening and the same ISO date.
+  const date = folded.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const head = folded.replace(/\s*\(?\d{4}-\d{2}-\d{2}.*$/, '').trim();
+  if (date && head.length >= 12) {
+    const anchored = uniqueByFile(
+      foldedPool.filter((c) => c.folded !== folded && c.folded.includes(head) && c.folded.includes(date)),
+    );
+    if (anchored) return { pick: anchored, why: 'head+date' };
+  }
+  return null;
 };
 
 for (const [target, count] of [...broken].sort((a, b) => b[1] - a[1])) {
@@ -154,15 +219,15 @@ for (const [target, count] of [...broken].sort((a, b) => b[1] - a[1])) {
     .map((candidate) => ({ candidate, ratio: similarity(target, candidate) }))
     .sort((a, b) => b.ratio - a.ratio);
   const [best, runnerUp] = ranked;
-  const prefix = uniquePrefixMatch(target);
+  const structural = uniqueMatch(target);
   const pick =
-    prefix ??
+    structural?.pick ??
     (best && best.ratio >= MIN_RATIO && best.ratio - (runnerUp?.ratio ?? 0) > MARGIN
       ? best.candidate
       : null);
   if (pick) {
     confident.set(target, pick);
-    const why = prefix ? 'prefix' : best.ratio.toFixed(2);
+    const why = structural?.why ?? best.ratio.toFixed(2);
     console.log(`fix  ${count}x  ${why}  ${target}\n            -> ${pick}`);
   } else {
     uncertain.push({ target, count, best: best?.candidate, ratio: best?.ratio ?? 0 });

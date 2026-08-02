@@ -10,7 +10,12 @@ const usage = `Copy Claude Code memory files into the vault so their [[slug]] li
 Memory stays where it is — the harness injects it into every session and
 deleting it would cost the agents that context. This mirrors it into memex as
 the searchable, linkable layer. The note title IS the memory slug, because
-that is what every existing link addresses.`;
+that is what every existing link addresses.
+
+Mirrors are regenerated from source, so run repair-links AFTER this, never
+before: a handful of memory files link to each other by shortened key
+("blog-not-marketing-channel" for feedback_blog_not_marketing_channel), and
+only repair-links can resolve those.`;
 
 const arg = (flag, fallback) => {
   const i = process.argv.indexOf(flag);
@@ -64,6 +69,20 @@ const unquote = (value) => {
     : raw;
 };
 
+// Memory notes cross-reference each other with the separator style of the day
+// (`project-firma` for a file named `project_firma`). Since this importer
+// regenerates the body from source, fixing those links downstream would be
+// undone on every run — so they are resolved here, at the point of writing.
+const slugKey = (value) => value.toLowerCase().replace(/[-_\s]+/g, '-');
+
+const linkToKnownSlug = (exactSlugs, slugsByKey) => (body) =>
+  body.replace(/\[\[([^[\]|#]+?)\]\]/g, (whole, target) => {
+    const trimmed = target.trim();
+    if (exactSlugs.has(trimmed)) return whole;
+    const match = slugsByKey.get(slugKey(trimmed));
+    return match && match !== trimmed ? `[[${match}]]` : whole;
+  });
+
 // The same three shapes normalize-vault strips from the vault also show up in
 // memory bodies, since the same agents wrote both.
 const normalizeLinks = (body) =>
@@ -88,9 +107,11 @@ const parse = (filePath) => {
   const body = content.slice(end + 4).replace(/^\n+/, '');
   const field = (key) => frontmatter.match(new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`, 'm'))?.[1];
   // The filename is the key every [[link]] addresses; the `name:` field drifts
-  // from it (and is sometimes blank or truncated), so it is not the title.
+  // from it (and is sometimes blank or truncated), so it is not the title —
+  // but links written against that field still need somewhere to land.
   return {
     slug: basename(filePath, '.md'),
+    name: unquote(field('name') ?? ''),
     description: unquote(field('description') ?? ''),
     type: unquote(field('type') ?? 'project'),
     modified: unquote(field('modified') ?? ''),
@@ -101,6 +122,18 @@ const parse = (filePath) => {
 const projects = readdirSync(SOURCE, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(join(SOURCE, d.name, 'memory')))
   .map((d) => d.name);
+
+const exactSlugs = new Set();
+const slugsByKey = new Map();
+for (const project of projects) {
+  for (const entry of readdirSync(join(SOURCE, project, 'memory'))) {
+    if (!entry.endsWith('.md') || entry === 'MEMORY.md') continue;
+    const slug = basename(entry, '.md');
+    exactSlugs.add(slug);
+    slugsByKey.set(slugKey(slug), slug);
+  }
+}
+const resolveSlugLinks = linkToKnownSlug(exactSlugs, slugsByKey);
 
 const stats = { written: 0, skipped: 0, unchanged: 0 };
 const byFolder = new Map();
@@ -124,7 +157,9 @@ for (const project of projects) {
       .slice(0, 10);
 
     const lead = parsed.description ? `> ${parsed.description}\n\n` : '';
-    const file = `---\ntitle: ${yamlString(parsed.slug)}\ndate: ${date}\ntags: [${tags.join(', ')}]\nlayer: state\n---\n\n# ${parsed.slug}\n\n${lead}${normalizeLinks(parsed.body)}`;
+    const aliasLine =
+      parsed.name && parsed.name !== parsed.slug ? `\naliases: [${yamlString(parsed.name)}]` : '';
+    const file = `---\ntitle: ${yamlString(parsed.slug)}\ndate: ${date}\ntags: [${tags.join(', ')}]${aliasLine}\nlayer: state\n---\n\n# ${parsed.slug}\n\n${lead}${resolveSlugLinks(normalizeLinks(parsed.body))}`;
 
     const target = join(VAULT, folder, `${parsed.slug}.md`);
     byFolder.set(folder, (byFolder.get(folder) ?? 0) + 1);

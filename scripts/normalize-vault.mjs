@@ -77,9 +77,35 @@ const requoteScalars = (frontmatter) =>
       const value = raw.trim();
       if (value.length === 0 || QUOTED_SCALAR.test(value)) return line;
       if (key === 'aliases') {
-        const inner = value.startsWith('[') && value.endsWith(']') ? value.slice(1, -1) : value;
-        if (QUOTED_SCALAR.test(inner.trim())) return line;
-        return `aliases: [${yamlString(inner.trim())}]`;
+        if (!(value.startsWith('[') && value.endsWith(']'))) return `aliases: [${yamlString(value)}]`;
+        // Split on top-level commas only: an alias is usually a note title, and
+        // titles contain commas, so a naive split would fuse or shred entries.
+        const items = [];
+        let depth = 0;
+        let quote = '';
+        let buffer = '';
+        for (const ch of value.slice(1, -1)) {
+          if (quote) {
+            buffer += ch;
+            if (ch === quote && !buffer.endsWith(`\\${ch}`)) quote = '';
+            continue;
+          }
+          if (ch === '"' || ch === "'") quote = ch;
+          if (ch === '[') depth++;
+          if (ch === ']') depth--;
+          if (ch === ',' && depth === 0) {
+            items.push(buffer);
+            buffer = '';
+            continue;
+          }
+          buffer += ch;
+        }
+        items.push(buffer);
+        const quoted = items
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((item) => (QUOTED_SCALAR.test(item) ? item : yamlString(item)));
+        return quoted.length > 0 ? `aliases: [${quoted.join(', ')}]` : line;
       }
       return `${key}: ${yamlString(value)}`;
     })
