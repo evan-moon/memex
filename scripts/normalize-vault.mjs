@@ -221,7 +221,9 @@ const PROJECT_TAGS = [
   ['quotalab', 'work/quotalab'],
   ['쿼타랩', 'work/quotalab'],
 ];
-const AGENT_TAGS = ['claude-code', 'multi-agent', 'session-handoff', 'second-brain', 'skill'];
+// 'second-brain' is memex's own subject, not an agent-team marker — leaving it
+// here filed memex.md and skope.md under the agent team instead of their projects.
+const AGENT_TAGS = ['claude-code', 'multi-agent', 'session-handoff', 'skill'];
 const PEOPLE_TAGS = ['coffee-chat', '커피챗', '1on1'];
 const INVEST_TAGS = ['investment', 'finance', 'fire', 'portfolio', 'housing', '투자', '부동산', '주거', 'tsla', 'etf', '자산배분'];
 const TOSS_TAGS = ['toss', '토스', 'hr', 'hiring', 'staffing', 'f-lead', 'organization', '채용'];
