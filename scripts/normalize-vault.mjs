@@ -249,7 +249,10 @@ const PROJECT_TAGS = [
 ];
 // 'second-brain' is memex's own subject, not an agent-team marker — leaving it
 // here filed memex.md and skope.md under the agent team instead of their projects.
-const AGENT_TAGS = ['claude-code', 'multi-agent', 'session-handoff', 'skill'];
+const AGENT_TAGS = ['claude-code', 'multi-agent', 'session-handoff'];
+// A skill belongs to whatever it automates, so 'skill' only decides the folder
+// when no project tag does.
+const WEAK_AGENT_TAGS = ['skill'];
 const PEOPLE_TAGS = ['coffee-chat', '커피챗', '1on1'];
 const INVEST_TAGS = ['investment', 'finance', 'fire', 'portfolio', 'housing', '투자', '부동산', '주거', 'tsla', 'etf', '자산배분'];
 const TOSS_TAGS = ['toss', '토스', 'hr', 'hiring', 'staffing', 'f-lead', 'organization', '채용'];
@@ -293,6 +296,7 @@ const destinationOf = (row) => {
   if (has(AGENT_TAGS)) return 'projects/agent-team';
 
   for (const [tag, dest] of PROJECT_TAGS) if (tags.includes(tag)) return dest;
+  if (has(WEAK_AGENT_TAGS)) return 'projects/agent-team';
 
   const person = title.match(/^([가-힣]{2,4})님/)?.[1] ?? null;
   if (person && has(PEOPLE_TAGS)) return `work/people/${person}`;
