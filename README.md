@@ -68,6 +68,13 @@ Connect to Claude Code:
 memex mcp install
 ```
 
+This registers memex with both Claude Code and Codex. Restart the clients after installation. To register either client manually:
+
+```bash
+claude mcp add memex -- node "$(memex mcp path)"
+codex mcp add memex -- node "$(memex mcp path)"
+```
+
 That's it. On first run, the embedding model (~450MB) downloads once to `~/.memex/models/`.
 
 ### Auto-recall (optional)
@@ -160,7 +167,7 @@ memex config show
 memex config set vault-path ~/Documents/Second\ Brain
 
 # MCP
-memex mcp install                            # register with Claude Code
+memex mcp install                            # register with Claude Code and Codex
 
 # Auto-recall
 memex recall install                         # search notes on every prompt, inject hits
@@ -172,16 +179,22 @@ memex mcp path                               # print MCP binary path
 
 ## MCP server
 
-### Claude Code
+### Claude Code and Codex
 
 ```bash
 memex mcp install
 ```
 
-Or manually:
+Or manually for Claude Code:
 
 ```bash
 claude mcp add memex -- node "$(memex mcp path)"
+```
+
+For Codex:
+
+```bash
+codex mcp add memex -- node "$(memex mcp path)"
 ```
 
 ### Claude Desktop

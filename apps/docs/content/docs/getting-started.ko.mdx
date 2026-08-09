@@ -9,10 +9,16 @@ description: 2분 안에 memex를 시작하세요.
 npm install -g @evan-moon/memex
 ```
 
-## Claude Code 연결
+## Claude Code 및 Codex 연결
 
 ```bash
 memex mcp install
+```
+
+Claude Code와 Codex 양쪽에 memex가 등록됩니다. 설치 후 두 클라이언트를 재시작하세요. Codex에 수동으로 등록하려면:
+
+```bash
+codex mcp add memex -- node "$(memex mcp path)"
 ```
 
 끝입니다. 최초 실행 시 임베딩 모델(~450 MB)이 `~/.memex/models/`에 한 번만 다운로드됩니다. 이후 실행은 완전히 오프라인으로 동작합니다.
