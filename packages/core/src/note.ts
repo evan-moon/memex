@@ -454,7 +454,6 @@ export const editNote = async (
 
   const relDir = relative(vaultPath, dirname(note.filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
-  client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   await indexNoteVectors(client, embedder, id, {
     title,
     content,

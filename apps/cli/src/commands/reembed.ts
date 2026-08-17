@@ -39,9 +39,6 @@ export const registerReembed = (program: Command) => {
           const category = extractCategory(folder);
 
           const tags = parseTags(note.tags);
-          client.sqlite
-            .prepare('DELETE FROM note_embeddings WHERE note_id = ?')
-            .run(BigInt(note.id));
           chunks += await indexNoteVectors(client, embedder, note.id, {
             title: note.title,
             content: note.content,

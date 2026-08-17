@@ -133,3 +133,15 @@ describe('chunk search arm', () => {
     expect(searchNotes(client, 'x', unit(7), 5).filter((h) => h.id === note.id)).toHaveLength(1);
   });
 });
+
+describe('saveEmbedding', () => {
+  it('replaces a note vector instead of failing on the second save', () => {
+    const note = addNote('n', 'body');
+    saveEmbedding(client, note.id, unit(1));
+    expect(() => saveEmbedding(client, note.id, unit(2))).not.toThrow();
+    const { n } = client.sqlite
+      .prepare('SELECT COUNT(*) AS n FROM note_embeddings WHERE note_id = ?')
+      .get(BigInt(note.id)) as { n: number };
+    expect(n).toBe(1);
+  });
+});

@@ -13,7 +13,7 @@ export type MemexClient = {
   sqlite: Database.Database;
 };
 
-export const openDb = (dbDir: string): MemexClient => {
+export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
 
   const sqlite = new Database(join(dbDir, 'memex.db'));
@@ -51,13 +51,13 @@ export const openDb = (dbDir: string): MemexClient => {
   const embRow = sqlite
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_embeddings'")
     .get() as { sql: string } | undefined;
-  if (!embRow?.sql?.includes(`FLOAT[${EMBEDDING_DIM}]`)) {
+  if (!embRow?.sql?.includes(`FLOAT[${embeddingDim}]`)) {
     sqlite.exec('DROP TABLE IF EXISTS note_embeddings');
   }
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS note_embeddings USING vec0(
       note_id   INTEGER PRIMARY KEY,
-      embedding FLOAT[${EMBEDDING_DIM}]
+      embedding FLOAT[${embeddingDim}]
     );
   `);
 
@@ -79,14 +79,14 @@ export const openDb = (dbDir: string): MemexClient => {
       "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_chunk_embeddings'",
     )
     .get() as { sql: string } | undefined;
-  if (chunkEmbRow && !chunkEmbRow.sql.includes(`FLOAT[${EMBEDDING_DIM}]`)) {
+  if (chunkEmbRow && !chunkEmbRow.sql.includes(`FLOAT[${embeddingDim}]`)) {
     sqlite.exec('DROP TABLE IF EXISTS note_chunk_embeddings');
     sqlite.exec('DELETE FROM note_chunks');
   }
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS note_chunk_embeddings USING vec0(
       chunk_id  INTEGER PRIMARY KEY,
-      embedding FLOAT[${EMBEDDING_DIM}]
+      embedding FLOAT[${embeddingDim}]
     );
   `);
 

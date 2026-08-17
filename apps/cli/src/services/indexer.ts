@@ -119,7 +119,6 @@ const indexFile = async (
       authoredAt,
       tags: serializeTags(tags),
     });
-    client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(existing.id));
     await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
   } else {

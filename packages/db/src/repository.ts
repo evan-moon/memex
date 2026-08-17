@@ -26,11 +26,19 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
   return inserted;
 };
 
+// vec0 rejects INSERT OR REPLACE on its primary key, so re-embedding a note is
+// a delete followed by an insert. Doing it here keeps every caller from having
+// to remember, and makes a second save of the same note a no-op rather than a
+// UNIQUE constraint failure.
 export const saveEmbedding = (client: MemexClient, noteId: number, embedding: number[]): void => {
   const vec = new Float32Array(embedding);
-  client.sqlite
-    .prepare('INSERT OR REPLACE INTO note_embeddings(note_id, embedding) VALUES (?, ?)')
-    .run(BigInt(noteId), Buffer.from(vec.buffer));
+  const run = client.sqlite.transaction(() => {
+    client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(noteId));
+    client.sqlite
+      .prepare('INSERT INTO note_embeddings(note_id, embedding) VALUES (?, ?)')
+      .run(BigInt(noteId), Buffer.from(vec.buffer));
+  });
+  run();
 };
 
 export type EmbeddedChunk = {
