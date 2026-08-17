@@ -1,10 +1,10 @@
 import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { indexNoteVectors, semanticSearch } from '@memex/core';
 import { listNotes, openDb, parseTags } from '@memex/db';
 import { createEmbedder, type EmbeddingModel } from '@memex/embed';
-import { extractCategory, MODEL_CACHE_DIR } from '@memex/utils';
+import { expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 
 const usage = `Score a candidate embedding model without disturbing the live index.
 
@@ -44,15 +44,26 @@ console.log(`working copy ${workDir}\n`);
 const client = openDb(workDir, spec.dim);
 const embedder = await createEmbedder(MODEL_CACHE_DIR, spec);
 
+const config = loadConfig();
+const basePaths = [expandPath(config.vault_path), ...config.sources.map((s) => expandPath(s.path))];
+
+// The indexer embeds each note under its path relative to the vault, not its
+// top-level category, so the candidate has to see the same prefix or the
+// comparison measures the prefix instead of the model.
+const folderOf = (filePath: string): string | undefined => {
+  const base = basePaths.find((p) => filePath.startsWith(p));
+  const relDir = base ? relative(base, dirname(filePath)) : undefined;
+  return relDir && !relDir.startsWith('..') ? relDir : undefined;
+};
+
 const notes = listNotes(client, 100_000);
 const started = Date.now();
 const chunks = await notes.reduce(async (pending, note, i) => {
   const done = await pending;
-  const folder = extractCategory(note.category) ? (note.category ?? undefined) : undefined;
   const count = await indexNoteVectors(client, embedder, note.id, {
     title: note.title,
     content: note.content,
-    folder,
+    folder: folderOf(note.filePath),
     tags: parseTags(note.tags),
   });
   if (i % 50 === 0) {
