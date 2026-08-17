@@ -2,6 +2,7 @@ import { type Reranker, semanticSearchMulti } from '@memex/core';
 import {
   type FlashbackOptions,
   findFlashbacks,
+  getAmendmentsFor,
   type MemexClient,
   needsReembed,
   parseTags,
@@ -17,6 +18,14 @@ const SNIPPET_MAX_CHARS = 300;
 export const toSnippet = (content: string): string => {
   const flat = stripFrontmatter(content).replace(/\s+/g, ' ').trim();
   return flat.length > SNIPPET_MAX_CHARS ? `${flat.slice(0, SNIPPET_MAX_CHARS)}…` : flat;
+};
+
+export const supersededLine = (corrections: { id: number; title: string }[]): string => {
+  const newest = corrections.at(-1);
+  if (!newest) return '';
+  const earlier = corrections.length - 1;
+  const others = earlier > 0 ? ` (and ${earlier} earlier correction${earlier > 1 ? 's' : ''})` : '';
+  return `\n   ⚠️ superseded — corrected by #${newest.id} "${newest.title}"${others}. Read that before using this note.`;
 };
 
 export const formatSize = (chars: number): string =>
@@ -97,6 +106,11 @@ export const registerSearchNotes = (
               .join('\n')}`
           : '';
 
+      const amendments = getAmendmentsFor(
+        client,
+        results.map((r) => r.id),
+      );
+
       const text =
         `Compact index — call get_note(id) for full content of relevant results.\n\n${results
           .map((r, i) => {
@@ -111,7 +125,8 @@ export const registerSearchNotes = (
               .filter(Boolean)
               .join(' | ');
             const snippet = r.matchSnippet ? toSnippet(r.matchSnippet) : toSnippet(r.content);
-            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}`;
+            const correctionLine = supersededLine(amendments.get(r.id) ?? []);
+            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +
         flashbackHint +

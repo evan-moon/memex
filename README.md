@@ -105,6 +105,7 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 - **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
 - **Duplicate detection**, `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
 - **Backlinks**, link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
+- **Amendments**, a correction records what it corrects (`amends`), so search flags the superseded note and points at the newest fix instead of returning a claim you already know is wrong
 - **Digest**, `memex digest` summarises notes saved in the last N days, grouped by folder
 - **CLI**, add, search, tag, browse, and index notes from the terminal
 - **Obsidian-compatible**, notes saved as `.md` files; works alongside existing vaults

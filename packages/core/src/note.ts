@@ -10,6 +10,7 @@ import {
   findSimilarByEmbedding,
   getNote,
   insertNote,
+  linkAmendment,
   type MemexClient,
   type Note,
   type NoteLayer,
@@ -154,9 +155,17 @@ export const saveNote = async (
     folder?: string;
     tags?: string[];
     actor?: WriteActor;
+    amends?: number;
   },
 ): Promise<
-  | { note: Note; similar: SimilarNote[]; flashbacks: Flashback[]; signal?: Signal }
+  | {
+      note: Note;
+      similar: SimilarNote[];
+      flashbacks: Flashback[];
+      signal?: Signal;
+      amended?: Note;
+      amendsMissing?: number;
+    }
   | RuleWriteRejection
 > => {
   // Rule notes become SERVER_INSTRUCTIONS on the next startup — letting the agent channel write
@@ -192,7 +201,7 @@ export const saveNote = async (
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const { actor: _actor, ...noteParams } = params;
+  const { actor: _actor, amends: _amends, ...noteParams } = params;
   const note = insertNote(client, {
     ...noteParams,
     filePath,
@@ -209,6 +218,9 @@ export const saveNote = async (
   );
   syncLinks(client, note.id, params.content);
 
+  const amended = params.amends === undefined ? undefined : getNote(client, params.amends);
+  if (amended) linkAmendment(client, note.id, amended.id);
+
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
 
@@ -218,7 +230,14 @@ export const saveNote = async (
   const signals = refreshSignals(client);
   const signal = findBestProactiveSignal(signals, note.id);
 
-  return { note, similar, flashbacks, signal };
+  return {
+    note,
+    similar,
+    flashbacks,
+    signal,
+    ...(amended ? { amended } : {}),
+    ...(params.amends !== undefined && !amended ? { amendsMissing: params.amends } : {}),
+  };
 };
 
 export type Reranker = (query: string, passages: string[]) => Promise<number[]>;
@@ -322,7 +341,13 @@ export type EditNoteRejection =
   | {
       error: 'PAST_IMMUTABLE';
       message: string;
-      suggestion: { action: 'save_note'; title: string; link: string; layer: NoteLayer };
+      suggestion: {
+        action: 'save_note';
+        title: string;
+        link: string;
+        layer: NoteLayer;
+        amends: number;
+      };
     }
   | { error: 'RULE_USER_ONLY'; message: string };
 
@@ -339,12 +364,15 @@ export const editNote = async (
   if (note.layer === 'past') {
     return {
       error: 'PAST_IMMUTABLE',
-      message: 'past notes are immutable. Create an Amendment note instead.',
+      message:
+        'past notes are immutable. Save an Amendment note instead, passing amends so ' +
+        'search can warn that this note was corrected.',
       suggestion: {
         action: 'save_note',
         title: `[Amendment] ${note.title}`,
         link: `[[${note.title}]]`,
         layer: 'past',
+        amends: note.id,
       },
     };
   }

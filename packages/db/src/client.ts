@@ -152,6 +152,29 @@ export const openDb = (dbDir: string): MemexClient => {
     sqlite.exec("ALTER TABLE note_links ADD COLUMN source TEXT NOT NULL DEFAULT 'wiki'");
   }
 
+  // `source` was added by ALTER on older DBs, which cannot widen a primary key —
+  // so a pair already joined by a wiki link silently rejected every other edge
+  // type between the same two notes, amendments included. Rebuild the table so
+  // one note can both cite and correct another.
+  const linkPk = sqlite.prepare('PRAGMA table_info(note_links)').all() as {
+    name: string;
+    pk: number;
+  }[];
+  if (!linkPk.some((c) => c.name === 'source' && c.pk > 0)) {
+    sqlite.exec(`
+      CREATE TABLE note_links_rebuilt (
+        source_id INTEGER NOT NULL,
+        target_id INTEGER NOT NULL,
+        source    TEXT    NOT NULL DEFAULT 'wiki',
+        PRIMARY KEY (source_id, target_id, source)
+      );
+      INSERT OR IGNORE INTO note_links_rebuilt(source_id, target_id, source)
+        SELECT source_id, target_id, source FROM note_links;
+      DROP TABLE note_links;
+      ALTER TABLE note_links_rebuilt RENAME TO note_links;
+    `);
+  }
+
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       title,

@@ -1,7 +1,7 @@
+import { getAmendments, getNote, openDb } from '@memex/db';
+import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { openDb, getNote } from '@memex/db';
-import { formatDate, CONFIG_DIR } from '@memex/utils';
 import { layerBadge } from '../layer.ts';
 
 export const registerShow = (program: Command) => {
@@ -17,12 +17,22 @@ export const registerShow = (program: Command) => {
         process.exit(1);
       }
 
+      const amendments = getAmendments(client, note.id);
+
       console.log();
       console.log(`${layerBadge(note.layer)} ${pc.bold(`# ${note.title}`)}`);
+      if (amendments.length > 0) {
+        console.log(pc.yellow(`⚠ corrected by ${amendments.length} later note(s):`));
+        for (const a of amendments) console.log(pc.yellow(`  #${a.id} ${a.title}`));
+      }
       console.log();
       console.log(note.content);
       console.log();
-      console.log(pc.dim(`id: ${note.id} | layer: ${note.layer} | source: ${note.source} | created: ${formatDate(new Date(note.createdAt))}`));
+      console.log(
+        pc.dim(
+          `id: ${note.id} | layer: ${note.layer} | source: ${note.source} | created: ${formatDate(new Date(note.createdAt))}`,
+        ),
+      );
 
       const flashbackLinks = client.sqlite
         .prepare(

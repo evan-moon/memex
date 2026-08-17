@@ -1,7 +1,7 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
-import { getNote, getBacklinks } from '@memex/db';
+import { getAmendments, getBacklinks, getNote } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 export const registerGetNote = (server: McpServer, client: MemexClient) => {
   server.tool(
@@ -14,13 +14,21 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
 
+      const amendments = getAmendments(client, id);
+      const amendmentSection =
+        amendments.length > 0
+          ? `\n\n---\n⚠️ **Corrected by later notes** — read these before relying on anything above:\n${amendments
+              .map((a) => `- #${a.id} [[${a.title}]]`)
+              .join('\n')}`
+          : '';
+
       const backlinks = getBacklinks(client, id);
       const backlinkSection =
         backlinks.length > 0
           ? `\n\n---\n**Referenced by:**\n${backlinks.map((b) => `- #${b.id} [[${b.title}]]`).join('\n')}`
           : '';
 
-      const text = `# ${note.title}\n\n${note.content}${backlinkSection}\n\n---\nid: ${note.id} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
+      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${backlinkSection}\n\n---\nid: ${note.id} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
       return { content: [{ type: 'text', text }] };
     },
   );

@@ -19,7 +19,7 @@ export const registerSaveNote = (
 
 - past: record of what happened (retros, meetings, decision rationale,
         interviews, debugging sessions). Cannot be updated later —
-        corrections go in a new [Amendment] note that wiki-links back.
+        corrections go in a new [Amendment] note that passes \`amends\`.
 - state: current state or plans (project progress, a person's current
          role, future roadmap). Freely updatable.
 - rule: behaviour guidance for Claude (coding style, search policy, etc.).
@@ -50,13 +50,20 @@ The response may include "Flashback" lines pointing to older notes from a differ
         .optional()
         .default('claude-code')
         .describe('Origin of the note'),
+      amends: z
+        .number()
+        .int()
+        .optional()
+        .describe(
+          'Id of a note this one corrects or supersedes. Always pass it when saving an [Amendment] — it is what makes search warn that the older note was corrected, instead of returning the superseded claim on its own.',
+        ),
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
           'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — user-only; this tool rejects rule writes (suggest `memex add --layer rule`). When in doubt, choose past.',
         ),
     },
-    async ({ title, content, folder, tags, source, layer }) => {
+    async ({ title, content, folder, tags, source, layer, amends }) => {
       const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
@@ -64,11 +71,18 @@ The response may include "Flashback" lines pointing to older notes from a differ
         tags,
         source: source as NoteSource,
         layer,
+        amends,
       });
       if (isSaveRejection(result)) {
         return { content: [{ type: 'text', text: result.message }], isError: true };
       }
-      const { note, similar, flashbacks, signal } = result;
+      const { note, similar, flashbacks, signal, amended, amendsMissing } = result;
+
+      const amendSection = amended
+        ? `\n\n🔗 Recorded as an amendment of #${amended.id} "${amended.title}" — searches that surface it will now carry the correction.`
+        : amendsMissing !== undefined
+          ? `\n\n⚠️ amends #${amendsMissing} matches no note, so nothing links this correction to what it corrects. Search for the note and save again with the right id.`
+          : '';
 
       const warning =
         similar.length > 0
@@ -99,7 +113,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
               .join('\n')}`
           : '';
 
-      const text = `Saved note #${note.id}: "${note.title}"${warning}${flashbackSection}${linkSection}${signalSection}`;
+      const text = `Saved note #${note.id}: "${note.title}"${amendSection}${warning}${flashbackSection}${linkSection}${signalSection}`;
 
       return { content: [{ type: 'text', text }] };
     },

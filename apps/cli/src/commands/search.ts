@@ -1,6 +1,6 @@
 import { spinner } from '@clack/prompts';
 import { semanticSearch } from '@memex/core';
-import { findFlashbacks, openDb } from '@memex/db';
+import { findFlashbacks, getAmendmentsFor, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { createLazyReranker } from '@memex/rerank';
 import { CONFIG_DIR, MODEL_CACHE_DIR, stripFrontmatter } from '@memex/utils';
@@ -59,11 +59,22 @@ export const registerSearch = (program: Command) => {
           return;
         }
 
+        const amendments = getAmendmentsFor(
+          client,
+          results.map((r) => r.id),
+        );
+
         for (const note of results) {
           console.log();
           console.log(
             `${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`,
           );
+          const corrections = amendments.get(note.id) ?? [];
+          const newest = corrections.at(-1);
+          if (newest) {
+            const others = corrections.length > 1 ? ` (+${corrections.length - 1} earlier)` : '';
+            console.log(pc.yellow(`⚠ superseded by #${newest.id} "${newest.title}"${others}`));
+          }
           const body = stripFrontmatter(note.matchSnippet ?? note.content);
           const preview = body.slice(0, 300).replace(/\s+/g, ' ').trim();
           console.log(pc.dim(preview + (body.length > 300 ? '…' : '')));

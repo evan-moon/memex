@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
+import { getAmendments, insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   editNote,
@@ -369,6 +369,59 @@ describe('saveNote — flashbacks', () => {
       .prepare('SELECT source FROM note_links WHERE source_id = ? AND target_id = ?')
       .all(note.id, old.id) as { source: string }[];
     expect(links.some((l) => l.source === 'flashback')).toBe(true);
+  });
+});
+
+describe('saveNote — amendments', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-amend-core-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-amend-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  const save = (title: string, amends?: number) =>
+    saveNote(client, stubEmbedder, vaultDir, {
+      title,
+      content: 'body',
+      source: 'manual',
+      layer: 'past',
+      amends,
+    });
+
+  it('links the amendment to what it corrects', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const fix = await save('[Amendment] original', original.note.id);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(fix.amended?.id).toBe(original.note.id);
+    expect(getAmendments(client, original.note.id).map((a) => a.id)).toEqual([fix.note.id]);
+  });
+
+  it('reports an amends id that matches no note instead of linking nothing', async () => {
+    const fix = await save('[Amendment] gone', 9999);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(fix.amendsMissing).toBe(9999);
+    expect(fix.amended).toBeUndefined();
+  });
+
+  it('saves normally when no correction is claimed', async () => {
+    const plain = await save('plain');
+    if (isSaveRejection(plain)) throw new Error('unexpected rejection');
+
+    expect(plain.amended).toBeUndefined();
+    expect(plain.amendsMissing).toBeUndefined();
   });
 });
 

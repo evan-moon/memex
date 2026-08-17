@@ -504,6 +504,58 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
     )
     .all(targetId) as Note[];
 
+export const linkAmendment = (
+  client: MemexClient,
+  amendmentId: number,
+  amendedId: number,
+): void => {
+  client.sqlite
+    .prepare(
+      "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'amends')",
+    )
+    .run(amendmentId, amendedId);
+};
+
+export type Amendment = { id: number; title: string; authoredAt: number };
+
+// Amendments chain: [Amendment 2] usually corrects [Amendment 1], not the
+// original, so a note is stale if anything downstream of it corrected it —
+// walking one hop would warn about the first correction and hide the last four.
+// UNION (not UNION ALL) makes the walk terminate even on a malformed cycle.
+const AMENDMENT_CHAIN = `
+  WITH RECURSIVE chain(origin, id) AS (
+    SELECT l.target_id, l.source_id
+    FROM note_links l
+    WHERE l.source = 'amends' AND l.target_id IN (SELECT value FROM json_each(?))
+    UNION
+    SELECT c.origin, l.source_id
+    FROM note_links l
+    JOIN chain c ON c.id = l.target_id
+    WHERE l.source = 'amends'
+  )
+  SELECT c.origin AS amendedId, n.id, n.title,
+         COALESCE(n.authored_at, n.created_at) AS authoredAt
+  FROM chain c
+  JOIN notes n ON n.id = c.id
+  ORDER BY authoredAt, n.id`;
+
+export const getAmendmentsFor = (
+  client: MemexClient,
+  amendedIds: number[],
+): Map<number, Amendment[]> => {
+  if (amendedIds.length === 0) return new Map();
+  const rows = client.sqlite
+    .prepare(AMENDMENT_CHAIN)
+    .all(JSON.stringify(amendedIds)) as (Amendment & { amendedId: number })[];
+  return rows.reduce((acc, { amendedId, ...amendment }) => {
+    acc.set(amendedId, [...(acc.get(amendedId) ?? []), amendment]);
+    return acc;
+  }, new Map<number, Amendment[]>());
+};
+
+export const getAmendments = (client: MemexClient, amendedId: number): Amendment[] =>
+  getAmendmentsFor(client, [amendedId]).get(amendedId) ?? [];
+
 export const listNotesSince = (client: MemexClient, sinceMs: number): Note[] =>
   client.db
     .select()

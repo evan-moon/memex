@@ -26,6 +26,7 @@ export const registerAdd = (program: Command) => {
     )
     .option('-s, --source <source>', 'Source (manual|herald|claude-code)', 'manual')
     .option('-L, --layer <layer>', 'Mutability layer (past|state|rule)')
+    .option('-A, --amends <id>', 'Id of the note this one corrects, so search flags the older one')
     .action(
       async (opts: {
         title?: string;
@@ -35,6 +36,7 @@ export const registerAdd = (program: Command) => {
         tag: string[];
         source: string;
         layer?: string;
+        amends?: string;
       }) => {
         intro('memex add');
 
@@ -105,14 +107,21 @@ export const registerAdd = (program: Command) => {
             folder: opts.folder,
             tags: opts.tag.length > 0 ? opts.tag : undefined,
             actor: 'user',
+            amends: opts.amends ? Number(opts.amends) : undefined,
           });
           if (isSaveRejection(result)) {
             s.stop(pc.red(result.message));
             process.exit(1);
           }
-          const { note, flashbacks } = result;
+          const { note, flashbacks, amended, amendsMissing } = result;
 
           s.stop(`Saved note #${note.id}: "${note.title}"`);
+          if (amended) console.log(pc.dim(`Amends #${amended.id} "${amended.title}"`));
+          if (amendsMissing !== undefined) {
+            console.log(
+              pc.yellow(`No note #${amendsMissing} — the amendment is not linked to anything.`),
+            );
+          }
           if (flashbacks.length > 0) {
             console.log();
             console.log(pc.dim('--- Flashback ---'));

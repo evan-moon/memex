@@ -78,6 +78,10 @@ When a note refers to people, projects, or concepts that likely have their own n
 
 If save_note responds with a ⚠️ similar notes warning, do not save a new note. Switch to update_note on the most relevant listed note instead.
 
+## CORRECTIONS
+
+past notes never change, so a correction is a new note — and it only works if it is linked. When a note revises, corrects or supersedes an older one, pass \`amends: <id>\` to save_note. Search then marks the older note as superseded and points at the newest correction, instead of handing back a claim you already know is wrong. A correction saved without \`amends\` is invisible to the note it corrects.
+
 ## UPDATE
 
 Prefer update_note over creating a duplicate when new content belongs with an existing note. If unsure, search first — then update or save.
