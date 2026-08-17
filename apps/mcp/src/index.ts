@@ -2,6 +2,7 @@
 import { mkdirSync } from 'node:fs';
 import { ensureEmbeddingModel, listInferences, listSignals, openDb } from '@memex/db';
 import { createEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
+import { createLazyReranker } from '@memex/rerank';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from './config.ts';
@@ -38,6 +39,7 @@ if (ensureEmbeddingModel(client, EMBEDDING_MODEL_ID) === 'model-changed') {
   );
 }
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
+const reranker = process.env.MEMEX_RERANK === '1' ? createLazyReranker(MODEL_CACHE_DIR) : undefined;
 
 const baseInstructions = `
 You are connected to the user's second brain (memex). Follow these rules at all times:
@@ -145,7 +147,7 @@ const instructions =
 const server = new McpServer({ name: 'memex', version: VERSION }, { instructions });
 
 registerSaveNote(server, client, embedder, vaultPath);
-registerSearchNotes(server, client, embedder);
+registerSearchNotes(server, client, embedder, reranker);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);

@@ -2,9 +2,11 @@ import { spinner } from '@clack/prompts';
 import { semanticSearch } from '@memex/core';
 import { findFlashbacks, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
+import { createLazyReranker } from '@memex/rerank';
 import { CONFIG_DIR, MODEL_CACHE_DIR, stripFrontmatter } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { rerankEnabled } from '../env.ts';
 import { layerBadge } from '../layer.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
@@ -28,6 +30,7 @@ export const registerSearch = (program: Command) => {
         const client = openDb(CONFIG_DIR);
         guardEmbeddingModel(client);
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
+        const reranker = rerankEnabled() ? createLazyReranker(MODEL_CACHE_DIR) : undefined;
 
         s.message('Searching...');
         const parseDate = (s: string, label: string): number => {
@@ -42,16 +45,13 @@ export const registerSearch = (program: Command) => {
         const dateTo = opts.to
           ? parseDate(opts.to.includes('T') ? opts.to : `${opts.to}T23:59:59.999Z`, '--to')
           : undefined;
-        const results = await semanticSearch(
-          client,
-          embedder,
-          query,
-          Number(opts.limit),
-          opts.category,
-          opts.tag,
+        const results = await semanticSearch(client, embedder, query, Number(opts.limit), {
+          category: opts.category,
+          tag: opts.tag,
           dateFrom,
           dateTo,
-        );
+          reranker,
+        });
         s.stop(`Found ${results.length} result(s)`);
 
         if (results.length === 0) {
@@ -64,9 +64,9 @@ export const registerSearch = (program: Command) => {
           console.log(
             `${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`,
           );
-          const body = stripFrontmatter(note.content);
-          const preview = body.slice(0, 200).replace(/\n/g, ' ');
-          console.log(pc.dim(preview + (body.length > 200 ? '…' : '')));
+          const body = stripFrontmatter(note.matchSnippet ?? note.content);
+          const preview = body.slice(0, 300).replace(/\s+/g, ' ').trim();
+          console.log(pc.dim(preview + (body.length > 300 ? '…' : '')));
         }
 
         const flashbacks = findFlashbacks(client, results[0].id, Date.now());

@@ -21,12 +21,12 @@ import {
   type SearchResult,
   type Signal,
   type SimilarNote,
-  saveEmbedding,
   serializeTags,
   syncLinks,
   updateNote,
 } from '@memex/db';
 import { buildEmbeddingText, extractCategory } from '@memex/utils';
+import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -200,7 +200,13 @@ export const saveNote = async (
     tags,
     authoredAt,
   });
-  saveEmbedding(client, note.id, embedding);
+  await indexNoteVectors(
+    client,
+    embedder,
+    note.id,
+    { title: params.title, content: params.content, folder: params.folder, tags: params.tags },
+    embedding,
+  );
   syncLinks(client, note.id, params.content);
 
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
@@ -215,18 +221,63 @@ export const saveNote = async (
   return { note, similar, flashbacks, signal };
 };
 
+export type Reranker = (query: string, passages: string[]) => Promise<number[]>;
+
+export type SearchOptions = {
+  category?: string;
+  tag?: string;
+  dateFrom?: number;
+  dateTo?: number;
+  reranker?: Reranker;
+};
+
+export type RankedResult = SearchResult & { rerankScore?: number };
+
+const RERANK_OVERFETCH = 2;
+const RERANK_POOL_MAX = 20;
+const RERANK_PASSAGE_CHARS = 1200;
+
+const poolSize = (limit: number, reranker?: Reranker): number =>
+  reranker ? Math.min(RERANK_POOL_MAX, limit * RERANK_OVERFETCH) : limit;
+
+const rerankPassage = (note: SearchResult): string =>
+  `${note.title}\n\n${(note.matchSnippet ?? note.content).slice(0, RERANK_PASSAGE_CHARS)}`;
+
+const applyRerank = async (
+  reranker: Reranker,
+  query: string,
+  candidates: SearchResult[],
+  limit: number,
+): Promise<RankedResult[]> => {
+  if (candidates.length <= 1) return candidates.slice(0, limit);
+  const scores = await reranker(query, candidates.map(rerankPassage));
+  return candidates
+    .map((note, i) => ({ ...note, rerankScore: scores[i] ?? 0 }))
+    .sort((a, b) => b.rerankScore - a.rerankScore)
+    .slice(0, limit);
+};
+
 export const semanticSearch = async (
   client: MemexClient,
   embedder: Embedder,
   query: string,
   limit: number,
-  category?: string,
-  tag?: string,
-  dateFrom?: number,
-  dateTo?: number,
-) => {
+  options: SearchOptions = {},
+): Promise<RankedResult[]> => {
+  const { reranker, category, tag, dateFrom, dateTo } = options;
   const embedding = await embedder(query, 'query');
-  return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
+  const candidates = dbSearchNotes(
+    client,
+    query,
+    embedding,
+    poolSize(limit, reranker),
+    category,
+    tag,
+    dateFrom,
+    dateTo,
+  );
+  if (!reranker) return candidates;
+  return applyRerank(reranker, query, candidates, limit);
 };
 
 export const semanticSearchMulti = async (
@@ -234,15 +285,15 @@ export const semanticSearchMulti = async (
   embedder: Embedder,
   queries: string[],
   limit: number,
-  category?: string,
-  tag?: string,
-  dateFrom?: number,
-  dateTo?: number,
-): Promise<SearchResult[]> => {
+  options: SearchOptions = {},
+): Promise<RankedResult[]> => {
+  const { reranker, ...filters } = options;
   const lists = await Promise.all(
-    queries.map((q) => semanticSearch(client, embedder, q, limit, category, tag, dateFrom, dateTo)),
+    queries.map((q) => semanticSearch(client, embedder, q, poolSize(limit, reranker), filters)),
   );
-  if (lists.length === 1) return lists[0];
+  if (lists.length === 1) {
+    return reranker ? applyRerank(reranker, queries[0], lists[0], limit) : lists[0].slice(0, limit);
+  }
 
   const scores = new Map<number, number>();
   const cache = new Map<number, SearchResult>();
@@ -255,14 +306,16 @@ export const semanticSearchMulti = async (
         cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
     });
   });
-  return [...scores.entries()]
+  const fused = [...scores.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
+    .slice(0, poolSize(limit, reranker))
     .map(([id], rank) => {
       const note = cache.get(id);
       if (!note) throw new Error(`Fused note #${id} missing from cache`);
       return { ...note, distance: rank / limit };
     });
+
+  return reranker ? applyRerank(reranker, queries[0], fused, limit) : fused.slice(0, limit);
 };
 
 export type EditNoteRejection =
@@ -324,8 +377,12 @@ export const editNote = async (
   const relDir = relative(vaultPath, dirname(note.filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
-  const embedding = await embedder(buildEmbeddingText(title, content, folder, resolvedTags));
-  saveEmbedding(client, id, embedding);
+  await indexNoteVectors(client, embedder, id, {
+    title,
+    content,
+    folder,
+    tags: resolvedTags,
+  });
   syncLinks(client, id, content);
 
   const signals = refreshSignals(client);

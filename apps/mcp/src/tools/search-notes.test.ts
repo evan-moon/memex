@@ -9,7 +9,7 @@ describe('toSnippet', () => {
 
   it('truncates long content with ellipsis', () => {
     const snippet = toSnippet('가'.repeat(500));
-    expect(snippet).toHaveLength(201);
+    expect(snippet).toHaveLength(301);
     expect(snippet.endsWith('…')).toBe(true);
   });
 

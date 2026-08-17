@@ -46,6 +46,8 @@ export const ensureEmbeddingModel = (
   }
 
   client.sqlite.exec('DELETE FROM note_embeddings');
+  client.sqlite.exec('DELETE FROM note_chunk_embeddings');
+  client.sqlite.exec('DELETE FROM note_chunks');
   setMeta(client, EMBEDDING_MODEL_KEY, modelId);
   setMeta(client, NEEDS_REEMBED_KEY, '1');
   return 'model-changed';

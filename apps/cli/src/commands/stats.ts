@@ -19,7 +19,13 @@ export const registerStats = (program: Command) => {
       const stats = getCorpusStats(client);
 
       console.log();
-      console.log(pc.bold(`Corpus — ${stats.notes} notes`));
+      const unchunked =
+        stats.notesWithoutChunks > 0
+          ? pc.yellow(` · ${stats.notesWithoutChunks} unchunked (run \`memex reembed\`)`)
+          : '';
+      console.log(
+        pc.bold(`Corpus — ${stats.notes} notes`) + pc.dim(` · ${stats.chunks} chunks`) + unchunked,
+      );
       printCounts('layers', stats.notesByLayer);
       printCounts('sources', stats.notesBySource);
       printCounts('links', stats.linksBySource);

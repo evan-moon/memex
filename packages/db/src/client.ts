@@ -61,6 +61,35 @@ export const openDb = (dbDir: string): MemexClient => {
     );
   `);
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_chunks (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id    INTEGER NOT NULL,
+      ord        INTEGER NOT NULL,
+      heading    TEXT,
+      excerpt    TEXT    NOT NULL,
+      start_char INTEGER NOT NULL,
+      end_char   INTEGER NOT NULL
+    );
+  `);
+  sqlite.exec('CREATE INDEX IF NOT EXISTS note_chunks_note_id ON note_chunks(note_id)');
+
+  const chunkEmbRow = sqlite
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_chunk_embeddings'",
+    )
+    .get() as { sql: string } | undefined;
+  if (chunkEmbRow && !chunkEmbRow.sql.includes(`FLOAT[${EMBEDDING_DIM}]`)) {
+    sqlite.exec('DROP TABLE IF EXISTS note_chunk_embeddings');
+    sqlite.exec('DELETE FROM note_chunks');
+  }
+  sqlite.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS note_chunk_embeddings USING vec0(
+      chunk_id  INTEGER PRIMARY KEY,
+      embedding FLOAT[${EMBEDDING_DIM}]
+    );
+  `);
+
   try {
     sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT');
   } catch {

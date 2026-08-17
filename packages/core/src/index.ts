@@ -1,3 +1,4 @@
+export type { RankedResult, Reranker, SearchOptions } from './note.ts';
 export {
   type EditNoteRejection,
   editNote,
@@ -10,3 +11,9 @@ export {
   semanticSearchMulti,
   type WriteActor,
 } from './note.ts';
+export {
+  embedNote,
+  indexChunks,
+  indexNoteVectors,
+  type NoteVectorSource,
+} from './vectors.ts';

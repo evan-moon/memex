@@ -1,4 +1,4 @@
-import { semanticSearchMulti } from '@memex/core';
+import { type Reranker, semanticSearchMulti } from '@memex/core';
 import {
   type FlashbackOptions,
   findFlashbacks,
@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
 
-const SNIPPET_MAX_CHARS = 200;
+const SNIPPET_MAX_CHARS = 300;
 
 export const toSnippet = (content: string): string => {
   const flat = stripFrontmatter(content).replace(/\s+/g, ' ').trim();
@@ -32,10 +32,15 @@ const readFlashbackOptions = (): FlashbackOptions => ({
   limit: process.env.MEMEX_FLASHBACK_LIMIT ? Number(process.env.MEMEX_FLASHBACK_LIMIT) : undefined,
 });
 
-export const registerSearchNotes = (server: McpServer, client: MemexClient, embedder: Embedder) => {
+export const registerSearchNotes = (
+  server: McpServer,
+  client: MemexClient,
+  embedder: Embedder,
+  reranker?: Reranker,
+) => {
   server.tool(
     'search_notes',
-    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, pass MULTIPLE phrasings in one call: once in the user's language and once in English, or once with their wording and once with the underlying concept — results are fused server-side. Short keyword queries work better than long sentences. Returns a compact index (id, title, snippet) — call get_note with an id to read the full content of any result that looks relevant.",
+    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, pass MULTIPLE phrasings in one call: once in the user's language and once in English, or once with their wording and once with the underlying concept — results are fused server-side. Short keyword queries work better than long sentences. Returns a compact index (id, title, snippet) where the snippet is the passage that actually matched, not the note's opening — call get_note with an id to read the full content of any result that looks relevant.",
     {
       queries: z
         .array(z.string())
@@ -70,16 +75,13 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
       const dateTo = date_to
         ? parseDate(date_to.includes('T') ? date_to : `${date_to}T23:59:59.999Z`, 'date_to')
         : undefined;
-      const results = await semanticSearchMulti(
-        client,
-        embedder,
-        queries,
-        limit,
+      const results = await semanticSearchMulti(client, embedder, queries, limit, {
         category,
         tag,
         dateFrom,
         dateTo,
-      );
+        reranker,
+      });
       const reembedWarning = needsReembed(client)
         ? '\n\n⚠️ The embedding model changed and vectors have not been rebuilt — these results are keyword-only. Tell the user to run `memex reembed` to restore semantic search.'
         : '';

@@ -1,15 +1,9 @@
 import { dirname, relative } from 'node:path';
 import { spinner } from '@clack/prompts';
-import { listNotes, markReembedded, openDb, parseTags, saveEmbedding, updateNote } from '@memex/db';
+import { indexNoteVectors } from '@memex/core';
+import { listNotes, markReembedded, openDb, parseTags, updateNote } from '@memex/db';
 import { createEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
-import {
-  buildEmbeddingText,
-  CONFIG_DIR,
-  expandPath,
-  extractCategory,
-  loadConfig,
-  MODEL_CACHE_DIR,
-} from '@memex/utils';
+import { CONFIG_DIR, expandPath, extractCategory, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 
@@ -34,9 +28,10 @@ export const registerReembed = (program: Command) => {
 
         const notes = listNotes(client, 100_000);
         let done = 0;
+        let chunks = 0;
 
         for (const note of notes) {
-          s.message(`Re-embedding ${done + 1}/${notes.length}: "${note.title}"`);
+          s.message(`Re-embedding ${done + 1}/${notes.length} (${chunks} chunks): "${note.title}"`);
 
           const base = basePaths.find((p) => note.filePath.startsWith(p));
           const relDir = base ? relative(base, dirname(note.filePath)) : undefined;
@@ -44,13 +39,15 @@ export const registerReembed = (program: Command) => {
           const category = extractCategory(folder);
 
           const tags = parseTags(note.tags);
-          const embedding = await embedder(
-            buildEmbeddingText(note.title, note.content, folder, tags),
-          );
           client.sqlite
             .prepare('DELETE FROM note_embeddings WHERE note_id = ?')
             .run(BigInt(note.id));
-          saveEmbedding(client, note.id, embedding);
+          chunks += await indexNoteVectors(client, embedder, note.id, {
+            title: note.title,
+            content: note.content,
+            folder,
+            tags,
+          });
 
           if (note.category !== category) {
             updateNote(client, note.id, { category: category ?? undefined });
@@ -60,7 +57,7 @@ export const registerReembed = (program: Command) => {
         }
 
         markReembedded(client, EMBEDDING_MODEL_ID);
-        s.stop(pc.green(`Re-embedded ${done} notes`));
+        s.stop(pc.green(`Re-embedded ${done} notes into ${chunks} chunks`));
       } catch (err) {
         s.stop('Failed');
         console.error(err);

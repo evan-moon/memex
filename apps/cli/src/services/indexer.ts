@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative } from 'node:path';
+import { indexNoteVectors } from '@memex/core';
 import {
   deleteNote,
   getNoteByFilePath,
@@ -10,11 +11,10 @@ import {
   type NoteLayer,
   parseAuthoredAt,
   parseTags,
-  saveEmbedding,
   serializeTags,
   updateNote,
 } from '@memex/db';
-import { buildEmbeddingText, extractCategory } from '@memex/utils';
+import { extractCategory } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -119,9 +119,8 @@ const indexFile = async (
       authoredAt,
       tags: serializeTags(tags),
     });
-    const embedding = await embedder(buildEmbeddingText(title, body, folder, tags));
     client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(existing.id));
-    saveEmbedding(client, existing.id, embedding);
+    await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
   } else {
     try {
@@ -135,8 +134,12 @@ const indexFile = async (
         tags: serializeTags(fmTags),
         layer,
       });
-      const embedding = await embedder(buildEmbeddingText(title, body, folder, fmTags));
-      saveEmbedding(client, note.id, embedding);
+      await indexNoteVectors(client, embedder, note.id, {
+        title,
+        content: body,
+        folder,
+        tags: fmTags,
+      });
       stats.added++;
     } catch {
       stats.skipped++;
@@ -191,7 +194,6 @@ export const indexDirectory = async (
       isIgnoredPath(note.filePath) ||
       (!fileSet.has(note.filePath) && !existsSync(note.filePath))
     ) {
-      client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(note.id));
       deleteNote(client, note.id);
       stats.removed++;
     }

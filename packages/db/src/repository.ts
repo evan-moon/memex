@@ -4,7 +4,7 @@ import { type NewNote, type Note, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
 
-type Candidate = Note & { matchSnippet?: string; distance?: number };
+type Candidate = Note & { matchSnippet?: string; distance?: number; chunkExcerpt?: string };
 
 export const parseTags = (raw: string): string[] => {
   try {
@@ -33,7 +33,63 @@ export const saveEmbedding = (client: MemexClient, noteId: number, embedding: nu
     .run(BigInt(noteId), Buffer.from(vec.buffer));
 };
 
+export type EmbeddedChunk = {
+  ord: number;
+  heading: string | null;
+  excerpt: string;
+  startChar: number;
+  endChar: number;
+  embedding: number[];
+};
+
+export const deleteNoteChunks = (client: MemexClient, noteId: number): void => {
+  const ids = client.sqlite.prepare('SELECT id FROM note_chunks WHERE note_id = ?').all(noteId) as {
+    id: number;
+  }[];
+  const dropVector = client.sqlite.prepare('DELETE FROM note_chunk_embeddings WHERE chunk_id = ?');
+  const run = client.sqlite.transaction(() => {
+    for (const { id } of ids) dropVector.run(BigInt(id));
+    client.sqlite.prepare('DELETE FROM note_chunks WHERE note_id = ?').run(noteId);
+  });
+  run();
+};
+
+export const replaceNoteChunks = (
+  client: MemexClient,
+  noteId: number,
+  chunks: EmbeddedChunk[],
+): void => {
+  deleteNoteChunks(client, noteId);
+  const insertChunk = client.sqlite.prepare(
+    `INSERT INTO note_chunks(note_id, ord, heading, excerpt, start_char, end_char)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const insertVector = client.sqlite.prepare(
+    'INSERT INTO note_chunk_embeddings(chunk_id, embedding) VALUES (?, ?)',
+  );
+  const run = client.sqlite.transaction(() => {
+    for (const chunk of chunks) {
+      const { lastInsertRowid } = insertChunk.run(
+        noteId,
+        chunk.ord,
+        chunk.heading,
+        chunk.excerpt,
+        chunk.startChar,
+        chunk.endChar,
+      );
+      const vec = new Float32Array(chunk.embedding);
+      insertVector.run(BigInt(lastInsertRowid), Buffer.from(vec.buffer));
+    }
+  });
+  run();
+};
+
+export const countChunks = (client: MemexClient): number =>
+  (client.sqlite.prepare('SELECT COUNT(*) AS n FROM note_chunks').get() as { n: number }).n;
+
 export const RRF_K = 60;
+
+const CHUNK_POOL = 6;
 
 // Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
 // `state`-layer notes (the "current state / plan" layer) a small bump that
@@ -67,6 +123,20 @@ const normalizeCandidate = (row: Candidate): Candidate => {
     createdAt: Number(raw.createdAt ?? raw.created_at),
     updatedAt: Number(raw.updatedAt ?? raw.updated_at),
   };
+};
+
+const bestChunkPerNote = (chunks: Candidate[]): Candidate[] => {
+  const seen = new Set<number>();
+  return chunks
+    .filter((chunk) => {
+      if (seen.has(chunk.id)) return false;
+      seen.add(chunk.id);
+      return true;
+    })
+    .map(({ chunkExcerpt, ...chunk }) => ({
+      ...chunk,
+      matchSnippet: chunkExcerpt ?? chunk.matchSnippet,
+    }));
 };
 
 const buildRrf = () => {
@@ -139,11 +209,30 @@ export const searchNotes = (
   const hasFilters = Boolean(category || tag || dateFrom || dateTo);
   const vectorK = hasFilters ? Math.max(limit * 5, 250) : limit * 5;
 
-  const vectorResults = client.sqlite
+  const wholeNoteResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
        FROM note_embeddings e
        JOIN notes n ON n.id = e.note_id
+       WHERE e.embedding MATCH ?
+       AND k = ?
+       AND NOT EXISTS (SELECT 1 FROM note_chunks c WHERE c.note_id = n.id)
+       ${aliasedCategoryFilter}
+       ${aliasedTagFilter}
+       ${dateFromFilterAliased}
+       ${dateToFilterAliased}
+       ORDER BY e.distance`,
+    )
+    .all(Buffer.from(vec.buffer), vectorK, ...filterArgs, ...dateArgs) as SearchResult[];
+  rrf.add(wholeNoteResults);
+
+  const chunkK = hasFilters ? Math.max(limit * CHUNK_POOL, 300) : limit * CHUNK_POOL;
+  const chunkResults = client.sqlite
+    .prepare(
+      `SELECT n.*, e.distance, c.excerpt AS chunkExcerpt
+       FROM note_chunk_embeddings e
+       JOIN note_chunks c ON c.id = e.chunk_id
+       JOIN notes n ON n.id = c.note_id
        WHERE e.embedding MATCH ?
        AND k = ?
        ${aliasedCategoryFilter}
@@ -152,8 +241,8 @@ export const searchNotes = (
        ${dateToFilterAliased}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), vectorK, ...filterArgs, ...dateArgs) as SearchResult[];
-  rrf.add(vectorResults);
+    .all(Buffer.from(vec.buffer), chunkK, ...filterArgs, ...dateArgs) as Candidate[];
+  rrf.add(bestChunkPerNote(chunkResults));
 
   const normTokens = [
     ...new Set(
@@ -287,6 +376,7 @@ export const listNotesByPathPrefix = (client: MemexClient, prefix: string): Note
     .all();
 
 export const deleteNote = (client: MemexClient, id: number): void => {
+  deleteNoteChunks(client, id);
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   client.db.delete(notes).where(eq(notes.id, id)).run();

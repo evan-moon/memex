@@ -422,4 +422,29 @@ describe('semanticSearchMulti', () => {
     const ids = results.map((r) => r.id);
     expect(ids.indexOf(both.id)).toBeLessThan(ids.indexOf(alphaOnly.id));
   });
+
+  it('lets the reranker reorder the fused pool', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    const buried = insert('beta protocol', 'about beta', 'b.md');
+    const preferBuried = async (_query: string, passages: string[]) =>
+      passages.map((p) => (p.includes('beta') ? 1 : 0));
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 2, {
+      reranker: preferBuried,
+    });
+    expect(results[0].id).toBe(buried.id);
+    expect(results[0].rerankScore).toBe(1);
+  });
+
+  it('honours the limit after reranking a wider pool', async () => {
+    insert('alpha one', 'about alpha', 'a1.md');
+    insert('alpha two', 'about alpha', 'a2.md');
+    insert('alpha three', 'about alpha', 'a3.md');
+    const scoreZero = async (_query: string, passages: string[]) => passages.map(() => 0);
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha'], 2, {
+      reranker: scoreZero,
+    });
+    expect(results).toHaveLength(2);
+  });
 });
