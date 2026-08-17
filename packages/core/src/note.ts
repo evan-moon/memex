@@ -26,7 +26,7 @@ import {
   syncLinks,
   updateNote,
 } from '@memex/db';
-import { buildEmbeddingText, extractCategory } from '@memex/utils';
+import { buildEmbeddingText, collapseSeries, extractCategory } from '@memex/utils';
 import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -248,9 +248,21 @@ export type SearchOptions = {
   dateFrom?: number;
   dateTo?: number;
   reranker?: Reranker;
+  /** Cap results from one dated series. 0 keeps every member. */
+  seriesCap?: number;
+  /** Rows to fetch before re-ordering. Widens the page without retuning the arms. */
+  rows?: number;
 };
 
 export type RankedResult = SearchResult & { rerankScore?: number };
+
+export type SearchPage = {
+  results: RankedResult[];
+  collapsed: { key: string; label: string; hidden: number }[];
+};
+
+const SERIES_CAP = 2;
+const SERIES_OVERFETCH = 3;
 
 const RERANK_OVERFETCH = 2;
 const RERANK_POOL_MAX = 20;
@@ -258,6 +270,14 @@ const RERANK_PASSAGE_CHARS = 1200;
 
 const poolSize = (limit: number, reranker?: Reranker): number =>
   reranker ? Math.min(RERANK_POOL_MAX, limit * RERANK_OVERFETCH) : limit;
+
+const capOf = (options: SearchOptions): number => options.seriesCap ?? SERIES_CAP;
+
+const fetchSize = (limit: number, options: SearchOptions): number =>
+  options.rows ??
+  (capOf(options) > 0
+    ? poolSize(limit * SERIES_OVERFETCH, options.reranker)
+    : poolSize(limit, options.reranker));
 
 const rerankPassage = (note: SearchResult): string =>
   `${note.title}\n\n${(note.matchSnippet ?? note.content).slice(0, RERANK_PASSAGE_CHARS)}`;
@@ -276,27 +296,86 @@ const applyRerank = async (
     .slice(0, limit);
 };
 
-export const semanticSearch = async (
+export const searchPage = async (
   client: MemexClient,
   embedder: Embedder,
   query: string,
   limit: number,
   options: SearchOptions = {},
-): Promise<RankedResult[]> => {
+): Promise<SearchPage> => {
   const { reranker, category, tag, dateFrom, dateTo } = options;
   const embedding = await embedder(query, 'query');
   const candidates = dbSearchNotes(
     client,
     query,
     embedding,
-    poolSize(limit, reranker),
+    limit,
     category,
     tag,
     dateFrom,
     dateTo,
+    fetchSize(limit, options),
   );
-  if (!reranker) return candidates;
-  return applyRerank(reranker, query, candidates, limit);
+  const ranked = reranker
+    ? await applyRerank(reranker, query, candidates, candidates.length)
+    : candidates;
+  const cap = capOf(options);
+  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
+  return collapseSeries(ranked, limit, cap);
+};
+
+export const semanticSearch = async (
+  client: MemexClient,
+  embedder: Embedder,
+  query: string,
+  limit: number,
+  options: SearchOptions = {},
+): Promise<RankedResult[]> => (await searchPage(client, embedder, query, limit, options)).results;
+
+export const searchPageMulti = async (
+  client: MemexClient,
+  embedder: Embedder,
+  queries: string[],
+  limit: number,
+  options: SearchOptions = {},
+): Promise<SearchPage> => {
+  const { reranker, ...filters } = options;
+  const cap = capOf(options);
+  const wide = fetchSize(limit, options);
+  const perQuery = { ...filters, seriesCap: 0, rows: wide };
+  const lists = await Promise.all(
+    queries.map((q) => semanticSearch(client, embedder, q, limit, perQuery)),
+  );
+
+  const pooled =
+    lists.length === 1
+      ? lists[0]
+      : (() => {
+          const scores = new Map<number, number>();
+          const cache = new Map<number, SearchResult>();
+          lists.forEach((list) => {
+            list.forEach((note, rank) => {
+              scores.set(note.id, (scores.get(note.id) ?? 0) + 1 / (RRF_K + rank + 1));
+              const cached = cache.get(note.id);
+              if (!cached) cache.set(note.id, note);
+              else if (note.matchSnippet && !cached.matchSnippet)
+                cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
+            });
+          });
+          return [...scores.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, wide)
+            .map(([id], rank) => {
+              const note = cache.get(id);
+              if (!note) throw new Error(`Fused note #${id} missing from cache`);
+              return { ...note, distance: rank / limit };
+            });
+        })();
+
+  const ranked = reranker ? await applyRerank(reranker, queries[0], pooled, pooled.length) : pooled;
+
+  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
+  return collapseSeries(ranked, limit, cap);
 };
 
 export const semanticSearchMulti = async (
@@ -305,37 +384,8 @@ export const semanticSearchMulti = async (
   queries: string[],
   limit: number,
   options: SearchOptions = {},
-): Promise<RankedResult[]> => {
-  const { reranker, ...filters } = options;
-  const lists = await Promise.all(
-    queries.map((q) => semanticSearch(client, embedder, q, poolSize(limit, reranker), filters)),
-  );
-  if (lists.length === 1) {
-    return reranker ? applyRerank(reranker, queries[0], lists[0], limit) : lists[0].slice(0, limit);
-  }
-
-  const scores = new Map<number, number>();
-  const cache = new Map<number, SearchResult>();
-  lists.forEach((list) => {
-    list.forEach((note, rank) => {
-      scores.set(note.id, (scores.get(note.id) ?? 0) + 1 / (RRF_K + rank + 1));
-      const cached = cache.get(note.id);
-      if (!cached) cache.set(note.id, note);
-      else if (note.matchSnippet && !cached.matchSnippet)
-        cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
-    });
-  });
-  const fused = [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, poolSize(limit, reranker))
-    .map(([id], rank) => {
-      const note = cache.get(id);
-      if (!note) throw new Error(`Fused note #${id} missing from cache`);
-      return { ...note, distance: rank / limit };
-    });
-
-  return reranker ? applyRerank(reranker, queries[0], fused, limit) : fused.slice(0, limit);
-};
+): Promise<RankedResult[]> =>
+  (await searchPageMulti(client, embedder, queries, limit, options)).results;
 
 export type EditNoteRejection =
   | {

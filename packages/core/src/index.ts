@@ -1,4 +1,4 @@
-export type { RankedResult, Reranker, SearchOptions } from './note.ts';
+export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   type EditNoteRejection,
   editNote,
@@ -7,6 +7,8 @@ export {
   type RuleWriteRejection,
   removeNote,
   saveNote,
+  searchPage,
+  searchPageMulti,
   semanticSearch,
   semanticSearchMulti,
   type WriteActor,

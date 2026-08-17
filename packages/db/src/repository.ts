@@ -173,6 +173,9 @@ const buildRrf = () => {
   return { add, topK, topIds };
 };
 
+// `limit` is the page the arms are tuned around — every candidate pool is sized
+// from it. `rows` only widens what comes back, so a caller that overfetches to
+// re-order results does not silently retune retrieval underneath itself.
 export const searchNotes = (
   client: MemexClient,
   query: string,
@@ -182,6 +185,7 @@ export const searchNotes = (
   tag?: string,
   dateFrom?: number,
   dateTo?: number,
+  rows = limit,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
   const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
@@ -353,7 +357,7 @@ export const searchNotes = (
     rrf.add(neighbours, 0.5);
   }
 
-  return rrf.topK(limit);
+  return rrf.topK(Math.max(limit, rows));
 };
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>

@@ -1,4 +1,4 @@
-import { type Reranker, semanticSearchMulti } from '@memex/core';
+import { type Reranker, searchPageMulti } from '@memex/core';
 import {
   type FlashbackOptions,
   findFlashbacks,
@@ -84,7 +84,7 @@ export const registerSearchNotes = (
       const dateTo = date_to
         ? parseDate(date_to.includes('T') ? date_to : `${date_to}T23:59:59.999Z`, 'date_to')
         : undefined;
-      const results = await semanticSearchMulti(client, embedder, queries, limit, {
+      const { results, collapsed } = await searchPageMulti(client, embedder, queries, limit, {
         category,
         tag,
         dateFrom,
@@ -97,6 +97,15 @@ export const registerSearchNotes = (
       if (results.length === 0) {
         return { content: [{ type: 'text', text: `No notes found.${reembedWarning}` }] };
       }
+
+      const seriesHint =
+        collapsed.length > 0
+          ? `\n\n---\n📚 ${collapsed
+              .map((c) => `${c.hidden} more in the "${c.label}" series`)
+              .join(
+                '; ',
+              )} were held back so one repeating series would not fill the page. Search again with a narrower query if you need them.`
+          : '';
 
       const flashbacks = findFlashbacks(client, results[0].id, Date.now(), readFlashbackOptions());
       const flashbackHint =
@@ -129,6 +138,7 @@ export const registerSearchNotes = (
             return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +
+        seriesHint +
         flashbackHint +
         reembedWarning;
       return { content: [{ type: 'text', text }] };

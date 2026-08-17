@@ -1,5 +1,5 @@
 import { spinner } from '@clack/prompts';
-import { semanticSearch } from '@memex/core';
+import { searchPage } from '@memex/core';
 import { findFlashbacks, getAmendmentsFor, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { createLazyReranker } from '@memex/rerank';
@@ -45,13 +45,19 @@ export const registerSearch = (program: Command) => {
         const dateTo = opts.to
           ? parseDate(opts.to.includes('T') ? opts.to : `${opts.to}T23:59:59.999Z`, '--to')
           : undefined;
-        const results = await semanticSearch(client, embedder, query, Number(opts.limit), {
-          category: opts.category,
-          tag: opts.tag,
-          dateFrom,
-          dateTo,
-          reranker,
-        });
+        const { results, collapsed } = await searchPage(
+          client,
+          embedder,
+          query,
+          Number(opts.limit),
+          {
+            category: opts.category,
+            tag: opts.tag,
+            dateFrom,
+            dateTo,
+            reranker,
+          },
+        );
         s.stop(`Found ${results.length} result(s)`);
 
         if (results.length === 0) {
@@ -78,6 +84,11 @@ export const registerSearch = (program: Command) => {
           const body = stripFrontmatter(note.matchSnippet ?? note.content);
           const preview = body.slice(0, 300).replace(/\s+/g, ' ').trim();
           console.log(pc.dim(preview + (body.length > 300 ? '…' : '')));
+        }
+
+        for (const c of collapsed) {
+          console.log();
+          console.log(pc.dim(`… +${c.hidden} more in the "${c.label}" series, held back`));
         }
 
         const flashbacks = findFlashbacks(client, results[0].id, Date.now());
