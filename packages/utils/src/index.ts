@@ -1,3 +1,4 @@
+export { EMBEDDING_DIM } from './embedding.ts';
 export type { ChunkOptions, NoteChunk } from './chunk.ts';
 export { buildChunkText, chunkNote, estimateTokens } from './chunk.ts';
 export type { MemexConfig, MemexSource } from './config.ts';

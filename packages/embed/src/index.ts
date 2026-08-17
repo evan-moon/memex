@@ -1,4 +1,5 @@
 import { env, pipeline } from '@huggingface/transformers';
+import { EMBEDDING_DIM } from '@memex/utils';
 
 export type EmbeddingModel = {
   model: string;
@@ -9,7 +10,7 @@ export type EmbeddingModel = {
 export const DEFAULT_EMBEDDING_MODEL: EmbeddingModel = {
   model: 'Xenova/multilingual-e5-base',
   dtype: 'q8',
-  dim: 768,
+  dim: EMBEDDING_DIM,
 };
 
 /**

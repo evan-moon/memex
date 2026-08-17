@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@memex/utils": "workspace:^",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",
     "sqlite-vec": "^0.1.6"

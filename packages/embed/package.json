@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.1"
+    "@huggingface/transformers": "^3.5.1",
+    "@memex/utils": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^22",

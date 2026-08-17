@@ -704,6 +704,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@memex/db@workspace:packages/db"
   dependencies:
+    "@memex/utils": "workspace:^"
     "@types/better-sqlite3": "npm:^7.6.13"
     "@types/node": "npm:^22"
     better-sqlite3: "npm:^12.9.0"
@@ -739,6 +740,7 @@ __metadata:
   resolution: "@memex/embed@workspace:packages/embed"
   dependencies:
     "@huggingface/transformers": "npm:^3.5.1"
+    "@memex/utils": "workspace:^"
     "@types/node": "npm:^22"
     tsup: "npm:^8.4.0"
     typescript: "npm:^5.8.3"
@@ -778,7 +780,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@memex/utils@workspace:*, @memex/utils@workspace:packages/utils":
+"@memex/utils@workspace:*, @memex/utils@workspace:^, @memex/utils@workspace:packages/utils":
   version: 0.0.0-use.local
   resolution: "@memex/utils@workspace:packages/utils"
   dependencies:
