@@ -14,7 +14,8 @@ packages/
 ├── core/   # Note service shared by cli/mcp (save/edit/search/delete)
 ├── db/     # SQLite client, schema, repository (drizzle + sqlite-vec)
 ├── embed/  # Embedding model wrapper (@huggingface/transformers)
-└── utils/  # Config loader, path helpers, formatters
+├── rerank/ # Cross-encoder reranker, opt-in via MEMEX_RERANK=1
+└── utils/  # Config loader, path helpers, formatters, note chunker
 ```
 
 DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
