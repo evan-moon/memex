@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { indexNoteVectors, semanticSearch } from '@memex/core';
@@ -30,13 +30,16 @@ const spec: EmbeddingModel = {
   dim: Number(arg('--dim', '1024')),
 };
 const LIMIT = Number(arg('--limit', '5'));
-const KEEP = process.argv.includes('--keep');
+const KEEP = process.argv.includes('--keep') || process.argv.includes('--resume');
+const RESUME = process.argv.includes('--resume');
 
 const source = join(homedir(), '.memex', 'memex.db');
 const workDir = join(tmpdir(), `memex-ab-${spec.model.replace(/\W+/g, '-')}-${spec.dim}`);
-rmSync(workDir, { recursive: true, force: true });
-mkdirSync(workDir, { recursive: true });
-copyFileSync(source, join(workDir, 'memex.db'));
+if (!RESUME || !existsSync(join(workDir, 'memex.db'))) {
+  rmSync(workDir, { recursive: true, force: true });
+  mkdirSync(workDir, { recursive: true });
+  copyFileSync(source, join(workDir, 'memex.db'));
+}
 
 console.log(`candidate ${spec.model} (${spec.dim}d, ${spec.dtype})`);
 console.log(`working copy ${workDir}\n`);
@@ -56,7 +59,18 @@ const folderOf = (filePath: string): string | undefined => {
   return relDir && !relDir.startsWith('..') ? relDir : undefined;
 };
 
-const notes = listNotes(client, 100_000);
+const alreadyEmbedded = new Set(
+  RESUME
+    ? (
+        client.sqlite.prepare('SELECT DISTINCT note_id AS id FROM note_chunks').all() as {
+          id: number;
+        }[]
+      ).map((r) => r.id)
+    : [],
+);
+if (RESUME) console.log(`resuming — ${alreadyEmbedded.size} notes already embedded\n`);
+
+const notes = listNotes(client, 100_000).filter((n) => !alreadyEmbedded.has(n.id));
 const started = Date.now();
 const chunks = await notes.reduce(async (pending, note, i) => {
   const done = await pending;
