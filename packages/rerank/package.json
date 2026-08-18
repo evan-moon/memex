@@ -1,5 +1,5 @@
 {
-  "name": "@memex/embed",
+  "name": "@memex/rerank",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,8 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.1",
-    "@memex/utils": "workspace:^"
+    "@huggingface/transformers": "^3.5.1"
   },
   "devDependencies": {
     "@types/node": "^22",

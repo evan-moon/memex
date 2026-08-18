@@ -2,6 +2,7 @@
 import { mkdirSync } from 'node:fs';
 import { ensureEmbeddingModel, listInferences, listSignals, openDb } from '@memex/db';
 import { createEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
+import { createLazyReranker } from '@memex/rerank';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from './config.ts';
@@ -38,6 +39,7 @@ if (ensureEmbeddingModel(client, EMBEDDING_MODEL_ID) === 'model-changed') {
   );
 }
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
+const reranker = process.env.MEMEX_RERANK === '1' ? createLazyReranker(MODEL_CACHE_DIR) : undefined;
 
 const baseInstructions = `
 You are connected to the user's second brain (memex). Follow these rules at all times:
@@ -75,6 +77,10 @@ Before saving, call list_tags and list_folders to see what taxonomy already exis
 When a note refers to people, projects, or concepts that likely have their own notes, use [[Title]] wiki-link syntax in the content to create backlinks (e.g. "discussed this with [[Tom]]" or "builds on [[Auth Architecture Decision]]").
 
 If save_note responds with a ⚠️ similar notes warning, do not save a new note. Switch to update_note on the most relevant listed note instead.
+
+## CORRECTIONS
+
+past notes never change, so a correction is a new note — and it only works if it is linked. When a note revises, corrects or supersedes an older one, pass \`amends: <id>\` to save_note. Search then marks the older note as superseded and points at the newest correction, instead of handing back a claim you already know is wrong. A correction saved without \`amends\` is invisible to the note it corrects.
 
 ## UPDATE
 
@@ -145,7 +151,7 @@ const instructions =
 const server = new McpServer({ name: 'memex', version: VERSION }, { instructions });
 
 registerSaveNote(server, client, embedder, vaultPath);
-registerSearchNotes(server, client, embedder);
+registerSearchNotes(server, client, embedder, reranker);
 registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client);

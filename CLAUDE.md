@@ -14,7 +14,8 @@ packages/
 ├── core/   # Note service shared by cli/mcp (save/edit/search/delete)
 ├── db/     # SQLite client, schema, repository (drizzle + sqlite-vec)
 ├── embed/  # Embedding model wrapper (@huggingface/transformers)
-└── utils/  # Config loader, path helpers, formatters
+├── rerank/ # Cross-encoder reranker, opt-in via MEMEX_RERANK=1
+└── utils/  # Config loader, path helpers, formatters, note chunker
 ```
 
 DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
@@ -58,5 +59,7 @@ Folder convention — **subject first, never note type.** What kind of note it i
 - `investing/` · `writing/` · `learning/<topic>` · `coding/` · `personal/`
 
 Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
+
+Correction convention — a `past` note can never be edited, so corrections are new notes. Always pass `amends: <id>` when saving one: search marks the older note superseded and points at the newest correction. Without it the correction is invisible to what it corrects, and search keeps returning the claim you already fixed.
 
 Link convention — notes are Obsidian files, so `[[Exact Note Title]]` is the only form that links. Search first and copy the title verbatim; `[[Title|display text]]` when the sentence needs other wording. Never `[[Title]](#1234)`, `[[1234]]`, `[label](path/note.md)`, or `[[some-memory-key]]` — those render as dead text. Reference an id in prose as plain `#1234`. `save_note`/`update_note` report links that resolve to nothing.

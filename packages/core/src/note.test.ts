@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
+import { getAmendments, insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   editNote,
@@ -372,6 +372,59 @@ describe('saveNote — flashbacks', () => {
   });
 });
 
+describe('saveNote — amendments', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-amend-core-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-amend-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  const save = (title: string, amends?: number) =>
+    saveNote(client, stubEmbedder, vaultDir, {
+      title,
+      content: 'body',
+      source: 'manual',
+      layer: 'past',
+      amends,
+    });
+
+  it('links the amendment to what it corrects', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const fix = await save('[Amendment] original', original.note.id);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(fix.amended?.id).toBe(original.note.id);
+    expect(getAmendments(client, original.note.id).map((a) => a.id)).toEqual([fix.note.id]);
+  });
+
+  it('reports an amends id that matches no note instead of linking nothing', async () => {
+    const fix = await save('[Amendment] gone', 9999);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(fix.amendsMissing).toBe(9999);
+    expect(fix.amended).toBeUndefined();
+  });
+
+  it('saves normally when no correction is claimed', async () => {
+    const plain = await save('plain');
+    if (isSaveRejection(plain)) throw new Error('unexpected rejection');
+
+    expect(plain.amended).toBeUndefined();
+    expect(plain.amendsMissing).toBeUndefined();
+  });
+});
+
 describe('semanticSearchMulti', () => {
   let dbDir: string;
   let client: MemexClient;
@@ -421,5 +474,30 @@ describe('semanticSearchMulti', () => {
     const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 5);
     const ids = results.map((r) => r.id);
     expect(ids.indexOf(both.id)).toBeLessThan(ids.indexOf(alphaOnly.id));
+  });
+
+  it('lets the reranker reorder the fused pool', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    const buried = insert('beta protocol', 'about beta', 'b.md');
+    const preferBuried = async (_query: string, passages: string[]) =>
+      passages.map((p) => (p.includes('beta') ? 1 : 0));
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 2, {
+      reranker: preferBuried,
+    });
+    expect(results[0].id).toBe(buried.id);
+    expect(results[0].rerankScore).toBe(1);
+  });
+
+  it('honours the limit after reranking a wider pool', async () => {
+    insert('alpha one', 'about alpha', 'a1.md');
+    insert('alpha two', 'about alpha', 'a2.md');
+    insert('alpha three', 'about alpha', 'a3.md');
+    const scoreZero = async (_query: string, passages: string[]) => passages.map(() => 0);
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha'], 2, {
+      reranker: scoreZero,
+    });
+    expect(results).toHaveLength(2);
   });
 });

@@ -71,7 +71,7 @@ export const registerEdit = (program: Command) => {
           if (result.error === 'PAST_IMMUTABLE') {
             console.log(
               pc.dim(
-                `Suggested: memex add --layer past -t "${result.suggestion.title}" (link with ${result.suggestion.link})`,
+                `Suggested: memex add --layer past --amends ${result.suggestion.amends} -t "${result.suggestion.title}" (link with ${result.suggestion.link})`,
               ),
             );
           }

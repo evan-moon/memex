@@ -26,6 +26,7 @@ export {
   setInferenceStatus,
 } from './inferences.ts';
 export type {
+  EmbeddedChunk,
   Flashback,
   FlashbackOptions,
   FolderCount,
@@ -35,16 +36,21 @@ export type {
   TagCount,
 } from './repository.ts';
 export {
+  countChunks,
   countNotes,
   deleteNote,
+  deleteNoteChunks,
   findFlashbacks,
   findRelatedNotes,
   findSimilarByEmbedding,
   findUnresolvedLinks,
+  getAmendments,
+  getAmendmentsFor,
   getBacklinks,
   getNote,
   getNoteByFilePath,
   insertNote,
+  linkAmendment,
   listAllFolders,
   listAllTags,
   listNotes,
@@ -52,6 +58,7 @@ export {
   listNotesSince,
   parseTags,
   RRF_K,
+  replaceNoteChunks,
   saveEmbedding,
   searchNotes,
   serializeTags,

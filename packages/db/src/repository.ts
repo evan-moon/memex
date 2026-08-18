@@ -4,7 +4,7 @@ import { type NewNote, type Note, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
 
-type Candidate = Note & { matchSnippet?: string; distance?: number };
+type Candidate = Note & { matchSnippet?: string; distance?: number; chunkExcerpt?: string };
 
 export const parseTags = (raw: string): string[] => {
   try {
@@ -26,14 +26,78 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
   return inserted;
 };
 
+// vec0 rejects INSERT OR REPLACE on its primary key, so re-embedding a note is
+// a delete followed by an insert. Doing it here keeps every caller from having
+// to remember, and makes a second save of the same note a no-op rather than a
+// UNIQUE constraint failure.
 export const saveEmbedding = (client: MemexClient, noteId: number, embedding: number[]): void => {
   const vec = new Float32Array(embedding);
-  client.sqlite
-    .prepare('INSERT OR REPLACE INTO note_embeddings(note_id, embedding) VALUES (?, ?)')
-    .run(BigInt(noteId), Buffer.from(vec.buffer));
+  const run = client.sqlite.transaction(() => {
+    client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(noteId));
+    client.sqlite
+      .prepare('INSERT INTO note_embeddings(note_id, embedding) VALUES (?, ?)')
+      .run(BigInt(noteId), Buffer.from(vec.buffer));
+  });
+  run();
 };
 
+export type EmbeddedChunk = {
+  ord: number;
+  heading: string | null;
+  excerpt: string;
+  startChar: number;
+  endChar: number;
+  embedding: number[];
+};
+
+export const deleteNoteChunks = (client: MemexClient, noteId: number): void => {
+  const ids = client.sqlite.prepare('SELECT id FROM note_chunks WHERE note_id = ?').all(noteId) as {
+    id: number;
+  }[];
+  const dropVector = client.sqlite.prepare('DELETE FROM note_chunk_embeddings WHERE chunk_id = ?');
+  const run = client.sqlite.transaction(() => {
+    for (const { id } of ids) dropVector.run(BigInt(id));
+    client.sqlite.prepare('DELETE FROM note_chunks WHERE note_id = ?').run(noteId);
+  });
+  run();
+};
+
+export const replaceNoteChunks = (
+  client: MemexClient,
+  noteId: number,
+  chunks: EmbeddedChunk[],
+): void => {
+  deleteNoteChunks(client, noteId);
+  const insertChunk = client.sqlite.prepare(
+    `INSERT INTO note_chunks(note_id, ord, heading, excerpt, start_char, end_char)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const insertVector = client.sqlite.prepare(
+    'INSERT INTO note_chunk_embeddings(chunk_id, embedding) VALUES (?, ?)',
+  );
+  const run = client.sqlite.transaction(() => {
+    for (const chunk of chunks) {
+      const { lastInsertRowid } = insertChunk.run(
+        noteId,
+        chunk.ord,
+        chunk.heading,
+        chunk.excerpt,
+        chunk.startChar,
+        chunk.endChar,
+      );
+      const vec = new Float32Array(chunk.embedding);
+      insertVector.run(BigInt(lastInsertRowid), Buffer.from(vec.buffer));
+    }
+  });
+  run();
+};
+
+export const countChunks = (client: MemexClient): number =>
+  (client.sqlite.prepare('SELECT COUNT(*) AS n FROM note_chunks').get() as { n: number }).n;
+
 export const RRF_K = 60;
+
+const CHUNK_POOL = 6;
 
 // Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
 // `state`-layer notes (the "current state / plan" layer) a small bump that
@@ -67,6 +131,20 @@ const normalizeCandidate = (row: Candidate): Candidate => {
     createdAt: Number(raw.createdAt ?? raw.created_at),
     updatedAt: Number(raw.updatedAt ?? raw.updated_at),
   };
+};
+
+const bestChunkPerNote = (chunks: Candidate[]): Candidate[] => {
+  const seen = new Set<number>();
+  return chunks
+    .filter((chunk) => {
+      if (seen.has(chunk.id)) return false;
+      seen.add(chunk.id);
+      return true;
+    })
+    .map(({ chunkExcerpt, ...chunk }) => ({
+      ...chunk,
+      matchSnippet: chunkExcerpt ?? chunk.matchSnippet,
+    }));
 };
 
 const buildRrf = () => {
@@ -103,6 +181,9 @@ const buildRrf = () => {
   return { add, topK, topIds };
 };
 
+// `limit` is the page the arms are tuned around — every candidate pool is sized
+// from it. `rows` only widens what comes back, so a caller that overfetches to
+// re-order results does not silently retune retrieval underneath itself.
 export const searchNotes = (
   client: MemexClient,
   query: string,
@@ -112,6 +193,7 @@ export const searchNotes = (
   tag?: string,
   dateFrom?: number,
   dateTo?: number,
+  rows = limit,
 ): SearchResult[] => {
   const vec = new Float32Array(embedding);
   const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
@@ -139,11 +221,30 @@ export const searchNotes = (
   const hasFilters = Boolean(category || tag || dateFrom || dateTo);
   const vectorK = hasFilters ? Math.max(limit * 5, 250) : limit * 5;
 
-  const vectorResults = client.sqlite
+  const wholeNoteResults = client.sqlite
     .prepare(
       `SELECT n.*, e.distance
        FROM note_embeddings e
        JOIN notes n ON n.id = e.note_id
+       WHERE e.embedding MATCH ?
+       AND k = ?
+       AND NOT EXISTS (SELECT 1 FROM note_chunks c WHERE c.note_id = n.id)
+       ${aliasedCategoryFilter}
+       ${aliasedTagFilter}
+       ${dateFromFilterAliased}
+       ${dateToFilterAliased}
+       ORDER BY e.distance`,
+    )
+    .all(Buffer.from(vec.buffer), vectorK, ...filterArgs, ...dateArgs) as SearchResult[];
+  rrf.add(wholeNoteResults);
+
+  const chunkK = hasFilters ? Math.max(limit * CHUNK_POOL, 300) : limit * CHUNK_POOL;
+  const chunkResults = client.sqlite
+    .prepare(
+      `SELECT n.*, e.distance, c.excerpt AS chunkExcerpt
+       FROM note_chunk_embeddings e
+       JOIN note_chunks c ON c.id = e.chunk_id
+       JOIN notes n ON n.id = c.note_id
        WHERE e.embedding MATCH ?
        AND k = ?
        ${aliasedCategoryFilter}
@@ -152,8 +253,8 @@ export const searchNotes = (
        ${dateToFilterAliased}
        ORDER BY e.distance`,
     )
-    .all(Buffer.from(vec.buffer), vectorK, ...filterArgs, ...dateArgs) as SearchResult[];
-  rrf.add(vectorResults);
+    .all(Buffer.from(vec.buffer), chunkK, ...filterArgs, ...dateArgs) as Candidate[];
+  rrf.add(bestChunkPerNote(chunkResults));
 
   const normTokens = [
     ...new Set(
@@ -264,7 +365,7 @@ export const searchNotes = (
     rrf.add(neighbours, 0.5);
   }
 
-  return rrf.topK(limit);
+  return rrf.topK(Math.max(limit, rows));
 };
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>
@@ -287,6 +388,7 @@ export const listNotesByPathPrefix = (client: MemexClient, prefix: string): Note
     .all();
 
 export const deleteNote = (client: MemexClient, id: number): void => {
+  deleteNoteChunks(client, id);
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   client.db.delete(notes).where(eq(notes.id, id)).run();
@@ -413,6 +515,58 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
        ORDER BY n.updated_at DESC`,
     )
     .all(targetId) as Note[];
+
+export const linkAmendment = (
+  client: MemexClient,
+  amendmentId: number,
+  amendedId: number,
+): void => {
+  client.sqlite
+    .prepare(
+      "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'amends')",
+    )
+    .run(amendmentId, amendedId);
+};
+
+export type Amendment = { id: number; title: string; authoredAt: number };
+
+// Amendments chain: [Amendment 2] usually corrects [Amendment 1], not the
+// original, so a note is stale if anything downstream of it corrected it —
+// walking one hop would warn about the first correction and hide the last four.
+// UNION (not UNION ALL) makes the walk terminate even on a malformed cycle.
+const AMENDMENT_CHAIN = `
+  WITH RECURSIVE chain(origin, id) AS (
+    SELECT l.target_id, l.source_id
+    FROM note_links l
+    WHERE l.source = 'amends' AND l.target_id IN (SELECT value FROM json_each(?))
+    UNION
+    SELECT c.origin, l.source_id
+    FROM note_links l
+    JOIN chain c ON c.id = l.target_id
+    WHERE l.source = 'amends'
+  )
+  SELECT c.origin AS amendedId, n.id, n.title,
+         COALESCE(n.authored_at, n.created_at) AS authoredAt
+  FROM chain c
+  JOIN notes n ON n.id = c.id
+  ORDER BY authoredAt, n.id`;
+
+export const getAmendmentsFor = (
+  client: MemexClient,
+  amendedIds: number[],
+): Map<number, Amendment[]> => {
+  if (amendedIds.length === 0) return new Map();
+  const rows = client.sqlite
+    .prepare(AMENDMENT_CHAIN)
+    .all(JSON.stringify(amendedIds)) as (Amendment & { amendedId: number })[];
+  return rows.reduce((acc, { amendedId, ...amendment }) => {
+    acc.set(amendedId, [...(acc.get(amendedId) ?? []), amendment]);
+    return acc;
+  }, new Map<number, Amendment[]>());
+};
+
+export const getAmendments = (client: MemexClient, amendedId: number): Amendment[] =>
+  getAmendmentsFor(client, [amendedId]).get(amendedId) ?? [];
 
 export const listNotesSince = (client: MemexClient, sinceMs: number): Note[] =>
   client.db

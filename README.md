@@ -95,6 +95,8 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 
 - **Semantic search**, finds notes by meaning, not just keywords. Multilingual (Korean + English), runs fully offline via [`multilingual-e5-base`](https://huggingface.co/intfloat/multilingual-e5-base)
 - **Hybrid retrieval**, vector search + BM25 full-text + tag matching, fused via Reciprocal Rank Fusion
+- **Chunk-level embeddings**, long notes are split into ~340-token passages and embedded individually, so an answer buried on page three is as findable as one in the opening paragraph. Search returns the passage that matched, not the note's first lines
+- **Cross-encoder reranking** (opt-in, `MEMEX_RERANK=1`), retrieves twice as many candidates and reorders them with [`bge-reranker-v2-m3`](https://huggingface.co/BAAI/bge-reranker-v2-m3). Worth ~+20pp hit@1 on the golden set, at ~1.8s per search — off by default because auto-recall and the CLI are built around instant lookups
 - **Date filter**, narrow search to a time range with `--from` / `--to`
 - **Note layers**, every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
 - **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
@@ -103,6 +105,8 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 - **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
 - **Duplicate detection**, `save_note` warns when a semantically similar note already exists, nudging Claude to update rather than create
 - **Backlinks**, link notes with `[[Title]]` syntax; `get_note` shows which notes reference it
+- **Series collapse**, a dated work log ("… 2026-07-20", "… 2026-07-23") takes at most two slots on a result page, and search reports how many more it held back
+- **Amendments**, a correction records what it corrects (`amends`), so search flags the superseded note and points at the newest fix instead of returning a claim you already know is wrong
 - **Digest**, `memex digest` summarises notes saved in the last N days, grouped by folder
 - **CLI**, add, search, tag, browse, and index notes from the terminal
 - **Obsidian-compatible**, notes saved as `.md` files; works alongside existing vaults
@@ -294,7 +298,7 @@ memex config set vault-path ~/my-vault
 ```
 ~/.memex/
   config.json, vault path, sources, and aliases
-  memex.db, SQLite DB (notes + vec embeddings + FTS5 index)
+  memex.db, SQLite DB (notes + note/chunk vec embeddings + FTS5 index)
   models/, cached embedding model
 
 <vault>/
@@ -305,6 +309,8 @@ memex config set vault-path ~/my-vault
 |---------|------|
 | `@memex/db` | SQLite schema, drizzle queries, sqlite-vec + FTS5 integration |
 | `@memex/embed` | Local embedder via @huggingface/transformers |
+| `@memex/rerank` | Local cross-encoder reranker (opt-in) |
+| `@memex/core` | Note service shared by CLI and MCP: save, edit, search, vector indexing |
 | `@memex/utils` | Config, path helpers, shared utilities |
 | `@memex/mcp` | MCP server (bundled into CLI dist) |
 

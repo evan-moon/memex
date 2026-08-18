@@ -10,6 +10,7 @@ import {
   findSimilarByEmbedding,
   getNote,
   insertNote,
+  linkAmendment,
   type MemexClient,
   type Note,
   type NoteLayer,
@@ -21,12 +22,12 @@ import {
   type SearchResult,
   type Signal,
   type SimilarNote,
-  saveEmbedding,
   serializeTags,
   syncLinks,
   updateNote,
 } from '@memex/db';
-import { buildEmbeddingText, extractCategory } from '@memex/utils';
+import { buildEmbeddingText, collapseSeries, extractCategory } from '@memex/utils';
+import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -154,9 +155,17 @@ export const saveNote = async (
     folder?: string;
     tags?: string[];
     actor?: WriteActor;
+    amends?: number;
   },
 ): Promise<
-  | { note: Note; similar: SimilarNote[]; flashbacks: Flashback[]; signal?: Signal }
+  | {
+      note: Note;
+      similar: SimilarNote[];
+      flashbacks: Flashback[];
+      signal?: Signal;
+      amended?: Note;
+      amendsMissing?: number;
+    }
   | RuleWriteRejection
 > => {
   // Rule notes become SERVER_INSTRUCTIONS on the next startup — letting the agent channel write
@@ -192,7 +201,7 @@ export const saveNote = async (
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const { actor: _actor, ...noteParams } = params;
+  const { actor: _actor, amends: _amends, ...noteParams } = params;
   const note = insertNote(client, {
     ...noteParams,
     filePath,
@@ -200,8 +209,17 @@ export const saveNote = async (
     tags,
     authoredAt,
   });
-  saveEmbedding(client, note.id, embedding);
+  await indexNoteVectors(
+    client,
+    embedder,
+    note.id,
+    { title: params.title, content: params.content, folder: params.folder, tags: params.tags },
+    embedding,
+  );
   syncLinks(client, note.id, params.content);
+
+  const amended = params.amends === undefined ? undefined : getNote(client, params.amends);
+  if (amended) linkAmendment(client, note.id, amended.id);
 
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
@@ -212,7 +230,98 @@ export const saveNote = async (
   const signals = refreshSignals(client);
   const signal = findBestProactiveSignal(signals, note.id);
 
-  return { note, similar, flashbacks, signal };
+  return {
+    note,
+    similar,
+    flashbacks,
+    signal,
+    ...(amended ? { amended } : {}),
+    ...(params.amends !== undefined && !amended ? { amendsMissing: params.amends } : {}),
+  };
+};
+
+export type Reranker = (query: string, passages: string[]) => Promise<number[]>;
+
+export type SearchOptions = {
+  category?: string;
+  tag?: string;
+  dateFrom?: number;
+  dateTo?: number;
+  reranker?: Reranker;
+  /** Cap results from one dated series. 0 keeps every member. */
+  seriesCap?: number;
+  /** Rows to fetch before re-ordering. Widens the page without retuning the arms. */
+  rows?: number;
+};
+
+export type RankedResult = SearchResult & { rerankScore?: number };
+
+export type SearchPage = {
+  results: RankedResult[];
+  collapsed: { key: string; label: string; hidden: number }[];
+};
+
+const SERIES_CAP = 2;
+const SERIES_OVERFETCH = 3;
+
+const RERANK_OVERFETCH = 2;
+const RERANK_POOL_MAX = 20;
+const RERANK_PASSAGE_CHARS = 1200;
+
+const poolSize = (limit: number, reranker?: Reranker): number =>
+  reranker ? Math.min(RERANK_POOL_MAX, limit * RERANK_OVERFETCH) : limit;
+
+const capOf = (options: SearchOptions): number => options.seriesCap ?? SERIES_CAP;
+
+const fetchSize = (limit: number, options: SearchOptions): number =>
+  options.rows ??
+  (capOf(options) > 0
+    ? poolSize(limit * SERIES_OVERFETCH, options.reranker)
+    : poolSize(limit, options.reranker));
+
+const rerankPassage = (note: SearchResult): string =>
+  `${note.title}\n\n${(note.matchSnippet ?? note.content).slice(0, RERANK_PASSAGE_CHARS)}`;
+
+const applyRerank = async (
+  reranker: Reranker,
+  query: string,
+  candidates: SearchResult[],
+  limit: number,
+): Promise<RankedResult[]> => {
+  if (candidates.length <= 1) return candidates.slice(0, limit);
+  const scores = await reranker(query, candidates.map(rerankPassage));
+  return candidates
+    .map((note, i) => ({ ...note, rerankScore: scores[i] ?? 0 }))
+    .sort((a, b) => b.rerankScore - a.rerankScore)
+    .slice(0, limit);
+};
+
+export const searchPage = async (
+  client: MemexClient,
+  embedder: Embedder,
+  query: string,
+  limit: number,
+  options: SearchOptions = {},
+): Promise<SearchPage> => {
+  const { reranker, category, tag, dateFrom, dateTo } = options;
+  const embedding = await embedder(query, 'query');
+  const candidates = dbSearchNotes(
+    client,
+    query,
+    embedding,
+    limit,
+    category,
+    tag,
+    dateFrom,
+    dateTo,
+    fetchSize(limit, options),
+  );
+  const ranked = reranker
+    ? await applyRerank(reranker, query, candidates, candidates.length)
+    : candidates;
+  const cap = capOf(options);
+  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
+  return collapseSeries(ranked, limit, cap);
 };
 
 export const semanticSearch = async (
@@ -220,13 +329,53 @@ export const semanticSearch = async (
   embedder: Embedder,
   query: string,
   limit: number,
-  category?: string,
-  tag?: string,
-  dateFrom?: number,
-  dateTo?: number,
-) => {
-  const embedding = await embedder(query, 'query');
-  return dbSearchNotes(client, query, embedding, limit, category, tag, dateFrom, dateTo);
+  options: SearchOptions = {},
+): Promise<RankedResult[]> => (await searchPage(client, embedder, query, limit, options)).results;
+
+export const searchPageMulti = async (
+  client: MemexClient,
+  embedder: Embedder,
+  queries: string[],
+  limit: number,
+  options: SearchOptions = {},
+): Promise<SearchPage> => {
+  const { reranker, ...filters } = options;
+  const cap = capOf(options);
+  const wide = fetchSize(limit, options);
+  const perQuery = { ...filters, seriesCap: 0, rows: wide };
+  const lists = await Promise.all(
+    queries.map((q) => semanticSearch(client, embedder, q, limit, perQuery)),
+  );
+
+  const pooled =
+    lists.length === 1
+      ? lists[0]
+      : (() => {
+          const scores = new Map<number, number>();
+          const cache = new Map<number, SearchResult>();
+          lists.forEach((list) => {
+            list.forEach((note, rank) => {
+              scores.set(note.id, (scores.get(note.id) ?? 0) + 1 / (RRF_K + rank + 1));
+              const cached = cache.get(note.id);
+              if (!cached) cache.set(note.id, note);
+              else if (note.matchSnippet && !cached.matchSnippet)
+                cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
+            });
+          });
+          return [...scores.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, wide)
+            .map(([id], rank) => {
+              const note = cache.get(id);
+              if (!note) throw new Error(`Fused note #${id} missing from cache`);
+              return { ...note, distance: rank / limit };
+            });
+        })();
+
+  const ranked = reranker ? await applyRerank(reranker, queries[0], pooled, pooled.length) : pooled;
+
+  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
+  return collapseSeries(ranked, limit, cap);
 };
 
 export const semanticSearchMulti = async (
@@ -234,42 +383,21 @@ export const semanticSearchMulti = async (
   embedder: Embedder,
   queries: string[],
   limit: number,
-  category?: string,
-  tag?: string,
-  dateFrom?: number,
-  dateTo?: number,
-): Promise<SearchResult[]> => {
-  const lists = await Promise.all(
-    queries.map((q) => semanticSearch(client, embedder, q, limit, category, tag, dateFrom, dateTo)),
-  );
-  if (lists.length === 1) return lists[0];
-
-  const scores = new Map<number, number>();
-  const cache = new Map<number, SearchResult>();
-  lists.forEach((list) => {
-    list.forEach((note, rank) => {
-      scores.set(note.id, (scores.get(note.id) ?? 0) + 1 / (RRF_K + rank + 1));
-      const cached = cache.get(note.id);
-      if (!cached) cache.set(note.id, note);
-      else if (note.matchSnippet && !cached.matchSnippet)
-        cache.set(note.id, { ...cached, matchSnippet: note.matchSnippet });
-    });
-  });
-  return [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([id], rank) => {
-      const note = cache.get(id);
-      if (!note) throw new Error(`Fused note #${id} missing from cache`);
-      return { ...note, distance: rank / limit };
-    });
-};
+  options: SearchOptions = {},
+): Promise<RankedResult[]> =>
+  (await searchPageMulti(client, embedder, queries, limit, options)).results;
 
 export type EditNoteRejection =
   | {
       error: 'PAST_IMMUTABLE';
       message: string;
-      suggestion: { action: 'save_note'; title: string; link: string; layer: NoteLayer };
+      suggestion: {
+        action: 'save_note';
+        title: string;
+        link: string;
+        layer: NoteLayer;
+        amends: number;
+      };
     }
   | { error: 'RULE_USER_ONLY'; message: string };
 
@@ -286,12 +414,15 @@ export const editNote = async (
   if (note.layer === 'past') {
     return {
       error: 'PAST_IMMUTABLE',
-      message: 'past notes are immutable. Create an Amendment note instead.',
+      message:
+        'past notes are immutable. Save an Amendment note instead, passing amends so ' +
+        'search can warn that this note was corrected.',
       suggestion: {
         action: 'save_note',
         title: `[Amendment] ${note.title}`,
         link: `[[${note.title}]]`,
         layer: 'past',
+        amends: note.id,
       },
     };
   }
@@ -323,9 +454,12 @@ export const editNote = async (
 
   const relDir = relative(vaultPath, dirname(note.filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
-  client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
-  const embedding = await embedder(buildEmbeddingText(title, content, folder, resolvedTags));
-  saveEmbedding(client, id, embedding);
+  await indexNoteVectors(client, embedder, id, {
+    title,
+    content,
+    folder,
+    tags: resolvedTags,
+  });
   syncLinks(client, id, content);
 
   const signals = refreshSignals(client);

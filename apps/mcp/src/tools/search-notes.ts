@@ -1,7 +1,8 @@
-import { semanticSearchMulti } from '@memex/core';
+import { type Reranker, searchPageMulti } from '@memex/core';
 import {
   type FlashbackOptions,
   findFlashbacks,
+  getAmendmentsFor,
   type MemexClient,
   needsReembed,
   parseTags,
@@ -12,11 +13,19 @@ import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
 
-const SNIPPET_MAX_CHARS = 200;
+const SNIPPET_MAX_CHARS = 300;
 
 export const toSnippet = (content: string): string => {
   const flat = stripFrontmatter(content).replace(/\s+/g, ' ').trim();
   return flat.length > SNIPPET_MAX_CHARS ? `${flat.slice(0, SNIPPET_MAX_CHARS)}…` : flat;
+};
+
+export const supersededLine = (corrections: { id: number; title: string }[]): string => {
+  const newest = corrections.at(-1);
+  if (!newest) return '';
+  const earlier = corrections.length - 1;
+  const others = earlier > 0 ? ` (and ${earlier} earlier correction${earlier > 1 ? 's' : ''})` : '';
+  return `\n   ⚠️ superseded — corrected by #${newest.id} "${newest.title}"${others}. Read that before using this note.`;
 };
 
 export const formatSize = (chars: number): string =>
@@ -32,10 +41,15 @@ const readFlashbackOptions = (): FlashbackOptions => ({
   limit: process.env.MEMEX_FLASHBACK_LIMIT ? Number(process.env.MEMEX_FLASHBACK_LIMIT) : undefined,
 });
 
-export const registerSearchNotes = (server: McpServer, client: MemexClient, embedder: Embedder) => {
+export const registerSearchNotes = (
+  server: McpServer,
+  client: MemexClient,
+  embedder: Embedder,
+  reranker?: Reranker,
+) => {
   server.tool(
     'search_notes',
-    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, pass MULTIPLE phrasings in one call: once in the user's language and once in English, or once with their wording and once with the underlying concept — results are fused server-side. Short keyword queries work better than long sentences. Returns a compact index (id, title, snippet) — call get_note with an id to read the full content of any result that looks relevant.",
+    "Search the second brain for relevant context. Call this BEFORE answering any question that could relate to past conversations, people, projects, or decisions the user may have stored. Always search first, then answer — even if the connection seems loose. For important or vague questions, pass MULTIPLE phrasings in one call: once in the user's language and once in English, or once with their wording and once with the underlying concept — results are fused server-side. Short keyword queries work better than long sentences. Returns a compact index (id, title, snippet) where the snippet is the passage that actually matched, not the note's opening — call get_note with an id to read the full content of any result that looks relevant.",
     {
       queries: z
         .array(z.string())
@@ -70,22 +84,28 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
       const dateTo = date_to
         ? parseDate(date_to.includes('T') ? date_to : `${date_to}T23:59:59.999Z`, 'date_to')
         : undefined;
-      const results = await semanticSearchMulti(
-        client,
-        embedder,
-        queries,
-        limit,
+      const { results, collapsed } = await searchPageMulti(client, embedder, queries, limit, {
         category,
         tag,
         dateFrom,
         dateTo,
-      );
+        reranker,
+      });
       const reembedWarning = needsReembed(client)
         ? '\n\n⚠️ The embedding model changed and vectors have not been rebuilt — these results are keyword-only. Tell the user to run `memex reembed` to restore semantic search.'
         : '';
       if (results.length === 0) {
         return { content: [{ type: 'text', text: `No notes found.${reembedWarning}` }] };
       }
+
+      const seriesHint =
+        collapsed.length > 0
+          ? `\n\n---\n📚 ${collapsed
+              .map((c) => `${c.hidden} more in the "${c.label}" series`)
+              .join(
+                '; ',
+              )} were held back so one repeating series would not fill the page. Search again with a narrower query if you need them.`
+          : '';
 
       const flashbacks = findFlashbacks(client, results[0].id, Date.now(), readFlashbackOptions());
       const flashbackHint =
@@ -94,6 +114,11 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
               .map((f) => `- ${f.daysAgo} days ago: #${f.id} "${f.title}"`)
               .join('\n')}`
           : '';
+
+      const amendments = getAmendmentsFor(
+        client,
+        results.map((r) => r.id),
+      );
 
       const text =
         `Compact index — call get_note(id) for full content of relevant results.\n\n${results
@@ -109,9 +134,11 @@ export const registerSearchNotes = (server: McpServer, client: MemexClient, embe
               .filter(Boolean)
               .join(' | ');
             const snippet = r.matchSnippet ? toSnippet(r.matchSnippet) : toSnippet(r.content);
-            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}`;
+            const correctionLine = supersededLine(amendments.get(r.id) ?? []);
+            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +
+        seriesHint +
         flashbackHint +
         reembedWarning;
       return { content: [{ type: 'text', text }] };

@@ -2,18 +2,19 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { EMBEDDING_DIM } from '@memex/utils';
 import * as sqliteVec from 'sqlite-vec';
 import { parseAuthoredAt } from './dates.ts';
 import * as schema from './schema.ts';
 
-export const EMBEDDING_DIM = 768;
+export { EMBEDDING_DIM };
 
 export type MemexClient = {
   db: ReturnType<typeof drizzle<typeof schema>>;
   sqlite: Database.Database;
 };
 
-export const openDb = (dbDir: string): MemexClient => {
+export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
 
   const sqlite = new Database(join(dbDir, 'memex.db'));
@@ -51,13 +52,42 @@ export const openDb = (dbDir: string): MemexClient => {
   const embRow = sqlite
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_embeddings'")
     .get() as { sql: string } | undefined;
-  if (!embRow?.sql?.includes(`FLOAT[${EMBEDDING_DIM}]`)) {
+  if (!embRow?.sql?.includes(`FLOAT[${embeddingDim}]`)) {
     sqlite.exec('DROP TABLE IF EXISTS note_embeddings');
   }
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS note_embeddings USING vec0(
       note_id   INTEGER PRIMARY KEY,
-      embedding FLOAT[${EMBEDDING_DIM}]
+      embedding FLOAT[${embeddingDim}]
+    );
+  `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_chunks (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id    INTEGER NOT NULL,
+      ord        INTEGER NOT NULL,
+      heading    TEXT,
+      excerpt    TEXT    NOT NULL,
+      start_char INTEGER NOT NULL,
+      end_char   INTEGER NOT NULL
+    );
+  `);
+  sqlite.exec('CREATE INDEX IF NOT EXISTS note_chunks_note_id ON note_chunks(note_id)');
+
+  const chunkEmbRow = sqlite
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'note_chunk_embeddings'",
+    )
+    .get() as { sql: string } | undefined;
+  if (chunkEmbRow && !chunkEmbRow.sql.includes(`FLOAT[${embeddingDim}]`)) {
+    sqlite.exec('DROP TABLE IF EXISTS note_chunk_embeddings');
+    sqlite.exec('DELETE FROM note_chunks');
+  }
+  sqlite.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS note_chunk_embeddings USING vec0(
+      chunk_id  INTEGER PRIMARY KEY,
+      embedding FLOAT[${embeddingDim}]
     );
   `);
 
@@ -121,6 +151,29 @@ export const openDb = (dbDir: string): MemexClient => {
   const linkCols = sqlite.prepare('PRAGMA table_info(note_links)').all() as { name: string }[];
   if (!linkCols.some((c) => c.name === 'source')) {
     sqlite.exec("ALTER TABLE note_links ADD COLUMN source TEXT NOT NULL DEFAULT 'wiki'");
+  }
+
+  // `source` was added by ALTER on older DBs, which cannot widen a primary key —
+  // so a pair already joined by a wiki link silently rejected every other edge
+  // type between the same two notes, amendments included. Rebuild the table so
+  // one note can both cite and correct another.
+  const linkPk = sqlite.prepare('PRAGMA table_info(note_links)').all() as {
+    name: string;
+    pk: number;
+  }[];
+  if (!linkPk.some((c) => c.name === 'source' && c.pk > 0)) {
+    sqlite.exec(`
+      CREATE TABLE note_links_rebuilt (
+        source_id INTEGER NOT NULL,
+        target_id INTEGER NOT NULL,
+        source    TEXT    NOT NULL DEFAULT 'wiki',
+        PRIMARY KEY (source_id, target_id, source)
+      );
+      INSERT OR IGNORE INTO note_links_rebuilt(source_id, target_id, source)
+        SELECT source_id, target_id, source FROM note_links;
+      DROP TABLE note_links;
+      ALTER TABLE note_links_rebuilt RENAME TO note_links;
+    `);
   }
 
   sqlite.exec(`

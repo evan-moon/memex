@@ -19,6 +19,8 @@ export type FlashbackStats = {
 
 export type CorpusStats = {
   notes: number;
+  chunks: number;
+  notesWithoutChunks: number;
   notesByLayer: CountByKey[];
   notesBySource: CountByKey[];
   linksBySource: CountByKey[];
@@ -67,6 +69,14 @@ export const getFlashbackStats = (client: MemexClient, topLimit = 5): FlashbackS
 
 export const getCorpusStats = (client: MemexClient): CorpusStats => ({
   notes: (client.sqlite.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number }).n,
+  chunks: (client.sqlite.prepare('SELECT COUNT(*) AS n FROM note_chunks').get() as { n: number }).n,
+  notesWithoutChunks: (
+    client.sqlite
+      .prepare(
+        'SELECT COUNT(*) AS n FROM notes n WHERE NOT EXISTS (SELECT 1 FROM note_chunks c WHERE c.note_id = n.id)',
+      )
+      .get() as { n: number }
+  ).n,
   notesByLayer: countBy(
     client,
     'SELECT layer AS key, COUNT(*) AS count FROM notes GROUP BY layer ORDER BY count DESC',

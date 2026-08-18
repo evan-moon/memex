@@ -1,10 +1,12 @@
 import { spinner } from '@clack/prompts';
-import { semanticSearch } from '@memex/core';
-import { findFlashbacks, openDb } from '@memex/db';
+import { searchPage } from '@memex/core';
+import { findFlashbacks, getAmendmentsFor, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
+import { createLazyReranker } from '@memex/rerank';
 import { CONFIG_DIR, MODEL_CACHE_DIR, stripFrontmatter } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { rerankEnabled } from '../env.ts';
 import { layerBadge } from '../layer.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
@@ -28,6 +30,7 @@ export const registerSearch = (program: Command) => {
         const client = openDb(CONFIG_DIR);
         guardEmbeddingModel(client);
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
+        const reranker = rerankEnabled() ? createLazyReranker(MODEL_CACHE_DIR) : undefined;
 
         s.message('Searching...');
         const parseDate = (s: string, label: string): number => {
@@ -42,15 +45,18 @@ export const registerSearch = (program: Command) => {
         const dateTo = opts.to
           ? parseDate(opts.to.includes('T') ? opts.to : `${opts.to}T23:59:59.999Z`, '--to')
           : undefined;
-        const results = await semanticSearch(
+        const { results, collapsed } = await searchPage(
           client,
           embedder,
           query,
           Number(opts.limit),
-          opts.category,
-          opts.tag,
-          dateFrom,
-          dateTo,
+          {
+            category: opts.category,
+            tag: opts.tag,
+            dateFrom,
+            dateTo,
+            reranker,
+          },
         );
         s.stop(`Found ${results.length} result(s)`);
 
@@ -59,14 +65,30 @@ export const registerSearch = (program: Command) => {
           return;
         }
 
+        const amendments = getAmendmentsFor(
+          client,
+          results.map((r) => r.id),
+        );
+
         for (const note of results) {
           console.log();
           console.log(
             `${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`,
           );
-          const body = stripFrontmatter(note.content);
-          const preview = body.slice(0, 200).replace(/\n/g, ' ');
-          console.log(pc.dim(preview + (body.length > 200 ? '…' : '')));
+          const corrections = amendments.get(note.id) ?? [];
+          const newest = corrections.at(-1);
+          if (newest) {
+            const others = corrections.length > 1 ? ` (+${corrections.length - 1} earlier)` : '';
+            console.log(pc.yellow(`⚠ superseded by #${newest.id} "${newest.title}"${others}`));
+          }
+          const body = stripFrontmatter(note.matchSnippet ?? note.content);
+          const preview = body.slice(0, 300).replace(/\s+/g, ' ').trim();
+          console.log(pc.dim(preview + (body.length > 300 ? '…' : '')));
+        }
+
+        for (const c of collapsed) {
+          console.log();
+          console.log(pc.dim(`… +${c.hidden} more in the "${c.label}" series, held back`));
         }
 
         const flashbacks = findFlashbacks(client, results[0].id, Date.now());
