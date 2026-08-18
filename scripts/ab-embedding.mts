@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { indexNoteVectors, semanticSearch } from '@memex/core';
+import { indexChunks, semanticSearch } from '@memex/core';
 import { listNotes, openDb, parseTags } from '@memex/db';
 import { createEmbedder, type EmbeddingModel } from '@memex/embed';
 import { expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
@@ -74,7 +74,10 @@ const notes = listNotes(client, 100_000).filter((n) => !alreadyEmbedded.has(n.id
 const started = Date.now();
 const chunks = await notes.reduce(async (pending, note, i) => {
   const done = await pending;
-  const count = await indexNoteVectors(client, embedder, note.id, {
+  // Only passages: the whole-note vector is a fallback for notes that have no
+  // chunks, so it never answers here — and on a long-context model it is the
+  // most expensive thing in the run, since nothing truncates it to 512 tokens.
+  const count = await indexChunks(client, embedder, note.id, {
     title: note.title,
     content: note.content,
     folder: folderOf(note.filePath),
