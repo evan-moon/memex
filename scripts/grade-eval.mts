@@ -120,12 +120,31 @@ const runPool = async <T, R>(items: T[], worker: (item: T) => Promise<R>, size: 
 };
 
 const cases: EvalCase[] = JSON.parse(readFileSync(FILE, 'utf8'));
-const targets = LIMIT > 0 ? cases.slice(0, LIMIT) : cases;
+const ungraded = cases.filter((c) => !c.graded);
+const targets = LIMIT > 0 ? ungraded.slice(0, LIMIT) : ungraded;
+const gradedByQuery = new Map<string, Record<number, number>>();
+
+// Grading costs real money per case, so checkpoint as they land: a killed run
+// resumes from what it already paid for instead of starting over.
+const checkpoint = () => {
+  if (!APPLY) return;
+  const merged = cases.map((c) => {
+    const grades = gradedByQuery.get(c.query);
+    if (!grades) return c;
+    return {
+      ...c,
+      graded: { ...c.graded, ...grades, ...Object.fromEntries(c.expect.map((id) => [id, 2])) },
+    };
+  });
+  writeFileSync(FILE, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+};
 
 const client = openDb(CONFIG_DIR);
 const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
-console.log(`grading ${targets.length} cases · pool ${POOL} · model ${MODEL}`);
+console.log(
+  `grading ${targets.length} of ${cases.length} cases (${cases.length - ungraded.length} already graded) · pool ${POOL} · model ${MODEL}`,
+);
 
 const pools = await targets.reduce(
   async (pending, c) => {
@@ -152,6 +171,8 @@ const graded = await runPool(
       const { grades, cost } = await askClaude(buildPrompt(c.query, hits));
       state.spent += cost;
       state.done += 1;
+      gradedByQuery.set(c.query, grades);
+      if (state.done % 20 === 0) checkpoint();
       process.stdout.write(`\r${state.done}/${targets.length} · $${state.spent.toFixed(2)}`);
       return grades;
     } catch (error) {
@@ -162,15 +183,6 @@ const graded = await runPool(
   },
   CONCURRENCY,
 );
-
-const merged = cases.map((c, i) => {
-  const grades = graded[i];
-  if (!grades || Object.keys(grades).length === 0) return c;
-  return {
-    ...c,
-    graded: { ...c.graded, ...grades, ...Object.fromEntries(c.expect.map((id) => [id, 2])) },
-  };
-});
 
 const suspect = targets.filter((c, i) => graded[i] && c.expect.some((id) => graded[i][id] === 0));
 const extraAnswers = targets.filter(
@@ -187,5 +199,5 @@ if (!APPLY) {
   process.exit(0);
 }
 
-writeFileSync(FILE, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+checkpoint();
 console.log(`\n✓ wrote ${FILE}`);
