@@ -22,6 +22,7 @@ import { registerSignals } from './commands/signals.ts';
 import { registerSource } from './commands/source.ts';
 import { registerStats } from './commands/stats.ts';
 import { registerTags } from './commands/tags.ts';
+import { registerUi } from './commands/ui.ts';
 
 declare const __MEMEX_VERSION__: string;
 const VERSION = (() => {
@@ -56,6 +57,7 @@ registerInferences(program);
 registerDigest(program);
 registerLayer(program);
 registerStats(program);
+registerUi(program);
 registerSchedule(program);
 
 // memex is MCP-first: Claude drives search/save through the MCP server, and
