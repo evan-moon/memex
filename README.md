@@ -327,7 +327,7 @@ flowchart TB
         direction LR
         CD[Claude Desktop]
         CC[Claude Code]
-        H["Herald · voice"]
+        CU[Cursor]
     end
     subgraph T["Local-first tools, each owns its data, on your machine"]
         direction LR
@@ -345,7 +345,7 @@ flowchart TB
 - **[memex](https://github.com/evan-moon/memex)** · memory, notes and the context behind them, across sessions
 - **[skope](https://github.com/evan-moon/skope)** · news, a personalized lens on the world
 
-You reach them through Claude Desktop, Claude Code, Cursor, or **[Herald](https://ai-herald.vercel.app)**, a voice interface. The tools compose through the model, never by calling each other.
+You reach them through Claude Desktop, Claude Code, Cursor, or any other MCP client. The tools compose through the model, never by calling each other.
 
 ---
 
