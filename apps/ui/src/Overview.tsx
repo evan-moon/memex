@@ -9,21 +9,14 @@ import {
   YAxis,
 } from 'recharts';
 import type { Overview as Data } from './api.ts';
+import { ago } from './bits.tsx';
+import { Spark } from './Spark.tsx';
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
   <div className="rounded-card border border-line bg-surface p-4">
     <div className="text-xs text-muted">{label}</div>
     <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
     {hint ? <div className="mt-1 text-xs text-muted">{hint}</div> : null}
-  </div>
-);
-
-const Bar = ({ share }: { share: number }) => (
-  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
-    <div
-      className="h-full rounded-full"
-      style={{ width: `${Math.max(2, share * 100)}%`, background: 'var(--caution)' }}
-    />
   </div>
 );
 
@@ -103,24 +96,32 @@ export const Overview = ({ data }: { data: Data }) => {
 
       <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
         <h2 className="text-sm font-semibold">태그별 낡은 정도</h2>
-        <p className="mt-1 text-xs text-muted">낡은 비율이 높은 순 · 클릭하면 그 주제로</p>
-        <div className="mt-4 space-y-3">
+        <p className="mt-1 text-xs text-muted">
+          선은 최근 1년 주간 활동 — 모든 태그가 같은 축이라 오른쪽이 평평하면 손을 뗀 지 오래됐다는 뜻
+        </p>
+        <div className="mt-3 divide-y divide-line">
           {data.staleness.map((s) => (
             <Link
               key={s.tag}
               to={`/topic/${encodeURIComponent(s.tag)}`}
-              className="block rounded-lg p-2 -mx-2 hover:bg-surface-muted"
+              className="flex items-center gap-4 py-2.5 hover:bg-surface-muted"
             >
-              <div className="flex items-baseline gap-3 text-sm">
-                <span className="font-medium">{s.tag}</span>
-                <span className="text-xs text-muted">{s.count}개</span>
-                <span className="ml-auto tabular-nums text-xs" style={{ color: 'var(--caution)' }}>
-                  {Math.round(s.share * 100)}% 낡음
-                </span>
+              <span className="w-28 shrink-0 truncate text-sm font-medium">{s.tag}</span>
+              <span className="hidden w-16 shrink-0 text-[11px] tabular-nums text-muted sm:block">
+                {s.count}개
+              </span>
+              <div className="min-w-0 flex-1">
+                <Spark values={s.spark} width={220} height={26} />
               </div>
-              <div className="mt-2">
-                <Bar share={s.share} />
-              </div>
+              <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-muted">
+                {ago(s.lastAt)}
+              </span>
+              <span
+                className="w-16 shrink-0 text-right text-xs tabular-nums"
+                style={{ color: 'var(--caution)' }}
+              >
+                {Math.round(s.share * 100)}% 낡음
+              </span>
             </Link>
           ))}
         </div>

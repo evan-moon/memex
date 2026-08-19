@@ -2,6 +2,7 @@ import { LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, type Overview as OverviewData, type Sidebar as SidebarData, type Topic } from './api.ts';
+import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { Overview } from './Overview.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
@@ -108,6 +109,7 @@ export const App = () => {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">
+          <ErrorBoundary key={location.pathname}>
           <Routes>
             <Route path="/" element={<Overview data={overview} />} />
             <Route path="/topics" element={<TopicsScreen topics={topics} />} />
@@ -116,6 +118,7 @@ export const App = () => {
             <Route path="/search" element={<SearchScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

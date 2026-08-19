@@ -42,7 +42,14 @@ export type Overview = {
   topics: number;
   outdated: number;
   activity: { date: string; notes: number }[];
-  staleness: { tag: string; count: number; outdated: number; share: number }[];
+  staleness: {
+    tag: string;
+    count: number;
+    outdated: number;
+    share: number;
+    spark: number[];
+    lastAt: number;
+  }[];
 };
 
 export type Sidebar = {

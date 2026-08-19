@@ -2,8 +2,8 @@ import { createServer } from 'node:http';
 import { semanticSearch } from '@memex/core';
 import { getAmendmentsFor, type MemexClient } from '@memex/db';
 import { layerCounts, listByLayer, noteDetail, staleStateIds } from './notes.ts';
-import { PAGE } from './page.ts';
 import { buildOverview } from './overview.ts';
+import { PAGE } from './page.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;

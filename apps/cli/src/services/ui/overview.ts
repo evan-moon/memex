@@ -10,7 +10,14 @@ export type Overview = {
   topics: number;
   outdated: number;
   activity: { date: string; notes: number }[];
-  staleness: { tag: string; count: number; outdated: number; share: number }[];
+  staleness: {
+    tag: string;
+    count: number;
+    outdated: number;
+    share: number;
+    spark: number[];
+    lastAt: number;
+  }[];
 };
 
 // Only what a person wrote counts as use — `index` is a bulk import of files
@@ -63,6 +70,8 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
           t.currentCount + t.outdatedCount === 0
             ? 0
             : t.outdatedCount / (t.currentCount + t.outdatedCount),
+        spark: t.spark,
+        lastAt: t.lastAt,
       }))
       .sort((a, b) => b.share - a.share || b.outdated - a.outdated)
       .slice(0, 12),
