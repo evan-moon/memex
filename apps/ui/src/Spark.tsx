@@ -5,10 +5,13 @@ export const Spark = ({
   values,
   width = 132,
   height = 28,
+  fill = false,
 }: {
   values: number[];
   width?: number;
   height?: number;
+  /** Stretch to the container instead of drawing at a fixed width. */
+  fill?: boolean;
 }) => {
   const max = Math.max(...values, 1);
   const step = width / Math.max(1, values.length - 1);
@@ -17,7 +20,13 @@ export const Spark = ({
     .join(' ');
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+    <svg
+      width={fill ? '100%' : width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio={fill ? 'none' : undefined}
+      aria-hidden="true"
+    >
       <title>주간 활동</title>
       <polyline
         points={points}

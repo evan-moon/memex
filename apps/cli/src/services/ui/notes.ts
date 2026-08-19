@@ -26,13 +26,25 @@ export type NoteDetail = {
   related: NoteRef[];
 };
 
-const toRef = (n: {
+// Queries that select whole rows hand back snake_case keys at runtime whatever
+// the camelCase type says, so a ref built from only the camel names loses its
+// date — and a missing date is what blanked the note screen.
+type RawNote = {
   id: number;
   title: string;
   layer: string;
-  authoredAt: number | null;
-  createdAt: number;
-}): NoteRef => ({ id: n.id, title: n.title, layer: n.layer, at: n.authoredAt ?? n.createdAt });
+  authoredAt?: number | null;
+  createdAt?: number;
+  authored_at?: number | null;
+  created_at?: number;
+};
+
+const toRef = (n: RawNote): NoteRef => ({
+  id: n.id,
+  title: n.title,
+  layer: n.layer,
+  at: n.authoredAt ?? n.authored_at ?? n.createdAt ?? n.created_at ?? 0,
+});
 
 // Obsidian can only open what is inside the vault it has open; notes indexed
 // from other roots get their path shown instead of a link that would fail.
@@ -57,7 +69,7 @@ export const noteDetail = (
          FROM note_links l JOIN notes n ON n.id = l.target_id
          WHERE l.source_id = ? AND l.source = 'amends'`,
       )
-      .all(id) as Parameters<typeof toRef>[0][]
+      .all(id) as RawNote[]
   ).map(toRef);
 
   return {
@@ -89,7 +101,7 @@ export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 500):
          FROM notes WHERE layer = ?
          ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
       )
-      .all(layer, limit) as Parameters<typeof toRef>[0][]
+      .all(layer, limit) as RawNote[]
   ).map(toRef);
 
 export const layerCounts = (client: MemexClient): Record<string, number> =>

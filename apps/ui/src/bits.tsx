@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 import type { NoteRef } from './api.ts';
 
-export const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+// A note with no usable timestamp is worth rendering without its date; throwing
+// here unmounts the screen it appears on.
+export const day = (ms: number) =>
+  Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString().slice(0, 10) : '—';
 
 export const ago = (ms: number) => {
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
   const d = Math.floor((Date.now() - ms) / 86_400_000);
   if (d < 1) return '오늘';
   if (d < 30) return `${d}일 전`;

@@ -111,7 +111,7 @@ export const Overview = ({ data }: { data: Data }) => {
                 {s.count}개
               </span>
               <div className="min-w-0 flex-1">
-                <Spark values={s.spark} width={220} height={26} />
+                <Spark values={s.spark} width={220} height={26} fill />
               </div>
               <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-muted">
                 {ago(s.lastAt)}
