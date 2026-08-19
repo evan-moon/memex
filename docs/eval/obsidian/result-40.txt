@@ -1,0 +1,14 @@
+
+memex     hit@1  25% · hit@5  38% · hit@10  55% · MRR 0.331 · nDCG 0.381
+obsidian  hit@1  20% · hit@5  43% · hit@10  48% · MRR 0.291 · nDCG 0.336
+
+  notes m hit@1  22% · hit@5  38% · hit@10  59% · MRR 0.320 · nDCG 0.383
+  notes o hit@1  19% · hit@5  44% · hit@10  50% · MRR 0.291 · nDCG 0.342
+  blog m  hit@1  38% · hit@5  38% · hit@10  38% · MRR 0.375 · nDCG 0.375
+  blog o  hit@1  25% · hit@5  38% · hit@10  38% · MRR 0.292 · nDCG 0.313
+
+mean MRR difference (memex − obsidian): 0.039
+bootstrap 95% CI: [-0.092, 0.170]
+per-query: memex 13 wins · obsidian 9 wins · 18 ties (sign test p=0.523)
+
+verdict: no difference this sample can resolve — interval contains zero

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -11,10 +11,13 @@ Writes every indexed note out of the DB, so Obsidian sees the exact text memex
 searched — not the source files, which live under three different roots and
 would leave Obsidian with a smaller corpus.
 
-Files are named "<title> (#id).md": the blog notes are all called index.md or
+Files are named "<title> (id N).md": the blog notes are all called index.md or
 en.md on disk, which is unusable both as an answer key and as something to read
 in a file list. The id suffix also means the manual step records numbers rather
-than long titles.`;
+than long titles.
+
+The id is written as "(id N)", not "(#N)" — Obsidian rejects # ^ [ ] | in note
+names, and Smart Connections silently imports nothing rather than complaining.`;
 
 if (process.argv.includes('--help')) {
   console.log(usage);
@@ -45,11 +48,16 @@ const notes = db.prepare('SELECT id, title, content FROM notes ORDER BY id').all
   content: string;
 }[];
 
-rmSync(OUT, { recursive: true, force: true });
+// Only the notes are ours to replace. Wiping the folder would take .obsidian
+// with it — the plugin install and the embedding model choice live there, and
+// rebuilding the corpus is not a reason to make someone set those up again.
 mkdirSync(OUT, { recursive: true });
+for (const entry of readdirSync(OUT)) {
+  if (entry.endsWith('.md')) rmSync(join(OUT, entry), { force: true });
+}
 
 for (const note of notes) {
-  const name = `${sanitize(note.title) || 'untitled'} (#${note.id}).md`;
+  const name = `${sanitize(note.title) || 'untitled'} (id ${note.id}).md`;
   writeFileSync(join(OUT, name), note.content, 'utf8');
 }
 

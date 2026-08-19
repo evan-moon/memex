@@ -26,6 +26,7 @@ const arg = (flag: string, fallback: string): string => {
 };
 
 const N = Number(arg('--n', '40'));
+const ALL = process.argv.includes('--all');
 const SEED = Number(arg('--seed', '7'));
 const OUT = arg('--out', join(dirname(new URL(import.meta.url).pathname), 'golden-set.json'));
 
@@ -89,7 +90,10 @@ const drawFrom = (pool: EvalCase[], want: number): EvalCase[] => {
 const notes = cases.filter((c) => sourceOf(c) === 'notes');
 const blog = cases.filter((c) => sourceOf(c) === 'blog');
 const wantNotes = Math.min(notes.length, Math.round(N * vaultShare));
-const picked = [...drawFrom(notes, wantNotes), ...drawFrom(blog, N - wantNotes)];
+// --all trades representativeness for power: every query, blog-heavy mix and
+// all. The bias hits both tools identically, so the paired comparison stays
+// valid — but the composition has to be stated wherever the number is.
+const picked = ALL ? cases : [...drawFrom(notes, wantNotes), ...drawFrom(blog, N - wantNotes)];
 
 const golden = shuffled(picked).map((c, i) => ({
   index: i + 1,

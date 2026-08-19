@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { semanticSearch } from '@memex/core';
 import { openDb } from '@memex/db';
@@ -40,10 +40,17 @@ const rows = await golden.reduce(
 
 writeFileSync(join(here, 'memex.json'), `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
 
-const header = 'index,query,rank1,rank2,rank3,rank4,rank5,rank6,rank7,rank8,rank9,rank10';
-const csv = golden
-  .map((g) => `${g.index},"${g.query.replace(/"/g, '""')}",,,,,,,,,,`)
-  .join('\n');
-writeFileSync(join(here, 'obsidian.csv'), `${header}\n${csv}\n`, 'utf8');
+// Never overwrite results that are already in: re-running this to refresh the
+// memex side after the corpus changed should not wipe the Obsidian side, which
+// costs a run of the collector to reproduce.
+const csvPath = join(here, 'obsidian.csv');
+const hadResults = existsSync(csvPath);
+if (!hadResults) {
+  const header = 'index,query,rank1,rank2,rank3,rank4,rank5,rank6,rank7,rank8,rank9,rank10';
+  const csv = golden.map((g) => `${g.index},"${g.query.replace(/"/g, '""')}",,,,,,,,,,`).join('\n');
+  writeFileSync(csvPath, `${header}\n${csv}\n`, 'utf8');
+}
 
-console.log(`\nwrote memex.json (${rows.length} queries) and a blank obsidian.csv to fill in`);
+console.log(
+  `\nwrote memex.json (${rows.length} queries)${hadResults ? ' — left obsidian.csv alone' : ' and a blank obsidian.csv to fill in'}`,
+);
