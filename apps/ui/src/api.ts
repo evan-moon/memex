@@ -6,6 +6,8 @@ export type NoteRef = {
   reason?: string | null;
 };
 
+export type Companion = { tag: string; shared: number; overlap: number; sameThing: boolean };
+
 export type Topic = {
   tag: string;
   count: number;
@@ -13,9 +15,11 @@ export type Topic = {
   lastAt: number;
   dormant: boolean;
   currentCount: number;
-  outdatedCount: number;
+  changedCount: number;
+  reviewCount: number;
   current: NoteRef[];
   outdated: NoteRef[];
+  companions: Companion[];
   arcs: { reasoning: string; noteIds: number[] }[];
 };
 
@@ -40,7 +44,8 @@ export type Overview = {
   chunks: number;
   links: { wiki: number; amends: number };
   topics: number;
-  outdated: number;
+  changed: number;
+  review: number;
   activity: { date: string; notes: number }[];
   staleness: {
     tag: string;

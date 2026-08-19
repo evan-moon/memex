@@ -58,7 +58,9 @@ describe('buildTopic', () => {
     const topic = buildTopic(client, 't', base + 3 * DAY);
     expect(topic?.current.map((n) => n.id)).toEqual([stillGood.id]);
     expect(topic?.outdated[0]).toMatchObject({ id: plan.id });
-    expect(topic?.outdated[0].reason).toContain('정정됨');
+    expect(topic?.outdated[0].reason).toContain('바뀌었어');
+    expect(topic?.changedCount).toBe(1);
+    expect(topic?.reviewCount).toBe(0);
   });
 
   it('counts a current plan as out of date once records piled up behind it', () => {
@@ -72,7 +74,9 @@ describe('buildTopic', () => {
 
     const topic = buildTopic(client, 't', base + 2 * DAY);
     expect(topic?.outdated.map((n) => n.id)).toEqual([plan.id]);
-    expect(topic?.outdated[0].reason).toContain('확인 필요');
+    expect(topic?.outdated[0].reason).toContain('확인해봐');
+    expect(topic?.reviewCount).toBe(1);
+    expect(topic?.changedCount).toBe(0);
   });
 
   it('falls back to recent entries for a topic that is only a record', () => {
@@ -88,6 +92,15 @@ describe('buildTopic', () => {
     addNote('a', ['t'], base);
     expect(buildTopic(client, 't', base + 100 * DAY)?.dormant).toBe(true);
     expect(buildTopic(client, 't', base + 10 * DAY)?.dormant).toBe(false);
+  });
+
+  it('names a companion subject and flags one that looks like the same thing said twice', () => {
+    for (let i = 0; i < 10; i += 1) addNote(`n${i}`, ['ko', 'en', 'wider'], base + i * DAY);
+    for (let i = 0; i < 10; i += 1) addNote(`w${i}`, ['wider'], base + i * DAY);
+
+    const companions = buildTopic(client, 'ko', base + 20 * DAY)?.companions ?? [];
+    expect(companions.find((c) => c.tag === 'en')?.sameThing).toBe(true);
+    expect(companions.find((c) => c.tag === 'wider')?.sameThing).toBe(false);
   });
 
   it('surfaces an arc only when the topic holds several of its notes', () => {

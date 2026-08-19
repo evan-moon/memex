@@ -8,7 +8,8 @@ export type Overview = {
   chunks: number;
   links: { wiki: number; amends: number };
   topics: number;
-  outdated: number;
+  changed: number;
+  review: number;
   activity: { date: string; notes: number }[];
   staleness: {
     tag: string;
@@ -59,17 +60,18 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
       amends: links.find((l) => l.source === 'amends')?.c ?? 0,
     },
     topics: topics.length,
-    outdated: topics.reduce((acc, t) => acc + t.outdatedCount, 0),
+    changed: topics.reduce((acc, t) => acc + t.changedCount, 0),
+    review: topics.reduce((acc, t) => acc + t.reviewCount, 0),
     activity: activity(client, 90, now),
     staleness: topics
       .map((t) => ({
         tag: t.tag,
         count: t.count,
-        outdated: t.outdatedCount,
+        outdated: t.changedCount + t.reviewCount,
         share:
-          t.currentCount + t.outdatedCount === 0
+          t.currentCount + t.changedCount + t.reviewCount === 0
             ? 0
-            : t.outdatedCount / (t.currentCount + t.outdatedCount),
+            : (t.changedCount + t.reviewCount) / (t.currentCount + t.changedCount + t.reviewCount),
         spark: t.spark,
         lastAt: t.lastAt,
       }))

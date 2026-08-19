@@ -41,7 +41,8 @@ export const TopicsScreen = ({ topics }: { topics: Topic[] }) => (
     </p>
     <div className="mt-4 divide-y divide-line border-y border-line">
       {topics.map((t) => {
-        const total = Math.max(1, t.currentCount + t.outdatedCount);
+        const stale = t.changedCount + t.reviewCount;
+        const total = Math.max(1, t.currentCount + stale);
         return (
           <Link
             key={t.tag}
@@ -65,20 +66,20 @@ export const TopicsScreen = ({ topics }: { topics: Topic[] }) => (
                 />
                 <i
                   className="block h-full"
-                  style={{ width: `${(t.outdatedCount / total) * 100}%`, background: 'var(--caution)' }}
+                  style={{ width: `${(stale / total) * 100}%`, background: 'var(--caution)' }}
                 />
               </div>
               <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
                 <span>
-                  유효{' '}
+                  아직 맞는 얘기{' '}
                   <b className="tabular-nums" style={{ color: 'var(--positive)' }}>
                     {t.currentCount}
                   </b>
                 </span>
                 <span>
-                  낡음{' '}
+                  지난 얘기{' '}
                   <b className="tabular-nums" style={{ color: 'var(--caution)' }}>
-                    {t.outdatedCount}
+                    {stale}
                   </b>
                 </span>
                 <span>{ago(t.lastAt)}</span>
@@ -114,7 +115,7 @@ export const TopicScreen = () => {
         <Card>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <i className="size-2 rounded-full" style={{ background: 'var(--positive)' }} />
-            지금 유효한 것 {data.currentCount}
+            아직 맞는 이야기 {data.currentCount}
           </h2>
           <div className="mt-2">
             <NoteList notes={data.current} empty="없음" />
@@ -123,13 +124,41 @@ export const TopicScreen = () => {
         <Card>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <i className="size-2 rounded-full" style={{ background: 'var(--caution)' }} />
-            낡았거나 뒤집힌 것 {data.outdatedCount}
+            지난 이야기 {data.changedCount + data.reviewCount}
           </h2>
           <div className="mt-2">
-            <NoteList notes={data.outdated} empty="아직 뒤집힌 게 없어" />
+            <p className="mb-1 text-[11px] text-muted">
+              이미 바뀜 {data.changedCount} · 다시 볼 것 {data.reviewCount}
+            </p>
+            <NoteList notes={data.outdated} empty="아직 바뀐 이야기가 없어" />
           </div>
         </Card>
       </div>
+      {data.companions.length > 0 ? (
+        <Card className="mt-5">
+          <h2 className="text-sm font-semibold">이 주제가 붙어 다니는 곳</h2>
+          <p className="mt-1 text-xs text-muted">
+            같은 노트에 함께 달린 주제 — 이 이야기가 어디로 흩어져 있는지
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {data.companions.map((c) => (
+              <Link
+                key={c.tag}
+                to={`/topic/${encodeURIComponent(c.tag)}`}
+                className="rounded-full border border-line px-3 py-1.5 text-xs hover:border-line-strong hover:bg-surface-muted"
+              >
+                {c.tag}
+                <span className="ml-2 tabular-nums text-muted">{c.shared}</span>
+                {c.sameThing ? (
+                  <span className="ml-2 text-muted">· 같은 말 같아</span>
+                ) : c.overlap >= 0.8 ? (
+                  <span className="ml-2 text-muted">· {Math.round(c.overlap * 100)}% 겹침</span>
+                ) : null}
+              </Link>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       <Card className="mt-5">
         <h2 className="text-sm font-semibold">전체 {data.notes.length}</h2>
         <div className="mt-2">

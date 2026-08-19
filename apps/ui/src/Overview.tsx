@@ -37,7 +37,11 @@ export const Overview = ({ data }: { data: Data }) => {
           hint={`위키 ${data.links.wiki} · 정정 ${data.links.amends}`}
         />
         <Stat label="주제" value={String(data.topics)} hint="20회 이상 쓰인 태그" />
-        <Stat label="낡은 노트" value={data.outdated.toLocaleString()} hint="뒤집혔거나 확인 필요" />
+        <Stat
+          label="더 이상 맞지 않을 수 있는 노트"
+          value={(data.changed + data.review).toLocaleString()}
+          hint={`이미 바뀜 ${data.changed} · 다시 볼 것 ${data.review}`}
+        />
       </div>
 
       <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
@@ -95,7 +99,7 @@ export const Overview = ({ data }: { data: Data }) => {
       </section>
 
       <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
-        <h2 className="text-sm font-semibold">태그별 낡은 정도</h2>
+        <h2 className="text-sm font-semibold">주제별로 얼마나 지난 이야기인가</h2>
         <p className="mt-1 text-xs text-muted">
           선은 최근 1년 주간 활동 — 모든 태그가 같은 축이라 오른쪽이 평평하면 손을 뗀 지 오래됐다는 뜻
         </p>
@@ -120,7 +124,7 @@ export const Overview = ({ data }: { data: Data }) => {
                 className="w-16 shrink-0 text-right text-xs tabular-nums"
                 style={{ color: 'var(--caution)' }}
               >
-                {Math.round(s.share * 100)}% 낡음
+                {Math.round(s.share * 100)}% 지난 얘기
               </span>
             </Link>
           ))}

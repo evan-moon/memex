@@ -17,6 +17,15 @@ export type TopicNoteRef = {
 
 export type Arc = { reasoning: string; noteIds: number[] };
 
+export type Companion = {
+  tag: string;
+  shared: number;
+  /** Share of the smaller topic the two have in common. */
+  overlap: number;
+  /** Near-total overlap both ways — likely the same subject spelled twice. */
+  sameThing: boolean;
+};
+
 export type Topic = {
   tag: string;
   count: number;
@@ -25,9 +34,11 @@ export type Topic = {
   lastAt: number;
   dormant: boolean;
   currentCount: number;
-  outdatedCount: number;
+  changedCount: number;
+  reviewCount: number;
   current: TopicNoteRef[];
   outdated: TopicNoteRef[];
+  companions: Companion[];
   arcs: Arc[];
 };
 
@@ -59,7 +70,7 @@ const supersededBy = (client: MemexClient, ids: number[]): Map<number, string> =
     )
     .all(...ids) as { id: number; fixId: number; fixTitle: string }[];
   return rows.reduce(
-    (acc, r) => acc.set(r.id, `#${r.fixId} "${r.fixTitle}" 에서 정정됨`),
+    (acc, r) => acc.set(r.id, `#${r.fixId} "${r.fixTitle}" 에서 이야기가 바뀌었어`),
     new Map<number, string>(),
   );
 };
@@ -69,7 +80,10 @@ const staleReasons = (client: MemexClient): Map<number, string> =>
     const [stateNote, ...newer] = s.evidenceIds;
     return stateNote === undefined
       ? acc
-      : acc.set(stateNote, `이후 기록 ${newer.length}개가 쌓임 — 아직 맞는지 확인 필요`);
+      : acc.set(
+          stateNote,
+          `이 뒤로 관련 기록이 ${newer.length}개 쌓였어 — 아직 맞는 얘긴지 확인해봐`,
+        );
   }, new Map<number, string>());
 
 const arcsFor = (client: MemexClient, ids: Set<number>): Arc[] =>
@@ -95,6 +109,39 @@ const sparkline = (notes: Row[], now: number): number[] => {
   );
 };
 
+// Which subjects this one keeps company with. Two spellings of the same thing
+// (toss / 토스) score the same as a real relationship (1on1 / 커피챗), and no
+// count can tell them apart — so near-total overlap in both directions is
+// flagged rather than hidden, and the reader decides.
+const companionsFor = (client: MemexClient, tag: string): Companion[] => {
+  const rows = client.sqlite
+    .prepare(
+      `WITH mine AS (
+         SELECT n.id FROM notes n, json_each(n.tags) j WHERE j.value = ?
+       )
+       SELECT j.value AS tag, COUNT(*) AS shared,
+              (SELECT COUNT(*) FROM notes n2, json_each(n2.tags) j2 WHERE j2.value = j.value) AS total
+       FROM mine JOIN notes n ON n.id = mine.id, json_each(n.tags) j
+       WHERE j.value != ?
+       GROUP BY j.value
+       HAVING shared >= 5
+       ORDER BY shared DESC
+       LIMIT 8`,
+    )
+    .all(tag, tag) as { tag: string; shared: number; total: number }[];
+
+  const mine = client.sqlite
+    .prepare('SELECT COUNT(*) AS c FROM notes n, json_each(n.tags) j WHERE j.value = ?')
+    .get(tag) as { c: number };
+
+  return rows.map((r) => ({
+    tag: r.tag,
+    shared: r.shared,
+    overlap: r.shared / Math.min(mine.c, r.total),
+    sameThing: r.shared / mine.c >= 0.95 && r.shared / r.total >= 0.95,
+  }));
+};
+
 export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): Topic | null => {
   const notes = notesForTag(client, tag);
   if (notes.length === 0) return null;
@@ -106,7 +153,7 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
   const reasonFor = (n: Row) => fixed.get(n.id) ?? stale.get(n.id) ?? null;
   const outdated = notes
     .filter((n) => reasonFor(n) !== null)
-    .map((n) => ({ ...n, reason: reasonFor(n) }));
+    .map((n) => ({ ...n, reason: reasonFor(n), changed: fixed.has(n.id) }));
 
   const outdatedIds = new Set(outdated.map((n) => n.id));
   const believed = notes.filter((n) => n.layer === 'state' && !outdatedIds.has(n.id));
@@ -125,9 +172,11 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
     lastAt: notes[0].at,
     dormant: now - notes[0].at > DORMANT_DAYS * DAY,
     currentCount: current.length,
-    outdatedCount: outdated.length,
+    changedCount: outdated.filter((n) => n.changed).length,
+    reviewCount: outdated.filter((n) => !n.changed).length,
     current: current.slice(0, PREVIEW),
     outdated: outdated.slice(0, PREVIEW),
+    companions: companionsFor(client, tag),
     arcs: arcsFor(client, new Set(ids)),
   };
 };
@@ -148,6 +197,9 @@ export const buildTopics = (client: MemexClient, now = Date.now()): Topic[] =>
   listTopicTags(client)
     .map((tag) => buildTopic(client, tag, now))
     .filter((t): t is Topic => t !== null)
-    .sort((a, b) => b.outdatedCount - a.outdatedCount || b.lastAt - a.lastAt);
+    .sort(
+      (a, b) =>
+        b.changedCount + b.reviewCount - (a.changedCount + a.reviewCount) || b.lastAt - a.lastAt,
+    );
 
 export const topicNotes = (client: MemexClient, tag: string) => notesForTag(client, tag);
