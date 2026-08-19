@@ -3,6 +3,8 @@ import { listSignals, type MemexClient } from '@memex/db';
 const MIN_USES = 20;
 const DORMANT_DAYS = 90;
 const PREVIEW = 6;
+const SPARK_WEEKS = 52;
+const WEEK = 7 * 86_400_000;
 const DAY = 86_400_000;
 
 export type TopicNoteRef = {
@@ -18,6 +20,8 @@ export type Arc = { reasoning: string; noteIds: number[] };
 export type Topic = {
   tag: string;
   count: number;
+  /** Weekly note counts over a window shared by every topic. */
+  spark: number[];
   lastAt: number;
   dormant: boolean;
   currentCount: number;
@@ -73,6 +77,24 @@ const arcsFor = (client: MemexClient, ids: Set<number>): Arc[] =>
     .filter((s) => s.evidenceIds.filter((id) => ids.has(id)).length >= 2)
     .map((s) => ({ reasoning: s.reasoning ?? '아직 엮이지 않은 흐름', noteIds: s.evidenceIds }));
 
+// Every topic is bucketed over the same absolute window, the way a repository
+// list does it: the same x position is the same week on every row, so a flat
+// right edge reads as gone quiet and rows can be compared at a glance. Giving
+// each topic its own range — as an earlier version did — made position mean
+// nothing.
+const sparkline = (notes: Row[], now: number): number[] => {
+  const start = now - SPARK_WEEKS * WEEK;
+  return notes.reduce<number[]>(
+    (acc, note) => {
+      if (note.at < start) return acc;
+      const i = Math.min(SPARK_WEEKS - 1, Math.floor((note.at - start) / WEEK));
+      acc[i] += 1;
+      return acc;
+    },
+    Array.from({ length: SPARK_WEEKS }, () => 0),
+  );
+};
+
 export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): Topic | null => {
   const notes = notesForTag(client, tag);
   if (notes.length === 0) return null;
@@ -99,6 +121,7 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
   return {
     tag,
     count: notes.length,
+    spark: sparkline(notes, now),
     lastAt: notes[0].at,
     dormant: now - notes[0].at > DORMANT_DAYS * DAY,
     currentCount: current.length,

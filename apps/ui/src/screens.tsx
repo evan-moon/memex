@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, type NoteDetail, type SearchHit, type Topic, type TopicDetail } from './api.ts';
-import { ago, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { ago, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Spark } from './Spark.tsx';
 
-const useAsync = <T,>(load: () => Promise<T>, deps: unknown[]) => {
+const useAsync = <T,>(load: () => Promise<T>, key: string) => {
   const [state, setState] = useState<{ data: T | null; error: string | null }>({
     data: null,
     error: null,
@@ -16,174 +18,213 @@ const useAsync = <T,>(load: () => Promise<T>, deps: unknown[]) => {
     return () => {
       alive = false;
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: caller owns the key
-  }, deps);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: key identifies the request
+  }, [key]);
   return state;
 };
 
-const Loading = ({ error }: { error: string | null }) => (
-  <div className="loading">{error ?? '…'}</div>
+const Page = ({ children }: { children: React.ReactNode }) => (
+  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
 );
 
-// The split is the point: how much of a subject still holds, and how much of it
-// the vault already knows is out of date.
-const Ratio = ({ topic }: { topic: Topic }) => {
-  const total = Math.max(1, topic.currentCount + topic.outdatedCount);
-  return (
-    <>
-      <div className="bar">
-        <i className="ok" style={{ width: `${(topic.currentCount / total) * 100}%` }} />
-        <i className="old" style={{ width: `${(topic.outdatedCount / total) * 100}%` }} />
-      </div>
-      <div className="legend">
-        <span className="ok">
-          유효 <b>{topic.currentCount}</b>
-        </span>
-        <span className="old">
-          낡음 <b>{topic.outdatedCount}</b>
-        </span>
-        <span style={{ marginLeft: 'auto' }}>{topic.dormant ? '잠듦' : ago(topic.lastAt)}</span>
-      </div>
-    </>
-  );
-};
+const Pending = ({ error }: { error: string | null }) => (
+  <Page>
+    <div className="py-16 text-sm text-muted">{error ?? '…'}</div>
+  </Page>
+);
 
-export const Home = ({ topics }: { topics: Topic[] }) => (
-  <div className="wrap">
-    <h1>주제</h1>
-    <div className="sub">{topics.length}개 · 낡은 정보가 많은 순</div>
-    <div className="grid">
-      {topics.map((t) => (
-        <a
-          key={t.tag}
-          className={`card${t.dormant ? ' quiet' : ''}`}
-          href={`#/topic/${encodeURIComponent(t.tag)}`}
-        >
-          <div className="name">
-            {t.tag}
-            <small>{t.count}개</small>
-          </div>
-          <Ratio topic={t} />
-        </a>
-      ))}
+export const TopicsScreen = ({ topics }: { topics: Topic[] }) => (
+  <Page>
+    <h1 className="text-xl font-semibold tracking-tight">주제</h1>
+    <p className="mt-1 text-sm text-muted">
+      {topics.length}개 · 낡은 정보가 많은 순 · 선은 최근 1년 주간 활동
+    </p>
+    <div className="mt-4 divide-y divide-line border-y border-line">
+      {topics.map((t) => {
+        const total = Math.max(1, t.currentCount + t.outdatedCount);
+        return (
+          <Link
+            key={t.tag}
+            to={`/topic/${encodeURIComponent(t.tag)}`}
+            className={`flex items-center gap-4 py-4 hover:bg-surface ${t.dormant ? 'opacity-60' : ''}`}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <span className="truncate font-semibold text-primary">{t.tag}</span>
+                <span className="shrink-0 text-[11px] text-muted">{t.count}개</span>
+                {t.dormant ? (
+                  <span className="shrink-0 rounded-full border border-line px-2 text-[10px] text-muted">
+                    잠듦
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-2 flex h-1.5 max-w-sm overflow-hidden rounded-full bg-surface-muted">
+                <i
+                  className="block h-full"
+                  style={{ width: `${(t.currentCount / total) * 100}%`, background: 'var(--positive)' }}
+                />
+                <i
+                  className="block h-full"
+                  style={{ width: `${(t.outdatedCount / total) * 100}%`, background: 'var(--caution)' }}
+                />
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
+                <span>
+                  유효{' '}
+                  <b className="tabular-nums" style={{ color: 'var(--positive)' }}>
+                    {t.currentCount}
+                  </b>
+                </span>
+                <span>
+                  낡음{' '}
+                  <b className="tabular-nums" style={{ color: 'var(--caution)' }}>
+                    {t.outdatedCount}
+                  </b>
+                </span>
+                <span>{ago(t.lastAt)}</span>
+              </div>
+            </div>
+            <div className="hidden shrink-0 sm:block">
+              <Spark values={t.spark} />
+            </div>
+          </Link>
+        );
+      })}
     </div>
-  </div>
+  </Page>
 );
 
-export const TopicScreen = ({ tag }: { tag: string }) => {
-  const { data, error } = useAsync<TopicDetail>(() => api.topic(tag), [tag]);
-  if (!data) return <Loading error={error} />;
+export const TopicScreen = () => {
+  const { tag = '' } = useParams();
+  const { data, error } = useAsync<TopicDetail>(() => api.topic(tag), tag);
+  if (!data) return <Pending error={error} />;
   return (
-    <div className="wrap">
-      <h1>{data.tag}</h1>
-      <div className="sub">
+    <Page>
+      <h1 className="text-xl font-semibold tracking-tight">{data.tag}</h1>
+      <p className="mt-1 text-sm text-muted">
         {data.count}개 · 마지막 {ago(data.lastAt)}
         {data.dormant ? ' · 잠듦' : ''}
-      </div>
+      </p>
       {data.arcs.map((a) => (
-        <div className="notice arc" key={a.reasoning}>
-          💡 {a.reasoning}
-        </div>
+        <Card key={a.reasoning} className="mt-4 border-l-2" >
+          <div className="text-sm">💡 {a.reasoning}</div>
+        </Card>
       ))}
-      <div className="split">
-        <div className="col">
-          <h2>
-            <span className="dot ok" />
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <Card>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <i className="size-2 rounded-full" style={{ background: 'var(--positive)' }} />
             지금 유효한 것 {data.currentCount}
           </h2>
-          <NoteList notes={data.current} empty="없음" />
-        </div>
-        <div className="col">
-          <h2>
-            <span className="dot old" />
+          <div className="mt-2">
+            <NoteList notes={data.current} empty="없음" />
+          </div>
+        </Card>
+        <Card>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <i className="size-2 rounded-full" style={{ background: 'var(--caution)' }} />
             낡았거나 뒤집힌 것 {data.outdatedCount}
           </h2>
-          <NoteList notes={data.outdated} empty="없음 — 아직 뒤집힌 게 없어" />
+          <div className="mt-2">
+            <NoteList notes={data.outdated} empty="아직 뒤집힌 게 없어" />
+          </div>
+        </Card>
+      </div>
+      <Card className="mt-5">
+        <h2 className="text-sm font-semibold">전체 {data.notes.length}</h2>
+        <div className="mt-2">
+          <NoteList notes={data.notes.slice(0, 60)} empty="없음" />
         </div>
-      </div>
-      <div className="rel">
-        <h2>전체 {data.notes.length}</h2>
-        <NoteList notes={data.notes.slice(0, 60)} empty="없음" />
-      </div>
-    </div>
+      </Card>
+    </Page>
   );
 };
 
-export const NoteScreen = ({ id }: { id: number }) => {
-  const { data, error } = useAsync<NoteDetail>(() => api.note(id), [id]);
-  if (!data) return <Loading error={error} />;
+export const NoteScreen = () => {
+  const { id = '' } = useParams();
+  const { data, error } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
+  if (!data) return <Pending error={error} />;
   const newest = data.supersededBy.at(-1);
   return (
-    <div className="wrap">
-      <h1>{data.title}</h1>
-      <div className="sub">
-        <Layer layer={data.layer} /> {day(data.at)}
-        {data.tags.length > 0 ? ' · ' : ''}
+    <Page>
+      <h1 className="text-xl font-semibold leading-snug tracking-tight">{data.title}</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+        <Layer layer={data.layer} />
+        <span className="tabular-nums">{day(data.at)}</span>
         {data.tags.map((t) => (
-          <a key={t} href={`#/topic/${encodeURIComponent(t)}`} style={{ color: 'var(--accent)' }}>
-            {t}{' '}
-          </a>
+          <Link key={t} to={`/topic/${encodeURIComponent(t)}`} className="text-primary">
+            {t}
+          </Link>
         ))}
         {data.obsidianUrl ? (
-          <>
-            {' · '}
-            <a href={data.obsidianUrl} style={{ color: 'var(--accent)' }}>
-              Obsidian에서 열기 ↗
-            </a>
-          </>
+          <a href={data.obsidianUrl} className="text-primary">
+            Obsidian에서 열기 ↗
+          </a>
         ) : null}
       </div>
       {newest ? (
-        <div className="notice">
-          ⚠ 이후 {data.supersededBy.length}개 노트에서 정정됐어 — 최신:{' '}
-          <a href={`#/note/${newest.id}`}>{newest.title}</a>
-        </div>
+        <Card className="mt-4" >
+          <div className="text-sm" style={{ color: 'var(--negative)' }}>
+            ⚠ 이후 {data.supersededBy.length}개 노트에서 정정됐어
+          </div>
+          <Link to={`/note/${newest.id}`} className="mt-1 block text-sm text-primary">
+            최신: {newest.title}
+          </Link>
+        </Card>
       ) : null}
       {data.corrects.length > 0 ? (
-        <div className="notice arc">
-          이 노트가 정정하는 것: <a href={`#/note/${data.corrects[0].id}`}>{data.corrects[0].title}</a>
-        </div>
+        <Card className="mt-3">
+          <div className="text-xs text-muted">이 노트가 정정하는 것</div>
+          <Link to={`/note/${data.corrects[0].id}`} className="mt-1 block text-sm text-primary">
+            {data.corrects[0].title}
+          </Link>
+        </Card>
       ) : null}
-      <div className="note-body">{data.content}</div>
+      <article className="mt-6 whitespace-pre-wrap text-sm leading-7">{data.content}</article>
       {data.backlinks.length > 0 ? (
-        <div className="rel">
-          <h2>이 노트를 참조하는 노트 {data.backlinks.length}</h2>
-          <NoteList notes={data.backlinks} empty="" />
-        </div>
+        <Card className="mt-8">
+          <h2 className="text-sm font-semibold">이 노트를 참조하는 노트 {data.backlinks.length}</h2>
+          <div className="mt-2">
+            <NoteList notes={data.backlinks} empty="" />
+          </div>
+        </Card>
       ) : null}
       {data.related.length > 0 ? (
-        <div className="rel">
-          <h2>의미상 가까운 노트</h2>
-          <NoteList notes={data.related} empty="" />
-        </div>
+        <Card className="mt-3">
+          <h2 className="text-sm font-semibold">의미상 가까운 노트</h2>
+          <div className="mt-2">
+            <NoteList notes={data.related} empty="" />
+          </div>
+        </Card>
       ) : null}
-    </div>
+    </Page>
   );
 };
 
-export const SearchScreen = ({ q }: { q: string }) => {
-  const { data, error } = useAsync<SearchHit[]>(() => api.search(q), [q]);
-  if (!data) return <Loading error={error} />;
+export const SearchScreen = () => {
+  const [params] = useSearchParams();
+  const q = params.get('q') ?? '';
+  const { data, error } = useAsync<SearchHit[]>(() => api.search(q), q);
+  if (!data) return <Pending error={error} />;
   return (
-    <div className="wrap">
-      <h1>검색</h1>
-      <div className="sub">
+    <Page>
+      <h1 className="text-xl font-semibold tracking-tight">검색</h1>
+      <p className="mt-1 text-sm text-muted">
         {q} · {data.length}건
+      </p>
+      <div className="mt-4">
+        {data.length === 0 ? (
+          <div className="text-sm text-muted">없음</div>
+        ) : (
+          data.map((h) => (
+            <NoteItem
+              key={h.id}
+              note={{ ...h, reason: h.supersededBy ? `⚠ #${h.supersededBy.id} 에서 정정됨` : null }}
+              snippet={h.snippet}
+            />
+          ))
+        )}
       </div>
-      {data.length === 0 ? (
-        <div className="empty">없음</div>
-      ) : (
-        data.map((h) => (
-          <NoteItem
-            key={h.id}
-            note={{
-              ...h,
-              reason: h.supersededBy ? `⚠ #${h.supersededBy.id} 에서 정정됨` : null,
-            }}
-            snippet={h.snippet}
-          />
-        ))
-      )}
-    </div>
+    </Page>
   );
 };

@@ -3,6 +3,7 @@ import { semanticSearch } from '@memex/core';
 import { getAmendmentsFor, type MemexClient } from '@memex/db';
 import { layerCounts, listByLayer, noteDetail, staleStateIds } from './notes.ts';
 import { PAGE } from './page.ts';
+import { buildOverview } from './overview.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -46,7 +47,9 @@ const search = async ({ client, embedder }: UiDeps, query: string) => {
 const route = async (deps: UiDeps, method: string, url: URL): Promise<Reply> => {
   const { client, vaultPath } = deps;
 
-  if (method === 'GET' && url.pathname === '/') {
+  // Every non-API path serves the app, so a deep link like /note/1694 survives
+  // a reload instead of 404ing the way a static file server would.
+  if (method === 'GET' && !url.pathname.startsWith('/api/')) {
     return { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body: PAGE };
   }
   if (method === 'GET' && url.pathname === '/api/sidebar') {
@@ -57,6 +60,9 @@ const route = async (deps: UiDeps, method: string, url: URL): Promise<Reply> => 
       rule: listByLayer(client, 'rule'),
       past: listByLayer(client, 'past', 300),
     });
+  }
+  if (method === 'GET' && url.pathname === '/api/overview') {
+    return json(buildOverview(client));
   }
   if (method === 'GET' && url.pathname === '/api/topics') {
     return json(buildTopics(client));

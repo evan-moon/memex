@@ -9,6 +9,7 @@ export type NoteRef = {
 export type Topic = {
   tag: string;
   count: number;
+  spark: number[];
   lastAt: number;
   dormant: boolean;
   currentCount: number;
@@ -34,6 +35,16 @@ export type NoteDetail = {
   related: NoteRef[];
 };
 
+export type Overview = {
+  notes: number;
+  chunks: number;
+  links: { wiki: number; amends: number };
+  topics: number;
+  outdated: number;
+  activity: { date: string; notes: number }[];
+  staleness: { tag: string; count: number; outdated: number; share: number }[];
+};
+
 export type Sidebar = {
   counts: Record<string, number>;
   stale: number[];
@@ -55,6 +66,7 @@ const get = async <T>(path: string): Promise<T> => {
 
 export const api = {
   sidebar: () => get<Sidebar>('/api/sidebar'),
+  overview: () => get<Overview>('/api/overview'),
   topics: () => get<Topic[]>('/api/topics'),
   topic: (tag: string) => get<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => get<NoteDetail>(`/api/note/${id}`),

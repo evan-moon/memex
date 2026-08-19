@@ -1,5 +1,5 @@
+import { Link } from 'react-router-dom';
 import type { NoteRef } from './api.ts';
-import { go } from './route.ts';
 
 export const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -11,25 +11,42 @@ export const ago = (ms: number) => {
   return `${(d / 365).toFixed(1)}년 전`;
 };
 
+const LAYER_TONE: Record<string, string> = {
+  state: 'border-primary text-primary',
+  rule: 'border-positive text-positive',
+  past: 'border-line text-muted',
+};
+
 export const Layer = ({ layer }: { layer: string }) => (
-  <span className={`tag ${layer}`}>{layer}</span>
+  <span
+    className={`shrink-0 rounded-full border px-2 py-px text-[10px] leading-4 ${LAYER_TONE[layer] ?? LAYER_TONE.past}`}
+  >
+    {layer}
+  </span>
 );
 
 export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string }) => (
-  <a className="item" href={`#/note/${note.id}`}>
-    <div className="ttl">
+  <Link
+    to={`/note/${note.id}`}
+    className="-mx-2 block rounded-lg px-2 py-2 hover:bg-surface-muted"
+  >
+    <div className="flex items-baseline gap-2">
       <Layer layer={note.layer} />
-      <span className="t">{note.title}</span>
-      <span className="when">{day(note.at)}</span>
+      <span className="min-w-0 flex-1 truncate text-sm">{note.title}</span>
+      <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(note.at)}</span>
     </div>
-    {note.reason ? <div className="why">{note.reason}</div> : null}
-    {snippet ? <div className="snip">{snippet}…</div> : null}
-  </a>
+    {note.reason ? (
+      <div className="mt-1 text-xs" style={{ color: 'var(--caution)' }}>
+        {note.reason}
+      </div>
+    ) : null}
+    {snippet ? <div className="mt-1 line-clamp-2 text-xs text-muted">{snippet}…</div> : null}
+  </Link>
 );
 
 export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) =>
   notes.length === 0 ? (
-    <div className="empty">{empty}</div>
+    <div className="px-2 py-3 text-xs text-muted">{empty}</div>
   ) : (
     <div>
       {notes.map((n) => (
@@ -38,4 +55,14 @@ export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) 
     </div>
   );
 
-export const openNote = (id: number) => go({ name: 'note', id });
+export const Card = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div className={`rounded-card border border-line bg-surface p-4 sm:p-5 ${className}`}>
+    {children}
+  </div>
+);
