@@ -100,7 +100,7 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 - **Date filter**, narrow search to a time range with `--from` / `--to`
 - **Note layers**, every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
 - **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
-- **Signal inbox**, `memex ui` opens a local page for triaging what memex noticed — the arcs and stale plans that otherwise only surface as a single line in a chat you may not be having
+- **Desktop view**, `memex ui` opens the vault by topic: a timeline per subject showing where thinking turned, notes flagged when a later note corrected them, and neighbours found by meaning rather than by links you remembered to write
 - **Inference engine**, deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
 - **MCP server**, Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
