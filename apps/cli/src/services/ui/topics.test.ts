@@ -1,11 +1,21 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { insertNote, linkAmendment, type MemexClient, openDb, serializeTags } from '@memex/db';
+import {
+  insertNote,
+  linkAmendment,
+  type MemexClient,
+  type NoteLayer,
+  openDb,
+  serializeTags,
+  upsertSignal,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildTopic, listTopicTags } from './topics.ts';
+import { buildTopic, buildTopics, listTopicTags } from './topics.ts';
 
 const DAY = 86_400_000;
+const base = Date.parse('2026-01-01');
+
 let dbDir: string;
 let client: MemexClient;
 
@@ -19,20 +29,16 @@ afterEach(() => {
   rmSync(dbDir, { recursive: true, force: true });
 });
 
-const addNote = (title: string, tags: string[], authoredAt: number) => {
-  const note = insertNote(client, {
+const addNote = (title: string, tags: string[], authoredAt: number, layer: NoteLayer = 'past') =>
+  insertNote(client, {
     title,
     content: 'body',
     filePath: join(dbDir, `${title}.md`),
     source: 'manual',
-    layer: 'past',
+    layer,
     tags: serializeTags(tags),
     authoredAt,
   });
-  return note;
-};
-
-const base = Date.parse('2026-01-01');
 
 describe('listTopicTags', () => {
   it('offers only tags used often enough to be a subject', () => {
@@ -43,32 +49,39 @@ describe('listTopicTags', () => {
 });
 
 describe('buildTopic', () => {
-  it('spreads activity across buckets covering first to last note', () => {
-    addNote('a', ['t'], base);
-    addNote('b', ['t'], base + 100 * DAY);
-    const topic = buildTopic(client, 't', base + 101 * DAY);
-    expect(topic?.buckets[0]).toBe(1);
-    expect(topic?.buckets.at(-1)).toBe(1);
-    expect(topic?.buckets.reduce((a, b) => a + b, 0)).toBe(2);
+  it('separates what still stands from what a later note corrected', () => {
+    const plan = addNote('plan', ['t'], base, 'state');
+    const stillGood = addNote('other plan', ['t'], base + DAY, 'state');
+    const fix = addNote('[Amendment] plan', ['t'], base + 2 * DAY);
+    linkAmendment(client, fix.id, plan.id);
+
+    const topic = buildTopic(client, 't', base + 3 * DAY);
+    expect(topic?.current.map((n) => n.id)).toEqual([stillGood.id]);
+    expect(topic?.outdated[0]).toMatchObject({ id: plan.id });
+    expect(topic?.outdated[0].reason).toContain('정정됨');
   });
 
-  it('marks a correction where the amending note lands', () => {
-    const original = addNote('plan', ['t'], base);
-    const fix = addNote('[Amendment] plan', ['t'], base + 10 * DAY);
-    linkAmendment(client, fix.id, original.id);
+  it('counts a current plan as out of date once records piled up behind it', () => {
+    const plan = addNote('plan', ['t'], base, 'state');
+    const later = addNote('what actually happened', ['t'], base + DAY);
+    upsertSignal(client, {
+      type: 'stale_state',
+      evidenceIds: [plan.id, later.id],
+      reasoning: 'stale',
+    });
 
-    const [marker] = buildTopic(client, 't', base + 11 * DAY)?.markers ?? [];
-    expect(marker).toMatchObject({ kind: 'correction', noteId: fix.id });
-    expect(marker.detail).toContain('plan');
+    const topic = buildTopic(client, 't', base + 2 * DAY);
+    expect(topic?.outdated.map((n) => n.id)).toEqual([plan.id]);
+    expect(topic?.outdated[0].reason).toContain('확인 필요');
   });
 
-  it('marks a return after a long silence, not a busy stretch', () => {
-    addNote('a', ['t'], base);
-    addNote('b', ['t'], base + DAY);
-    addNote('c', ['t'], base + 200 * DAY);
+  it('falls back to recent entries for a topic that is only a record', () => {
+    addNote('coffee chat a', ['t'], base);
+    addNote('coffee chat b', ['t'], base + DAY);
 
-    const markers = buildTopic(client, 't', base + 201 * DAY)?.markers ?? [];
-    expect(markers.filter((m) => m.kind === 'return')).toHaveLength(1);
+    const topic = buildTopic(client, 't', base + 2 * DAY);
+    expect(topic?.current).toHaveLength(2);
+    expect(topic?.current[0].reason).toBe('최근 기록');
   });
 
   it('calls a topic dormant once it has been quiet for a season', () => {
@@ -77,13 +90,34 @@ describe('buildTopic', () => {
     expect(buildTopic(client, 't', base + 10 * DAY)?.dormant).toBe(false);
   });
 
-  it('leaves a topic with nothing to report free of markers rather than inventing them', () => {
-    addNote('a', ['t'], base);
-    addNote('b', ['t'], base + DAY);
-    expect(buildTopic(client, 't', base + 2 * DAY)?.markers).toEqual([]);
+  it('surfaces an arc only when the topic holds several of its notes', () => {
+    const a = addNote('a', ['t'], base);
+    const b = addNote('b', ['t'], base + DAY);
+    const outside = addNote('elsewhere', ['other'], base);
+    upsertSignal(client, { type: 'hidden_arc', evidenceIds: [a.id, b.id], reasoning: 'an arc' });
+    upsertSignal(client, {
+      type: 'hidden_arc',
+      evidenceIds: [a.id, outside.id],
+      reasoning: 'mostly elsewhere',
+    });
+
+    expect(buildTopic(client, 't', base + 2 * DAY)?.arcs.map((x) => x.reasoning)).toEqual([
+      'an arc',
+    ]);
   });
 
   it('returns nothing for a tag no note carries', () => {
     expect(buildTopic(client, 'ghost')).toBeNull();
+  });
+});
+
+describe('buildTopics', () => {
+  it('leads with the topics carrying the most out-of-date notes', () => {
+    for (let i = 0; i < 20; i += 1) addNote(`clean ${i}`, ['clean'], base + i * DAY);
+    for (let i = 0; i < 20; i += 1) {
+      const n = addNote(`messy ${i}`, ['messy'], base + i * DAY, 'state');
+      if (i < 3) linkAmendment(client, addNote(`fix ${i}`, ['messy'], base + 30 * DAY).id, n.id);
+    }
+    expect(buildTopics(client, base + 40 * DAY)[0].tag).toBe('messy');
   });
 });

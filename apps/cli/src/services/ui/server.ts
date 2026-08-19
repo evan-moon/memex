@@ -64,7 +64,7 @@ const route = async (deps: UiDeps, method: string, url: URL): Promise<Reply> => 
   if (method === 'GET' && url.pathname.startsWith('/api/topic/')) {
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));
     const topic = buildTopic(client, tag);
-    return topic ? json({ ...topic, notes: topicNotes(client, tag).reverse() }) : notFound;
+    return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
   }
   if (method === 'GET' && url.pathname.startsWith('/api/note/')) {
     const detail = noteDetail(client, Number(url.pathname.split('/').pop()), vaultPath);

@@ -38,20 +38,25 @@ export const PAGE = String.raw`<!doctype html>
   .pad { padding:18px 22px 80px; max-width:940px; }
   h2 { font-size:15px; margin:0 0 2px; letter-spacing:-.01em; }
   .sub { color:var(--dim); font-size:12px; margin-bottom:16px; }
-  .topic { display:grid; grid-template-columns:150px 1fr 74px; gap:12px; align-items:center;
-    padding:9px 10px; border-radius:8px; cursor:pointer; }
-  .topic:hover { background:var(--panel); }
-  .topic .nm { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .topic .nm small { color:var(--dim); font-weight:400; margin-left:6px; }
+  .topic { display:grid; grid-template-columns:1fr 108px 108px 68px; gap:12px; align-items:center;
+    padding:10px 12px; border-radius:9px; cursor:pointer; border:1px solid transparent; }
+  .topic:hover { background:var(--panel); border-color:var(--line); }
+  .topic .nm { font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .topic .nm small { color:var(--dim); font-weight:400; margin-left:7px; }
+  .topic .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .topic .num b { font-weight:650; }
+  .topic .num span { color:var(--dim); font-size:11px; margin-left:4px; }
+  .ok b { color:var(--accent); }
+  .old b { color:var(--warn); }
+  .zero b { color:var(--dim); font-weight:400; }
   .topic .when { color:var(--dim); font-size:11.5px; text-align:right; }
-  .spark { display:flex; align-items:flex-end; gap:1px; height:26px; position:relative; }
-  .spark i { flex:1; background:var(--bar); border-radius:1px 1px 0 0; min-height:1px; }
-  .marks { display:flex; gap:1px; height:8px; margin-top:2px; }
-  .marks i { flex:1; }
-  .marks i.correction { background:var(--danger); }
-  .marks i.return { background:var(--accent); }
-  .marks i.arc { background:var(--warn); }
-  .dormant { opacity:.5; }
+  .dormant-row { opacity:.6; }
+  .colhead { display:grid; grid-template-columns:1fr 108px 108px 68px; gap:12px;
+    padding:0 12px 6px; color:var(--dim); font-size:11px; }
+  .colhead div:not(:first-child) { text-align:right; }
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:18px; }
+  @media (max-width:840px) { .split { grid-template-columns:1fr; } }
+  .why { color:var(--warn); font-size:11.5px; margin-top:2px; }
   .badge { font-size:10.5px; padding:1px 7px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
   .banner { border:1px solid var(--danger); border-radius:8px; padding:10px 13px; margin:12px 0;
     background:rgba(224,108,117,.07); font-size:12.5px; }
@@ -123,44 +128,48 @@ function renderTree() {
 
 function home() {
   S.sel = null;
-  const max = (t) => Math.max(...t.buckets, 1);
+  const num = (n, cls) => '<div class="num ' + (n === 0 ? 'zero' : cls) + '"><b>' + n + '</b></div>';
   document.getElementById('view').innerHTML =
-    '<h2>주제</h2><div class="sub">' + S.topics.length + '개 · 활동과 생각이 꺾인 지점</div>' +
-    S.topics.map((t) => {
-      const m = max(t);
-      const marks = Array.from({ length: 40 }, () => '');
-      for (const k of t.markers) marks[k.bucket] = k.kind;
-      return '<div class="topic' + (t.dormant ? ' dormant' : '') + '" data-topic="' + esc(t.tag) + '">' +
+    '<h2>주제</h2><div class="sub">' + S.topics.length + '개 · 낡은 정보가 많은 순</div>' +
+    '<div class="colhead"><div></div><div>지금 유효</div><div>낡음</div><div></div></div>' +
+    S.topics.map((t) =>
+      '<div class="topic' + (t.dormant ? ' dormant-row' : '') + '" data-topic="' + esc(t.tag) + '">' +
         '<div class="nm">' + esc(t.tag) + '<small>' + t.count + '</small></div>' +
-        '<div><div class="spark">' +
-          t.buckets.map((b) => '<i style="height:' + Math.max(1, (b / m) * 26) + 'px"></i>').join('') +
-        '</div><div class="marks">' + marks.map((k) => '<i class="' + k + '"></i>').join('') + '</div></div>' +
-        '<div class="when">' + ago(t.lastAt) + (t.dormant ? '<br>잠듦' : '') + '</div></div>';
-    }).join('');
+        num(t.currentCount, 'ok') + num(t.outdatedCount, 'old') +
+        '<div class="when">' + (t.dormant ? '잠듦' : ago(t.lastAt)) + '</div>' +
+      '</div>').join('');
 }
 
 async function topic(tag) {
   const t = await get('/api/topic/' + encodeURIComponent(tag));
   if (!t) return;
-  const m = Math.max(...t.buckets, 1);
-  const marks = Array.from({ length: 40 }, () => '');
-  for (const k of t.markers) marks[k.bucket] = k.kind;
+  const list = (notes, showWhy) => notes.length === 0
+    ? '<div class="d" style="padding:8px">없음</div>'
+    : notes.map((n) =>
+        '<div class="row" data-note="' + n.id + '" style="display:block">' +
+          '<div><span class="badge">' + n.layer + '</span> ' + esc(n.title) +
+          ' <span class="d">' + day(n.at) + '</span></div>' +
+          (showWhy && n.reason ? '<div class="why">' + esc(n.reason) + '</div>' : '') +
+        '</div>').join('');
+
   document.getElementById('view').innerHTML =
-    '<h2>' + esc(t.tag) + '</h2><div class="sub">' + t.count + ' notes · ' +
-      day(t.firstAt) + ' → ' + day(t.lastAt) + '</div>' +
-    '<div class="spark">' + t.buckets.map((b) =>
-      '<i style="height:' + Math.max(1, (b / m) * 26) + 'px"></i>').join('') + '</div>' +
-    '<div class="marks">' + marks.map((k) => '<i class="' + k + '"></i>').join('') + '</div>' +
-    (t.markers.length === 0
-      ? '<div class="rel"><h3>전환점 없음 — 연대기로 읽어</h3></div>'
-      : '<div class="rel"><h3>전환점 ' + t.markers.length + '</h3>' + t.markers.map((k) =>
-          '<div class="mk" data-note="' + k.noteId + '"><span class="k ' + k.kind + '">' +
-          ({ correction: '정정', return: '재등장', arc: '아크' })[k.kind] + '</span>' +
-          '<span class="t">' + esc(k.title) + '<br><span class="d">' + esc(k.detail) + '</span></span>' +
-          '<span class="d">' + day(k.at) + '</span></div>').join('') + '</div>') +
-    '<div class="rel"><h3>노트 ' + t.notes.length + '</h3>' + t.notes.slice(0, 100).map((n) =>
+    '<h2>' + esc(t.tag) + '</h2>' +
+    '<div class="sub">' + t.count + '개 · 지금 유효 ' + t.currentCount +
+      ' · 낡음 ' + t.outdatedCount + (t.dormant ? ' · 잠듦' : '') + '</div>' +
+    (t.arcs.length
+      ? t.arcs.map((a) => '<div class="banner" style="border-color:var(--warn); background:rgba(224,163,62,.07)">' +
+          '💡 ' + esc(a.reasoning) + '</div>').join('')
+      : '') +
+    '<div class="split">' +
+      '<div><h3 style="font-size:12px;color:var(--dim);margin:0 0 6px">지금 유효한 것 ' +
+        t.currentCount + '</h3>' + list(t.current, true) + '</div>' +
+      '<div><h3 style="font-size:12px;color:var(--warn);margin:0 0 6px">낡았거나 뒤집힌 것 ' +
+        t.outdatedCount + '</h3>' + list(t.outdated, true) + '</div>' +
+    '</div>' +
+    '<div class="rel"><h3>전체 ' + t.notes.length + '</h3>' + t.notes.slice(0, 60).map((n) =>
       '<div class="row" data-note="' + n.id + '"><span class="badge">' + n.layer + '</span>' +
       '<span class="t">' + esc(n.title) + '</span><span class="d">' + day(n.at) + '</span></div>').join('') + '</div>';
+  document.querySelector('main').scrollTop = 0;
 }
 
 async function note(id) {
