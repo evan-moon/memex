@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsup && cp ../../packages/embed/dist/index.js dist/embed.js && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
+    "build": "yarn workspace @memex/ui build && tsup && cp ../../packages/embed/dist/index.js dist/embed.js && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "yarn build",
     "prepack": "cp ../../README.md . && cp ../../LICENSE .",
@@ -49,6 +49,7 @@
     "@memex/embed": "workspace:*",
     "@memex/mcp": "workspace:*",
     "@memex/rerank": "workspace:^",
+    "@memex/ui": "workspace:*",
     "@memex/utils": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",
