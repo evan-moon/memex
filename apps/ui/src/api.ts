@@ -47,6 +47,7 @@ export type Overview = {
   changed: number;
   review: number;
   activity: { date: string; notes: number }[];
+  tidy: { pairs: { keep: string; drop: string[]; notes: number }[]; notes: number };
   staleness: {
     tag: string;
     count: number;

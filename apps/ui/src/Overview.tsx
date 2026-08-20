@@ -20,6 +20,43 @@ const Stat = ({ label, value, hint }: { label: string; value: string; hint?: str
   </div>
 );
 
+const TidyProposal = ({ tidy }: { tidy: Data['tidy'] }) => {
+  if (tidy.pairs.length === 0) return null;
+
+  return (
+    <section className="mt-6 rounded-card border border-brand/30 bg-brand/5 p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h2 className="text-sm font-semibold">이 태그들, 하나로 합칠까?</h2>
+        <span className="text-xs text-muted">
+          철자만 다른 {tidy.pairs.length}쌍 · 노트 {tidy.notes}개
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        같은 주제가 두 이름으로 갈려 있어서, 한쪽으로 검색하면 다른 쪽이 안 걸려.
+      </p>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {tidy.pairs.slice(0, 12).map((p) => (
+          <li
+            key={p.keep}
+            className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs"
+          >
+            {p.drop.map((d) => (
+              <span key={d} className="text-muted line-through">
+                {d}
+              </span>
+            ))}
+            <span className="text-muted">&rarr;</span>
+            <span className="font-medium">{p.keep}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted">
+        정리하려면 <code className="rounded bg-line/60 px-1 py-0.5">memex tags tidy --apply</code>
+      </p>
+    </section>
+  );
+};
+
 export const Overview = ({ data }: { data: Data }) => {
   const written = data.activity.reduce((a, d) => a + d.notes, 0);
   const active = data.activity.filter((d) => d.notes > 0).length;
@@ -43,6 +80,8 @@ export const Overview = ({ data }: { data: Data }) => {
           hint={`이미 바뀜 ${data.changed} · 다시 볼 것 ${data.review}`}
         />
       </div>
+
+      <TidyProposal tidy={data.tidy} />
 
       <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline gap-2">

@@ -1,8 +1,8 @@
-import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { expandPath, loadConfig, saveConfig } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { loadConfig, saveConfig, expandPath } from '@memex/utils';
 
 export const registerSource = (program: Command) => {
   const source = program.command('source').description('Manage indexed sources');
@@ -62,6 +62,8 @@ export const registerSource = (program: Command) => {
 
       saveConfig(config);
       console.log(pc.green(`Removed source: ${resolved}`));
-      console.log(pc.dim('DB entries from this source are kept. Run `memex index` to clean them up.'));
+      console.log(
+        pc.dim('DB entries from this source are kept. Run `memex index` to clean them up.'),
+      );
     });
 };

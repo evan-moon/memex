@@ -67,7 +67,7 @@ const COMMAND_GROUPS: ReadonlyArray<{ title: string; names: ReadonlyArray<string
   { title: 'Setup', names: ['mcp', 'recall', 'config'] },
   { title: 'Capture', names: ['add', 'edit', 'delete', 'capture-commit'] },
   { title: 'Vault', names: ['source', 'index', 'reembed'] },
-  { title: 'Verify (read-only)', names: ['search', 'list', 'show', 'related', 'tags'] },
+  { title: 'Verify', names: ['search', 'list', 'show', 'related', 'tags'] },
   { title: 'Insight engine', names: ['signals', 'inferences', 'digest', 'layer'] },
   { title: 'Maintenance', names: ['stats', 'schedule'] },
 ];

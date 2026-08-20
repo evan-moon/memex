@@ -1,6 +1,6 @@
+import { expandPath, loadConfig, saveConfig } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { loadConfig, saveConfig, expandPath } from '@memex/utils';
 
 export const registerConfig = (program: Command) => {
   const config = program.command('config').description('Manage memex configuration');

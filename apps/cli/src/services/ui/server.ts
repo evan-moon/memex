@@ -62,7 +62,7 @@ const route = async (deps: UiDeps, method: string, url: URL): Promise<Reply> => 
     });
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
-    return json(buildOverview(client));
+    return json(buildOverview(client, vaultPath));
   }
   if (method === 'GET' && url.pathname === '/api/topics') {
     return json(buildTopics(client));

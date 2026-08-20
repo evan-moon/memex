@@ -9,9 +9,7 @@ describe('expandPath', () => {
   });
 
   it('expands nested ~/  path', () => {
-    expect(expandPath('~/Documents/Second Brain')).toBe(
-      join(homedir(), 'Documents/Second Brain'),
-    );
+    expect(expandPath('~/Documents/Second Brain')).toBe(join(homedir(), 'Documents/Second Brain'));
   });
 
   it('returns absolute paths unchanged', () => {

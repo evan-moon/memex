@@ -1,5 +1,5 @@
-import pc from 'picocolors';
 import type { NoteLayer } from '@memex/db';
+import pc from 'picocolors';
 
 const BADGE: Record<NoteLayer, string> = {
   past: '[past]',
