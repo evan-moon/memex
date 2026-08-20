@@ -20,6 +20,7 @@ export type NoteDetail = {
   tags: string[];
   obsidianUrl: string | null;
   filePath: string;
+  wikiLinks: { title: string; id: number }[];
   supersededBy: NoteRef[];
   corrects: NoteRef[];
   backlinks: NoteRef[];
@@ -54,6 +55,29 @@ const obsidianUrl = (filePath: string, vaultPath: string): string | null => {
   return `obsidian://open?vault=${encodeURIComponent(basename(vaultPath))}&file=${encodeURIComponent(rel.replace(/\.md$/, ''))}`;
 };
 
+// A note's stored content is the file as it sits on disk, so most of it opens
+// with YAML frontmatter and then repeats the title as an H1. Rendered as text
+// that was merely noise; rendered as Markdown it becomes a stray rule, a
+// paragraph of metadata, and the title twice. The reader wants the body.
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
+
+export const bodyOf = (content: string, title: string): string => {
+  const withoutFrontmatter = content.replace(FRONTMATTER, '').replace(/^\s*\r?\n/, '');
+  const heading = /^#[ \t]+(.+?)[ \t]*\r?\n/.exec(withoutFrontmatter);
+  return heading && heading[1].trim() === title.trim()
+    ? withoutFrontmatter.slice(heading[0].length).replace(/^\s*\r?\n/, '')
+    : withoutFrontmatter;
+};
+
+const outgoingWikiLinks = (client: MemexClient, id: number) =>
+  client.sqlite
+    .prepare(
+      `SELECT n.id, n.title
+       FROM note_links l JOIN notes n ON n.id = l.target_id
+       WHERE l.source_id = ? AND l.source = 'wiki'`,
+    )
+    .all(id) as { title: string; id: number }[];
+
 export const noteDetail = (
   client: MemexClient,
   id: number,
@@ -75,12 +99,13 @@ export const noteDetail = (
   return {
     id: note.id,
     title: note.title,
-    content: note.content,
+    content: bodyOf(note.content, note.title),
     layer: note.layer,
     at: note.authoredAt ?? note.createdAt,
     tags: parseTags(note.tags),
     obsidianUrl: obsidianUrl(note.filePath, vaultPath),
     filePath: note.filePath,
+    wikiLinks: outgoingWikiLinks(client, id),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,

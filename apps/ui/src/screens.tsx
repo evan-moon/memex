@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, type NoteDetail, type SearchHit, type Topic, type TopicDetail } from './api.ts';
 import { ago, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';
 
 const useAsync = <T,>(load: () => Promise<T>, key: string) => {
@@ -209,7 +210,15 @@ export const NoteScreen = () => {
           </Link>
         </Card>
       ) : null}
-      <article className="mt-6 whitespace-pre-wrap text-sm leading-7">{data.content}</article>
+      <article className="mt-7">
+        {data.content.trim() ? (
+          <Markdown links={data.wikiLinks}>{data.content}</Markdown>
+        ) : (
+          // Frontmatter-only stubs exist in the vault, and a silently blank
+          // article reads as the screen having failed to load.
+          <p className="text-sm text-muted">본문이 없는 노트야 — 제목과 태그만 있어.</p>
+        )}
+      </article>
       {data.backlinks.length > 0 ? (
         <Card className="mt-8">
           <h2 className="text-sm font-semibold">이 노트를 참조하는 노트 {data.backlinks.length}</h2>

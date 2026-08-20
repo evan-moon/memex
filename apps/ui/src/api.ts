@@ -33,6 +33,7 @@ export type NoteDetail = {
   at: number;
   tags: string[];
   obsidianUrl: string | null;
+  wikiLinks: { title: string; id: number }[];
   supersededBy: NoteRef[];
   corrects: NoteRef[];
   backlinks: NoteRef[];
