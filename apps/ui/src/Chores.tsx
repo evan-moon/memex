@@ -88,6 +88,11 @@ export const ChoresList = ({ data }: { data: Data }) => {
               </Link>
             </li>
           ))}
+          <li className="mt-1">
+            <Link to="/repair/evidence" className="text-primary hover:underline">
+              {t.chores.startRepair}
+            </Link>
+          </li>
         </Rows>
       </Chore>
 

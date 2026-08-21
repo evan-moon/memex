@@ -195,13 +195,17 @@ export const plainSnippet = (text: string): string =>
     .replace(/^\s*[-*+]\s+/gm, '')
     .replace(/^\s*#{1,6}\s+/gm, '')
     .replace(/^\s*>\s*/gm, '')
+    .replace(/\[\[([^\]]+)\]\]/g, (_, inner) => inner.split('|').pop().split('#')[0].trim())
     .replace(/[`*]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
 // What a projection could plausibly name, offered rather than assumed: a link
 // is a reference, and only some references are what a judgement rests on.
-const candidateSources = (client: MemexClient, note: { id: number; layer: string }): NoteRef[] => {
+export const candidateSources = (
+  client: MemexClient,
+  note: { id: number; layer: string },
+): NoteRef[] => {
   if (note.layer !== 'state' || evidenceFor(client, note.id).length > 0) return [];
   return outgoingWikiLinks(client, note.id).flatMap((link) => {
     const row = client.sqlite

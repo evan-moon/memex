@@ -253,6 +253,10 @@ export const searchQuery = (query: string, filters: SearchFilters): string => {
   return params.toString();
 };
 
+export type RepairCard = { id: number; title: string; candidates: NoteRef[] };
+
+export type RepairBatch = { remaining: number; cards: RepairCard[] };
+
 export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
@@ -267,6 +271,7 @@ export const api = {
   tagMerges: () => request<MergeCandidate[]>('/api/tag-merges'),
   tags: () => request<TagRow[]>('/api/tags'),
   chores: () => request<Chores>('/api/chores'),
+  repairEvidence: (limit: number) => request<RepairBatch>(`/api/repair/evidence?limit=${limit}`),
   inference: (id: number) => request<InferenceDetail>(`/api/inference/${id}`),
   archiveInference: (id: number) => post<{ ok: true }>(`/api/inference/${id}/archive`),
   keepInference: (id: number) => post<InferenceDetail>(`/api/inference/${id}/still-true`),

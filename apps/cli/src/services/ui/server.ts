@@ -27,6 +27,7 @@ import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { buildChores } from './chores.ts';
+import { evidenceBatch } from './repair.ts';
 import {
   bodyOf,
   layerCounts,
@@ -49,6 +50,8 @@ const DIGEST_DAYS = 7;
 const SEARCH_LIMIT = 12;
 const SEARCH_LIMIT_MAX = 60;
 const TITLE_LIMIT = 5000;
+const REPAIR_BATCH = 20;
+const REPAIR_BATCH_MAX = 50;
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -217,6 +220,10 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));
+  }
+  if (method === 'GET' && url.pathname === '/api/repair/evidence') {
+    const limit = clamp(url.searchParams.get('limit'), REPAIR_BATCH, REPAIR_BATCH_MAX);
+    return json(evidenceBatch(client, limit));
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
     return json(buildOverview(client));

@@ -4,12 +4,12 @@ import {
   listInferences,
   listSignals,
   type MemexClient,
-  notesDeclaringEvidence,
   refreshInferenceStaleness,
   refreshSignals,
   unresolvedLinksByNote,
 } from '@memex/db';
 import { listTags, mergeCandidates } from '../tidy.ts';
+import { type Undeclared, undeclaredProjections } from './repair.ts';
 
 const TOP = 5;
 
@@ -17,7 +17,7 @@ export type StaleNote = { id: number; title: string; count: number };
 export type DeadLinkNote = { id: number; title: string; targets: string[] };
 export type TagPair = { keep: string; drop: string[] };
 
-export type Undeclared = { id: number; title: string; candidates: number };
+export type { Undeclared };
 
 export type Chores = {
   hypotheses: { total: number; top: InferenceRef[] };
@@ -61,20 +61,7 @@ const deadLinks = (client: MemexClient) => {
 // A projection that has not said what it stands on can only be checked by
 // guessing. Counting them is how the guessing shrinks.
 const undeclared = (client: MemexClient) => {
-  const declared = new Set(notesDeclaringEvidence(client));
-  const rows = (
-    client.sqlite
-      .prepare(
-        `SELECT n.id, n.title, COUNT(l.target_id) AS candidates
-         FROM notes n
-         LEFT JOIN note_links l ON l.source_id = n.id AND l.source = 'wiki'
-         WHERE n.layer = 'state' AND n.author = 'person'
-         GROUP BY n.id
-         ORDER BY candidates DESC, n.updated_at DESC`,
-      )
-      .all() as Undeclared[]
-  ).filter((row) => !declared.has(row.id));
-
+  const rows = undeclaredProjections(client);
   return { total: rows.length, top: rows.slice(0, TOP) };
 };
 

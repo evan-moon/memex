@@ -8,6 +8,7 @@ import { HypothesisScreen } from './Hypothesis.tsx';
 import { Palette } from './Palette.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { Overview } from './Overview.tsx';
+import { RepairScreen } from './Repair.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { useTheme } from './theme.ts';
@@ -123,6 +124,7 @@ export const App = () => {
             <Route path="/topic/:tag" element={<TopicScreen />} />
             <Route path="/note/:id" element={<NoteScreen />} />
             <Route path="/search" element={<SearchScreen />} />
+            <Route path="/repair/evidence" element={<RepairScreen />} />
             <Route path="/tags" element={<TagsScreen />} />
             <Route path="/inference/:id" element={<HypothesisScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
