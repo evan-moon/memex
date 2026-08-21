@@ -15,7 +15,12 @@ import { linkTargets, parseTags, resolveLinkTargets } from './repository.ts';
 // uses the default L2 metric, so `distance` is Euclidean. For unit vectors
 // L2 = sqrt(2 - 2·cos), e.g. L2 0.40 ≈ cos 0.92, L2 0.55 ≈ cos 0.85.
 
-export type SignalType = 'hidden_arc' | 'dangling_link' | 'stale_state' | 'tag_burst';
+export type SignalType =
+  | 'hidden_arc'
+  | 'dangling_link'
+  | 'stale_state'
+  | 'tag_burst'
+  | 'conflict_candidate';
 export type SignalStatus = 'new' | 'snoozed' | 'dismissed' | 'minted';
 
 export type Signal = {
@@ -112,6 +117,13 @@ export const listSignals = (client: MemexClient, options: ListSignalsOptions = {
     .prepare(`SELECT * FROM signals ${clause} ORDER BY created_at DESC`)
     .all(...args) as SignalRow[];
   return rows.map(rowToSignal);
+};
+
+export const getSignalByHash = (client: MemexClient, hash: string): Signal | undefined => {
+  const row = client.sqlite.prepare('SELECT * FROM signals WHERE signal_hash = ?').get(hash) as
+    | SignalRow
+    | undefined;
+  return row ? rowToSignal(row) : undefined;
 };
 
 export const getSignal = (client: MemexClient, id: number): Signal | undefined => {
@@ -249,6 +261,121 @@ export const detectStaleState = (
     });
   }
   return candidates;
+};
+
+export type ConflictOptions = { maxDistance?: number; neighbours?: number };
+
+type Judgement = { id: number; title: string; layer: string };
+
+const pairKey = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
+
+// Pairs already reconciled by hand. A correction is the author saying which of
+// the two survives, so re-asking whether they disagree is asking a question
+// that was already answered.
+const reconciledPairs = (client: MemexClient): Set<string> =>
+  new Set(
+    (
+      client.sqlite
+        .prepare("SELECT source_id, target_id FROM note_links WHERE source = 'amends'")
+        .all() as { source_id: number; target_id: number }[]
+    ).map((row) => pairKey(row.source_id, row.target_id)),
+  );
+
+// Two judgements that sit close together but were written far apart are where
+// a position quietly reverses. Whether they actually disagree is not something
+// distance can answer -- an embedding puts a claim and its negation side by
+// side -- so this only nominates the pair. The verdict is the agent's.
+//
+// `rule` notes are compared exhaustively because they govern behaviour and
+// there are few of them; a contradiction between two of them is the most
+// expensive kind to leave standing.
+export const detectConflictPairs = (
+  client: MemexClient,
+  options: ConflictOptions = {},
+): SignalCandidate[] => {
+  const maxDistance = options.maxDistance ?? 0.35;
+  const neighbours = options.neighbours ?? 25;
+  const reconciled = reconciledPairs(client);
+  const seen = new Set<string>();
+  const candidates: SignalCandidate[] = [];
+  const distances = new Map<string, number>();
+
+  const nominate = (a: Judgement, b: Judgement, why: string) => {
+    const key = pairKey(a.id, b.id);
+    if (a.id === b.id || seen.has(key) || reconciled.has(key)) return;
+    seen.add(key);
+    candidates.push({
+      type: 'conflict_candidate',
+      evidenceIds: [a.id, b.id],
+      reasoning: `#${a.id} "${a.title}" and #${b.id} "${b.title}" ${why}. Do they actually disagree?`,
+      identity: key,
+    });
+  };
+
+  const neighboursOf = (id: number, layer: string, cap: number | null) => {
+    const embRow = client.sqlite
+      .prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?')
+      .get(BigInt(id)) as { embedding: Buffer } | undefined;
+    if (!embRow) return [];
+
+    return client.sqlite
+      .prepare(
+        `SELECT n.id, e.distance
+         FROM note_embeddings e
+         JOIN notes n ON n.id = e.note_id
+         WHERE e.embedding MATCH ?
+           AND k = ?
+           AND n.id != ?
+           AND n.layer = ?
+           ${cap === null ? '' : 'AND e.distance < ?'}
+         ORDER BY e.distance`,
+      )
+      .all(
+        ...[embRow.embedding, neighbours, id, layer, ...(cap === null ? [] : [cap])],
+      ) as { id: number; distance: number }[];
+  };
+
+  const remember = (id: number, near: { id: number; distance: number }[]) => {
+    for (const row of near) {
+      const key = pairKey(id, row.id);
+      const known = distances.get(key);
+      if (known === undefined || row.distance < known) distances.set(key, row.distance);
+    }
+  };
+
+  const rules = client.sqlite
+    .prepare("SELECT id, title, layer FROM notes WHERE layer = 'rule' ORDER BY id")
+    .all() as Judgement[];
+  for (const [index, rule] of rules.entries()) {
+    // Uncapped: rules are compared exhaustively anyway, so the neighbourhood is
+    // read only to learn which of those pairs to ask about first.
+    remember(rule.id, neighboursOf(rule.id, 'rule', null));
+    for (const other of rules.slice(index + 1)) {
+      nominate(rule, other, 'both instruct how to act');
+    }
+  }
+
+  const states = client.sqlite
+    .prepare("SELECT id, title, layer FROM notes WHERE layer = 'state' ORDER BY id")
+    .all() as Judgement[];
+  const byId = new Map(states.map((state) => [state.id, state]));
+
+  for (const state of states) {
+    const near = neighboursOf(state.id, 'state', maxDistance);
+    remember(state.id, near);
+    for (const row of near) {
+      const other = byId.get(row.id);
+      if (other) nominate(state, other, 'claim something about the same subject');
+    }
+  }
+
+  // Closest first. Every pair still gets asked eventually, but a run that is
+  // cut short by --limit spends its calls where a disagreement could hide,
+  // not on two rules that have nothing to do with each other.
+  const distanceOf = (candidate: SignalCandidate) =>
+    distances.get(candidate.identity ?? '') ?? Number.POSITIVE_INFINITY;
+
+  return candidates.sort((a, b) => distanceOf(a) - distanceOf(b));
 };
 
 export type TagBurstOptions = {
@@ -548,6 +675,7 @@ export const findBestProactiveSignal = (signals: Signal[], noteId: number): Sign
   const candidates = signals.filter((s) => s.status === 'new' && s.evidenceIds.includes(noteId));
 
   const priority: Record<SignalType, number> = {
+    conflict_candidate: 0,
     hidden_arc: 1,
     tag_burst: 2,
     stale_state: 3,

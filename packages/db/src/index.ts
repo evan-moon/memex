@@ -96,12 +96,14 @@ export type {
 } from './signals.ts';
 export {
   computeSignalHash,
+  detectConflictPairs,
   detectDanglingLinks,
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
   findBestProactiveSignal,
   getSignal,
+  getSignalByHash,
   listSignals,
   refreshSignals,
   setSignalStatus,
