@@ -8,7 +8,9 @@
   "files": {
     "includes": [
       "apps/**/*.ts",
+      "apps/**/*.tsx",
       "packages/**/*.ts",
+      "packages/**/*.tsx",
       "!**/dist",
       "!**/*.d.ts",
       "!apps/cli/src/services/ui/page.ts"
