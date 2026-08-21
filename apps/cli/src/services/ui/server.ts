@@ -8,7 +8,6 @@ import {
   searchPage,
 } from '@memex/core';
 import {
-  evidenceStaleness,
   getAmendmentsFor,
   getInference,
   getNote,

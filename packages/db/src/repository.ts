@@ -534,7 +534,7 @@ export const syncLinks = (client: MemexClient, sourceId: number, content: string
   const insert = client.sqlite.prepare(
     "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')",
   );
-  resolved.forEach((targetId) => insert.run(sourceId, targetId));
+  for (const targetId of resolved.values()) insert.run(sourceId, targetId);
 };
 
 // An unmatched target is a dead link on disk, not just a missing row in

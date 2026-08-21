@@ -64,7 +64,7 @@ describe('mintInference', () => {
     const a = addNote('A', 'alpha');
     const bundle = buildEvidenceBundle(client, { evidenceIds: [a.id], reasoning: 'an arc' });
     expect(bundle).toContain('an arc');
-    expect(bundle).toContain('#' + String(a.id) + ' A');
+    expect(bundle).toContain(`#${a.id} A`);
     expect(bundle).toContain('alpha');
 
     const inf = mintInference(client, {
