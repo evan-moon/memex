@@ -192,4 +192,20 @@ describe('plainSnippet', () => {
   it('does not eat a colon that belongs to the sentence', () => {
     expect(plainSnippet('결론: 이렇게 하기로 했다')).toBe('결론: 이렇게 하기로 했다');
   });
+
+  it('shows a bare wiki-link as its title', () => {
+    expect(plainSnippet('[[firma-cloud — closed 호스팅]] 참고')).toBe(
+      'firma-cloud — closed 호스팅 참고',
+    );
+  });
+
+  it('shows a piped wiki-link as its alias, not its target', () => {
+    expect(plainSnippet('[[Opula 유료화 전략 확정|장부무료 결정]]에서 나옴')).toBe(
+      '장부무료 결정에서 나옴',
+    );
+  });
+
+  it('drops a heading anchor from an unaliased wiki-link', () => {
+    expect(plainSnippet('[[노트#섹션]] 참고')).toBe('노트 참고');
+  });
 });
