@@ -102,7 +102,9 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
   }
   if (method === 'GET' && url.pathname === '/api/digest') {
     const asked = Number(url.searchParams.get('days') ?? DIGEST_DAYS);
-    const days = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 365) : DIGEST_DAYS;
+    const days = Number.isFinite(asked)
+      ? Math.min(Math.max(Math.trunc(asked), 1), 365)
+      : DIGEST_DAYS;
     return json(buildDigest(client, { days }));
   }
   if (method === 'GET' && url.pathname === '/api/overview') {

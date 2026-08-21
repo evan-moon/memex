@@ -3,6 +3,7 @@ import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { registerEval } from './eval.ts';
+import { registerFlashbackEval } from './flashback-eval.ts';
 
 const printCounts = (label: string, counts: CountByKey[]) => {
   if (counts.length === 0) return;
@@ -56,4 +57,5 @@ export const registerStats = (program: Command) => {
     });
 
   registerEval(stats);
+  registerFlashbackEval(stats);
 };

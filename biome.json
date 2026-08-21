@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["apps/**/*.ts", "packages/**/*.ts", "!**/dist", "!**/*.d.ts"]
+    "includes": [
+      "apps/**/*.ts",
+      "packages/**/*.ts",
+      "!**/dist",
+      "!**/*.d.ts",
+      "!apps/cli/src/services/ui/page.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

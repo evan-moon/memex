@@ -592,7 +592,23 @@ export type FlashbackOptions = {
   minDaysGap?: number;
   maxDistance?: number;
   limit?: number;
+  /** Vector neighbours to consider before the gap and folder filters run. */
+  pool?: number;
 };
+
+// The vector search picks its neighbours before any of the filters below run,
+// so the pool has to be wide enough that filtering leaves something: the notes
+// nearest a given note are almost always recent ones from the same folder,
+// which is exactly what a rediscovery excludes. Measured on a 1.3k-note vault
+// (`memex stats flashback`), the pool holds the note a person linked by hand
+// 49% of the time at 15 neighbours and 95% at 500.
+const DEFAULT_POOL = 500;
+
+// Distances here are Euclidean over unit vectors. Notes 90 days apart in
+// different folders do not come closer than ~0.47 in practice, so the 0.4 this
+// once demanded could never match anything. Past ~0.55 every note has twenty
+// candidates, which is the same as having none.
+const DEFAULT_MAX_DISTANCE = 0.5;
 
 export const findFlashbacks = (
   client: MemexClient,
@@ -601,8 +617,9 @@ export const findFlashbacks = (
   options: FlashbackOptions = {},
 ): Flashback[] => {
   const minDaysGap = options.minDaysGap ?? 90;
-  const maxDistance = options.maxDistance ?? 0.4;
+  const maxDistance = options.maxDistance ?? DEFAULT_MAX_DISTANCE;
   const limit = options.limit ?? 3;
+  const pool = options.pool ?? DEFAULT_POOL;
   const cutoff = now - minDaysGap * 86_400_000;
 
   const embRow = client.sqlite
@@ -614,13 +631,7 @@ export const findFlashbacks = (
   const sourceCategory = source?.category ?? null;
 
   const categoryFilter = sourceCategory ? 'AND (n.category IS NULL OR n.category != ?)' : '';
-  const args: (number | Buffer | string)[] = [
-    embRow.embedding,
-    limit * 5,
-    noteId,
-    cutoff,
-    maxDistance,
-  ];
+  const args: (number | Buffer | string)[] = [embRow.embedding, pool, noteId, cutoff, maxDistance];
   if (sourceCategory) args.push(sourceCategory);
 
   const rows = client.sqlite

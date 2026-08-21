@@ -266,6 +266,30 @@ describe('findFlashbacks', () => {
 
   const fakeEmbedding = new Array(768).fill(0.1);
 
+  // A unit vector the given euclidean distance from [1, 0, 0, ...]:
+  // for unit vectors, L2 = sqrt(2 - 2·cos).
+  const vectorAt = (distance: number): number[] => {
+    const cos = 1 - (distance * distance) / 2;
+    const v = new Array(768).fill(0);
+    v[0] = cos;
+    v[1] = Math.sqrt(1 - cos * cos);
+    return v;
+  };
+
+  const addNote = (title: string, category: string, embedding: number[], ageDays: number) => {
+    const note = insertNote(client, {
+      title,
+      content: 'x',
+      filePath: join(dbDir, `${title}.md`),
+      source: 'manual',
+      layer: 'past',
+      category,
+    });
+    setCreatedAt(note.id, Date.now() - ageDays * 86_400_000);
+    saveEmbedding(client, note.id, embedding);
+    return note;
+  };
+
   it('returns notes older than minDaysGap from a different category', () => {
     const now = Date.now();
     const old = insertNote(client, {
@@ -293,6 +317,31 @@ describe('findFlashbacks', () => {
     expect(flashbacks.map((f) => f.id)).toContain(old.id);
     const oldFlash = flashbacks.find((f) => f.id === old.id);
     expect(oldFlash?.daysAgo).toBeGreaterThanOrEqual(90);
+  });
+
+  it('looks past the nearest neighbours, which are always the recent ones', () => {
+    const now = Date.now();
+    const source = addNote('source', 'projects', vectorAt(0), 0);
+    for (let i = 0; i < 30; i += 1) {
+      addNote(`recent-${i}`, 'projects', vectorAt(0.05 + i * 0.001), 1);
+    }
+    const old = addNote('old', 'writing', vectorAt(0.45), 200);
+
+    expect(findFlashbacks(client, source.id, now).map((f) => f.id)).toContain(old.id);
+    expect(findFlashbacks(client, source.id, now, { pool: 5 }).map((f) => f.id)).not.toContain(
+      old.id,
+    );
+  });
+
+  it('leaves out a note too far away to be about the same thing', () => {
+    const now = Date.now();
+    const source = addNote('source', 'projects', vectorAt(0), 0);
+    const near = addNote('near', 'writing', vectorAt(0.45), 200);
+    const far = addNote('far', 'writing', vectorAt(0.7), 200);
+
+    const found = findFlashbacks(client, source.id, now).map((f) => f.id);
+    expect(found).toContain(near.id);
+    expect(found).not.toContain(far.id);
   });
 
   it('excludes notes in the same category as the source', () => {

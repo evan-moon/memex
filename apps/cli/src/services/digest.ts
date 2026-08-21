@@ -15,14 +15,6 @@ const DAY = 86_400_000;
 const ATTENTION = 3;
 const ROOT = '(root)';
 
-// The vector search picks its neighbours before the date and folder filters
-// run, so a small k hands those filters nothing but recent same-folder notes.
-const CONNECTION_POOL = 100;
-// Measured against this vault: no cross-folder note 90 days apart sits closer
-// than ~0.47, so the 0.4 the save path uses can never match. Half the recent
-// notes have a neighbour under 0.5; past 0.55 every note has one, which is the
-// same as having none.
-const CONNECTION_MAX_DISTANCE = 0.5;
 const CONNECTION_SCAN = 10;
 
 export type DigestNote = { id: number; title: string; layer: string; at: number; tags: string[] };
@@ -117,10 +109,7 @@ const connectionOf = (client: MemexClient, now: number) => {
 
   return newest.reduce<DigestConnection | null>((found, note) => {
     if (found) return found;
-    const [flashback] = findFlashbacks(client, note.id, now, {
-      limit: CONNECTION_POOL,
-      maxDistance: CONNECTION_MAX_DISTANCE,
-    });
+    const [flashback] = findFlashbacks(client, note.id, now, { limit: 1 });
     if (!flashback) return null;
     const from = toDigestNote(note);
     const to = toDigestNote(flashback);
