@@ -20,6 +20,12 @@ packages/
 
 DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
+## Working on the UI
+
+`yarn dev:ui` runs the page and the API as two processes against your real vault: Vite hot-swaps a component without losing where you were, and `tsx watch` restarts the API when `services/ui` changes. Open the Vite URL (5173), not 4321 — 4321 serves the page that was built into `apps/cli/src/services/ui/page.ts`, so it only changes when you run `yarn build`. Pass `--port` to point the pair at a different API port, and set `MEMEX_POLL=1` where filesystem events do not arrive (containers, network volumes, some sandboxes).
+
+Keep pure helpers out of files that export components. React Fast Refresh gives up on a module that mixes them and invalidates everything downstream, which costs you the state you were trying to keep. That is why `time.ts` and `drafts.ts` sit beside `bits.tsx` and `editing.tsx`.
+
 ## Surface policy
 
 **MCP-first. The CLI is the safety net.**
