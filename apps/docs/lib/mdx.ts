@@ -1,6 +1,6 @@
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import matter from 'gray-matter';
 import { evaluate, type EvaluateOptions } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';

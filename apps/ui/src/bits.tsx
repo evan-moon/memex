@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { NoteRef } from './api.ts';
 import { useT } from './i18n.ts';
-import { ago, day } from './time.ts';
+import { day } from './time.ts';
 
 const LAYER_TONE: Record<string, string> = {
   state: 'border-primary text-primary',

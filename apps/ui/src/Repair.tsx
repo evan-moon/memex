@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { type ApiFailure, api, type RepairBatch, type RepairCard, toFailure } from './api.ts';
+import { type ApiFailure, api, type RepairBatch, toFailure } from './api.ts';
 import { Button, Card, Layer } from './bits.tsx';
 import { useT } from './i18n.ts';
 
 const BATCH = 20;
-
-type Verdict = { card: RepairCard; sources: number[] };
 
 const useBatch = () => {
   const [batch, setBatch] = useState<RepairBatch | null>(null);
