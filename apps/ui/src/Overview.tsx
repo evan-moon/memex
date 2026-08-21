@@ -12,6 +12,7 @@ import type { Overview as Data } from './api.ts';
 import { ago } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Spark } from './Spark.tsx';
+import { ThisWeek } from './ThisWeek.tsx';
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
   <div className="rounded-card border border-line bg-surface p-4">
@@ -68,7 +69,11 @@ export const Overview = ({ data }: { data: Data }) => {
       <h1 className="text-xl font-semibold tracking-tight">{t.overview.title}</h1>
       <p className="mt-1 text-sm text-muted">{t.overview.subtitle}</p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <ThisWeek />
+
+      <TidyProposal tidy={data.tidy} />
+
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label={t.overview.notes}
           value={data.notes.toLocaleString()}
@@ -90,8 +95,6 @@ export const Overview = ({ data }: { data: Data }) => {
           hint={t.common.staleBreakdown(data.changed, data.review)}
         />
       </div>
-
-      <TidyProposal tidy={data.tidy} />
 
       <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline gap-2">

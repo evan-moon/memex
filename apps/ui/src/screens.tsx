@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   api,
@@ -7,32 +7,13 @@ import {
   type SearchHit,
   type Topic,
   type TopicDetail,
-  toFailure,
 } from './api.ts';
 import { ago, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';
 import { StalePanel } from './StalePanel.tsx';
-
-const useAsync = <T,>(load: () => Promise<T>, key: string) => {
-  const [state, setState] = useState<{ data: T | null; failure: ApiFailure | null }>({
-    data: null,
-    failure: null,
-  });
-  useEffect(() => {
-    let alive = true;
-    setState({ data: null, failure: null });
-    load()
-      .then((data) => alive && setState({ data, failure: null }))
-      .catch((error: unknown) => alive && setState({ data: null, failure: toFailure(error) }));
-    return () => {
-      alive = false;
-    };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: key identifies the request
-  }, [key]);
-  return state;
-};
+import { useAsync } from './useAsync.ts';
 
 const Page = ({ children }: { children: React.ReactNode }) => (
   <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>

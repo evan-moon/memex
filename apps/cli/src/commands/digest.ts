@@ -1,17 +1,8 @@
-import {
-  listInferences,
-  listNotesSince,
-  listSignals,
-  type Note,
-  openDb,
-  parseTags,
-  refreshInferenceStaleness,
-  refreshSignals,
-  type SignalType,
-} from '@memex/db';
+import { openDb } from '@memex/db';
 import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { buildDigest } from '../services/digest.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 export const registerDigest = (program: Command) => {
@@ -26,62 +17,54 @@ export const registerDigest = (program: Command) => {
         process.exit(1);
       }
 
-      const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
-      const sinceDate = formatDate(new Date(sinceMs));
-
       const client = openDb(CONFIG_DIR);
       guardEmbeddingModel(client);
-      const notesResult = listNotesSince(client, sinceMs);
+      const digest = buildDigest(client, { days });
+      const sinceDate = formatDate(new Date(digest.since));
 
-      if (notesResult.length === 0) {
+      if (digest.total === 0) {
         console.log(pc.dim(`No notes saved in the last ${days} day(s) (since ${sinceDate}).`));
         return;
       }
 
-      const groups = notesResult.reduce<Map<string, Note[]>>((acc, note) => {
-        const key = note.category ?? '(root)';
-        return acc.set(key, [...(acc.get(key) ?? []), note]);
-      }, new Map());
-
       console.log();
       console.log(pc.bold(`Digest — last ${days} day(s) since ${sinceDate}`));
-      console.log(pc.dim(`${notesResult.length} note(s) across ${groups.size} folder(s)`));
+      console.log(pc.dim(`${digest.total} note(s) across ${digest.folders.length} folder(s)`));
 
-      Array.from(groups.entries()).forEach(([folder, folderNotes]) => {
+      digest.folders.forEach(({ folder, notes }) => {
         console.log();
         console.log(pc.bold(pc.cyan(folder)));
-        folderNotes.forEach((note) => {
-          const date = formatDate(new Date(note.createdAt));
-          const tags = parseTags(note.tags);
-          const tagStr = tags.length > 0 ? pc.dim(`  [${tags.join(', ')}]`) : '';
-          console.log(`  ${pc.bold(`#${note.id}`)} ${note.title}${tagStr}  ${pc.dim(date)}`);
+        notes.forEach((note) => {
+          const tags = note.tags.length > 0 ? pc.dim(`  [${note.tags.join(', ')}]`) : '';
+          console.log(
+            `  ${pc.bold(`#${note.id}`)} ${note.title}${tags}  ${pc.dim(formatDate(new Date(note.at)))}`,
+          );
         });
       });
 
-      // Signals & inferences: what's worth synthesizing, and what's rotting.
-      // refreshSignals is dirty-flagged, so this is free unless notes changed.
-      refreshSignals(client);
-      const TYPE_ORDER: SignalType[] = ['hidden_arc', 'stale_state', 'tag_burst', 'dangling_link'];
-      const newSignals = listSignals(client, { status: 'new' });
-      if (newSignals.length > 0) {
-        const byType = new Map<SignalType, number>();
-        for (const s of newSignals) byType.set(s.type, (byType.get(s.type) ?? 0) + 1);
-        const summary = TYPE_ORDER.filter((t) => byType.has(t))
-          .map((t) => `${byType.get(t)} ${t}`)
-          .join(', ');
+      if (digest.signals.length > 0) {
+        const summary = digest.signals.map((s) => `${s.count} ${s.type}`).join(', ');
         console.log();
         console.log(pc.bold(pc.magenta('Signals (new)')));
         console.log(pc.dim(`  ${summary} — review: memex signals`));
       }
 
-      refreshInferenceStaleness(client);
-      const active = listInferences(client, { status: 'active' });
-      const stale = listInferences(client, { status: 'stale' });
+      const { active, stale } = digest.inferences;
       if (active.length > 0 || stale.length > 0) {
         console.log();
         console.log(pc.bold(pc.green('Inferences')));
         for (const inf of stale) console.log(`  ${pc.red('[!] STALE')} #${inf.id} ${inf.title}`);
         for (const inf of active) console.log(`  ${pc.dim('·')} #${inf.id} ${inf.title}`);
+      }
+
+      if (digest.connection) {
+        const { from, to, daysApart } = digest.connection;
+        console.log();
+        console.log(pc.bold(pc.blue('Connection')));
+        console.log(`  ${pc.bold(`#${from.id}`)} ${from.title}`);
+        console.log(
+          `  ${pc.dim(`↕ ${daysApart} days apart`)}\n  ${pc.bold(`#${to.id}`)} ${to.title}`,
+        );
       }
 
       console.log();

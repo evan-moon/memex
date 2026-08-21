@@ -9,8 +9,15 @@ import {
   type NoteLayer,
   parseTags,
 } from '@memex/db';
+import { type NoteStatus, statusesFor } from './status.ts';
 
-export type NoteRef = { id: number; title: string; layer: string; at: number };
+export type NoteRef = {
+  id: number;
+  title: string;
+  layer: string;
+  at: number;
+  status?: NoteStatus | null;
+};
 
 export type NoteDetail = {
   id: number;
@@ -130,6 +137,16 @@ const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string 
   return { newer };
 };
 
+// Every list of notes says whether each one still holds, so a backlink that a
+// later note corrected does not read as current just because of where it sits.
+const withStatus = (client: MemexClient, refs: NoteRef[]): NoteRef[] => {
+  const statuses = statusesFor(
+    client,
+    refs.map((r) => r.id),
+  );
+  return refs.map((ref) => ({ ...ref, status: statuses.get(ref.id) ?? null }));
+};
+
 export const noteDetail = (
   client: MemexClient,
   id: number,
@@ -166,8 +183,8 @@ export const noteDetail = (
       at: a.authoredAt,
     })),
     corrects,
-    backlinks: getBacklinks(client, id).map(toRef),
-    related: findRelatedNotes(client, id, 5).map(toRef),
+    backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
+    related: withStatus(client, findRelatedNotes(client, id, 5).map(toRef)),
   };
 };
 

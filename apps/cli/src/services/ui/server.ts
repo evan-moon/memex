@@ -7,13 +7,17 @@ import {
   type MemexClient,
   setSignalStatus,
 } from '@memex/db';
+import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { bodyOf, layerCounts, listByLayer, noteDetail, recompose, staleStateIds } from './notes.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
-import { buildTopic, buildTopics, type NoteStatus, topicNotes } from './topics.ts';
+import type { NoteStatus } from './status.ts';
+import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
+
+const DIGEST_DAYS = 7;
 
 type Reply = { status: number; headers: Record<string, string>; body: string };
 
@@ -95,6 +99,11 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
       rule: listByLayer(client, 'rule'),
       past: listByLayer(client, 'past'),
     });
+  }
+  if (method === 'GET' && url.pathname === '/api/digest') {
+    const asked = Number(url.searchParams.get('days') ?? DIGEST_DAYS);
+    const days = Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), 365) : DIGEST_DAYS;
+    return json(buildDigest(client, { days }));
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
     return json(buildOverview(client, vaultPath));

@@ -46,6 +46,19 @@ const en = {
     };
     return messages[failure.code] ?? failure.detail ?? 'Something went wrong.';
   },
+  thisWeek: {
+    title: (days: number) => `Last ${days} days`,
+    window: (days: number) => `${days}d`,
+    arrived: 'What came in',
+    arrivedNone: 'Nothing came in',
+    spread: (notes: number, folders: number) => `${notes} notes across ${folders} folders`,
+    toFix: 'To fix',
+    allClear: 'All clear — nothing is waiting on you',
+    piledUp: (n: number) => `${n} piled up behind it`,
+    connection: 'Today’s connection',
+    connectionNone: 'Nothing far apart came close enough today',
+    apart: (days: number) => `${days} days apart`,
+  },
   sidebar: {
     state: 'What I believe now',
     past: 'Record',
@@ -175,6 +188,19 @@ const ko: typeof en = {
       unreachable: 'memex에 연결할 수 없어 — `memex ui`가 아직 켜져 있어?',
     };
     return messages[failure.code] ?? failure.detail ?? '뭔가 잘못됐어.';
+  },
+  thisWeek: {
+    title: (days) => `지난 ${days}일`,
+    window: (days) => `${days}일`,
+    arrived: '새로 들어온 것',
+    arrivedNone: '들어온 게 없어',
+    spread: (notes, folders) => `${folders}개 폴더에 ${notes}개`,
+    toFix: '손볼 것',
+    allClear: '다 정리됐어 — 기다리는 게 없어',
+    piledUp: (n) => `뒤로 ${n}개 쌓임`,
+    connection: '오늘의 연결',
+    connectionNone: '오늘은 멀리 있는 것끼리 닿은 게 없어',
+    apart: (days) => `${days}일 차이`,
   },
   sidebar: {
     state: '지금 믿는 것',

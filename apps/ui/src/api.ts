@@ -79,6 +79,19 @@ export type Sidebar = {
 
 export type SearchHit = NoteRef & { snippet: string };
 
+export type DigestNote = NoteRef & { tags: string[] };
+
+export type Digest = {
+  days: number;
+  since: number;
+  total: number;
+  folders: { folder: string; notes: DigestNote[] }[];
+  signals: { type: string; count: number }[];
+  attention: { id: number; title: string; count: number }[];
+  inferences: { active: { id: number; title: string }[]; stale: { id: number; title: string }[] };
+  connection: { from: DigestNote; to: DigestNote; daysApart: number } | null;
+};
+
 export type ApiFailure = { code: string; detail?: string };
 
 const failed = (failure: ApiFailure) => Object.assign(new Error(failure.code), { failure });
@@ -122,6 +135,7 @@ const post = <T>(path: string, body?: unknown) =>
 export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
+  digest: (days: number) => request<Digest>(`/api/digest?days=${days}`),
   topics: () => request<Topic[]>('/api/topics'),
   topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
