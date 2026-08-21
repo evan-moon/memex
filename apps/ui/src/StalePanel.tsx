@@ -128,7 +128,7 @@ type State =
       changes: DraftChange[];
       verdict: DraftVerdict;
       reason: string;
-      cost: number;
+      durationMs: number;
     }
   | { phase: 'saving' }
   | { phase: 'error'; message: string };
@@ -161,7 +161,7 @@ export const StalePanel = ({
         changes: d.changes,
         verdict: d.verdict,
         reason: d.reason,
-        cost: d.cost,
+        durationMs: d.durationMs,
       });
     });
   };
@@ -215,7 +215,7 @@ export const StalePanel = ({
             )}
             <Button onClick={draft}>다시 뽑기</Button>
             <Button onClick={() => setState({ phase: 'idle' })}>버리기</Button>
-            <span className="text-xs text-muted">${state.cost.toFixed(3)}</span>
+            <span className="text-xs text-muted">{Math.round(state.durationMs / 1000)}초 걸림</span>
           </div>
         </>
       ) : (
@@ -233,7 +233,7 @@ export const StalePanel = ({
           <span className="text-xs text-muted">
             {state.phase === 'drafting'
               ? 'Claude가 관련 노트를 읽는 중 — 1~2분 걸려'
-              : '1~2분 · 약 $0.3'}
+              : '1~2분 걸려'}
           </span>
         </div>
       )}

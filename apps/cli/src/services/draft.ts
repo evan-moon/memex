@@ -23,7 +23,7 @@ export type Draft =
       changes: DraftChange[];
       verdict: DraftVerdict;
       reason: string;
-      cost: number;
+      durationMs: number;
     }
   | { error: string };
 
@@ -160,16 +160,27 @@ export const draftStateUpdate = async (source: DraftSource): Promise<Draft> => {
       ],
       { maxBuffer: 16 * 1024 * 1024 },
     );
+    // Deliberately not total_cost_usd. This runs under the user's Claude Code
+    // subscription, where that field is an API-equivalent estimate dominated by
+    // system-prompt cache creation — a two-token prompt reports $0.15. Showing
+    // it would put a price on something that is not billed per call. What the
+    // wait actually costs the reader is time.
     const envelope = JSON.parse(stdout) as {
       is_error?: boolean;
       result?: string;
-      total_cost_usd?: number;
+      duration_ms?: number;
     };
     if (envelope.is_error || !envelope.result) {
       return { error: envelope.result ?? 'Claude reported an error' };
     }
     const { body, changes, verdict, reason } = parseDraft(envelope.result, source.body);
-    return { body: `${body}\n`, changes, verdict, reason, cost: envelope.total_cost_usd ?? 0 };
+    return {
+      body: `${body}\n`,
+      changes,
+      verdict,
+      reason,
+      durationMs: envelope.duration_ms ?? 0,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {

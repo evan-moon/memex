@@ -108,7 +108,7 @@ export const api = {
       changes: DraftChange[];
       verdict: DraftVerdict;
       reason: string;
-      cost: number;
+      durationMs: number;
     }>(`/api/draft/${id}`),
   saveNote: (id: number, body: string) => post<NoteDetail>(`/api/note/${id}`, { body }),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
