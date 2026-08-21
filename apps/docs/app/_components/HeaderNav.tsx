@@ -11,6 +11,7 @@ export default function HeaderNav() {
   const docsHref = onKo ? '/ko/docs/getting-started' : '/en/docs/getting-started';
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the path is the trigger, not an input — dropping it would leave the menu open across navigation
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);

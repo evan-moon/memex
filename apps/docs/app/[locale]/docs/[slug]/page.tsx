@@ -1,5 +1,5 @@
-import { readdirSync } from 'fs';
-import { join } from 'path';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { isLocale } from '@/app/_components/locale';

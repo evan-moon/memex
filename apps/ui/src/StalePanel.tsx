@@ -19,11 +19,16 @@ const DiffView = ({ before, after }: { before: string; after: string }) => {
       <pre className="min-w-full py-2 font-mono text-xs leading-6">
         {collapseUnchanged(diffLines(before, after)).map((line, i) =>
           line.kind === 'skip' ? (
-            <div key={`skip-${i}`} className="px-3 text-muted">
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: in a diff the position is the identity — identical lines recur, so keying by text would collide
+              key={`skip-${i}`}
+              className="px-3 text-muted"
+            >
               {t.stale.unchangedLines(line.count)}
             </div>
           ) : (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: in a diff the position is the identity — identical lines recur, so keying by text would collide
               key={`${line.kind}-${i}`}
               className="whitespace-pre-wrap break-words px-3"
               style={{

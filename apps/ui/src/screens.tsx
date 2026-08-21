@@ -437,11 +437,11 @@ export const SearchScreen = () => {
           <button
             type="button"
             onClick={() =>
-              replace((next) =>
-                ['layer', 'author', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) =>
-                  next.delete(key),
-                ),
-              )
+              replace((next) => {
+                for (const key of ['layer', 'author', 'tag', 'folder', 'from', 'to', 'limit']) {
+                  next.delete(key);
+                }
+              })
             }
             className="rounded-md px-2 py-1.5 text-xs text-muted hover:bg-surface"
           >
