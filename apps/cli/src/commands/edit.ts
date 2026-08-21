@@ -82,7 +82,12 @@ export const registerEdit = (program: Command) => {
           process.exit(1);
         }
 
-        s.stop(`Updated note #${result!.id}: "${result!.title}"`);
+        if (result === null) {
+          s.stop(pc.red(`Note #${id} not found.`));
+          process.exit(1);
+        }
+
+        s.stop(`Updated note #${result.id}: "${result.title}"`);
         outro('Done');
       } catch (err) {
         s.stop('Failed');
