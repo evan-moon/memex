@@ -12,8 +12,9 @@ const useBatch = () => {
   const [batch, setBatch] = useState<RepairBatch | null>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
 
+  // The stack in hand is not cleared while the next one loads: blanking it
+  // unmounts the deck, and with it the card the person was standing on.
   const load = useCallback(() => {
-    setBatch(null);
     setFailure(null);
     api
       .repairEvidence(BATCH)
