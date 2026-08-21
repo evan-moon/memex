@@ -1,9 +1,9 @@
-import { openDb } from '@memex/db';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { openDb } from '@memex/db';
 import { afterAll, describe, expect, it } from 'vitest';
-import { bodyOf, listByLayer } from './notes.ts';
+import { bodyOf, listByLayer, recompose } from './notes.ts';
 
 describe('bodyOf', () => {
   it('drops the frontmatter block', () => {
@@ -34,6 +34,42 @@ describe('bodyOf', () => {
   });
 });
 
+describe('recompose', () => {
+  const samples = [
+    [
+      '---',
+      'title: 제목',
+      'date: 2026-01-01',
+      'categories: [a]',
+      '---',
+      '',
+      '# 제목',
+      '',
+      '본문.',
+      '',
+    ].join('\n'),
+    ['---', 'title: 제목', '---', '', '본문.', ''].join('\n'),
+    '# 다른 제목\n\n본문.\n',
+    '그냥 본문.\n',
+  ];
+
+  it('puts back exactly what bodyOf took off', () => {
+    for (const original of samples) {
+      expect(recompose(original, bodyOf(original, '제목'), '제목')).toBe(original);
+    }
+  });
+
+  it('keeps frontmatter fields that only the file records', () => {
+    const original = samples[0];
+    const out = recompose(original, '새 본문.\n', '제목');
+    expect(out).toContain('date: 2026-01-01');
+    expect(out).toContain('categories: [a]');
+    expect(out).toContain('# 제목');
+    expect(out).toContain('새 본문.');
+    expect(out).not.toContain('본문.\n---');
+  });
+});
+
 describe('listByLayer', () => {
   const dir = mkdtempSync(join(tmpdir(), 'memex-sidebar-'));
   const client = openDb(dir);
@@ -48,16 +84,48 @@ describe('listByLayer', () => {
 
   // Authored long ago, revised yesterday — the case that made the sidebar
   // disagree with its own warning icons.
-  insert.run(1, 'old note, freshly revised', 'state', '/a.md', day('2026-01-01'), day('2026-08-20'), day('2026-01-01'));
-  insert.run(2, 'newer note, untouched since', 'state', '/b.md', day('2026-06-01'), day('2026-06-01'), day('2026-06-01'));
-  insert.run(3, 'happened later', 'past', '/c.md', day('2026-01-01'), day('2026-08-20'), day('2026-07-01'));
-  insert.run(4, 'happened first', 'past', '/d.md', day('2026-01-01'), day('2026-08-21'), day('2026-02-01'));
+  insert.run(
+    1,
+    'old note, freshly revised',
+    'state',
+    '/a.md',
+    day('2026-01-01'),
+    day('2026-08-20'),
+    day('2026-01-01'),
+  );
+  insert.run(
+    2,
+    'newer note, untouched since',
+    'state',
+    '/b.md',
+    day('2026-06-01'),
+    day('2026-06-01'),
+    day('2026-06-01'),
+  );
+  insert.run(
+    3,
+    'happened later',
+    'past',
+    '/c.md',
+    day('2026-01-01'),
+    day('2026-08-20'),
+    day('2026-07-01'),
+  );
+  insert.run(
+    4,
+    'happened first',
+    'past',
+    '/d.md',
+    day('2026-01-01'),
+    day('2026-08-21'),
+    day('2026-02-01'),
+  );
 
   it('orders state notes by when they were last revised', () => {
     expect(listByLayer(client, 'state').map((n) => n.id)).toEqual([1, 2]);
   });
 
-  it('reports a state note\'s date as its revision date', () => {
+  it("reports a state note's date as its revision date", () => {
     expect(listByLayer(client, 'state')[0].at).toBe(day('2026-08-20'));
   });
 

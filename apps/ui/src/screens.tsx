@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, type NoteDetail, type SearchHit, type Topic, type TopicDetail } from './api.ts';
 import { ago, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
 import { Markdown } from './Markdown.tsx';
+import { StalePanel } from './StalePanel.tsx';
 import { Spark } from './Spark.tsx';
 
 const useAsync = <T,>(load: () => Promise<T>, key: string) => {
@@ -173,21 +174,23 @@ export const TopicScreen = () => {
 export const NoteScreen = () => {
   const { id = '' } = useParams();
   const { data, error } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
-  if (!data) return <Pending error={error} />;
-  const newest = data.supersededBy.at(-1);
+  const [edited, setEdited] = useState<NoteDetail | null>(null);
+  const note = edited?.id === Number(id) ? edited : data;
+  if (!note) return <Pending error={error} />;
+  const newest = note.supersededBy.at(-1);
   return (
     <Page>
-      <h1 className="text-xl font-semibold leading-snug tracking-tight">{data.title}</h1>
+      <h1 className="text-xl font-semibold leading-snug tracking-tight">{note.title}</h1>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-        <Layer layer={data.layer} />
-        <span className="tabular-nums">{day(data.at)}</span>
-        {data.tags.map((t) => (
+        <Layer layer={note.layer} />
+        <span className="tabular-nums">{day(note.at)}</span>
+        {note.tags.map((t) => (
           <Link key={t} to={`/topic/${encodeURIComponent(t)}`} className="text-primary">
             {t}
           </Link>
         ))}
-        {data.obsidianUrl ? (
-          <a href={data.obsidianUrl} className="text-primary">
+        {note.obsidianUrl ? (
+          <a href={note.obsidianUrl} className="text-primary">
             Obsidian에서 열기 ↗
           </a>
         ) : null}
@@ -195,43 +198,48 @@ export const NoteScreen = () => {
       {newest ? (
         <Card className="mt-4" >
           <div className="text-sm" style={{ color: 'var(--negative)' }}>
-            ⚠ 이후 {data.supersededBy.length}개 노트에서 정정됐어
+            ⚠ 이후 {note.supersededBy.length}개 노트에서 정정됐어
           </div>
           <Link to={`/note/${newest.id}`} className="mt-1 block text-sm text-primary">
             최신: {newest.title}
           </Link>
         </Card>
       ) : null}
-      {data.corrects.length > 0 ? (
+      {note.corrects.length > 0 ? (
         <Card className="mt-3">
           <div className="text-xs text-muted">이 노트가 정정하는 것</div>
-          <Link to={`/note/${data.corrects[0].id}`} className="mt-1 block text-sm text-primary">
-            {data.corrects[0].title}
+          <Link to={`/note/${note.corrects[0].id}`} className="mt-1 block text-sm text-primary">
+            {note.corrects[0].title}
           </Link>
         </Card>
       ) : null}
+      <StalePanel
+        note={note}
+        onSaved={setEdited}
+        onDismissed={() => setEdited({ ...note, stale: null })}
+      />
       <article className="mt-7">
-        {data.content.trim() ? (
-          <Markdown links={data.wikiLinks}>{data.content}</Markdown>
+        {note.content.trim() ? (
+          <Markdown links={note.wikiLinks}>{note.content}</Markdown>
         ) : (
           // Frontmatter-only stubs exist in the vault, and a silently blank
           // article reads as the screen having failed to load.
           <p className="text-sm text-muted">본문이 없는 노트야 — 제목과 태그만 있어.</p>
         )}
       </article>
-      {data.backlinks.length > 0 ? (
+      {note.backlinks.length > 0 ? (
         <Card className="mt-8">
-          <h2 className="text-sm font-semibold">이 노트를 참조하는 노트 {data.backlinks.length}</h2>
+          <h2 className="text-sm font-semibold">이 노트를 참조하는 노트 {note.backlinks.length}</h2>
           <div className="mt-2">
-            <NoteList notes={data.backlinks} empty="" />
+            <NoteList notes={note.backlinks} empty="" />
           </div>
         </Card>
       ) : null}
-      {data.related.length > 0 ? (
+      {note.related.length > 0 ? (
         <Card className="mt-3">
           <h2 className="text-sm font-semibold">의미상 가까운 노트</h2>
           <div className="mt-2">
-            <NoteList notes={data.related} empty="" />
+            <NoteList notes={note.related} empty="" />
           </div>
         </Card>
       ) : null}

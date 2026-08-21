@@ -4,6 +4,7 @@ import {
   getAmendments,
   getBacklinks,
   getNote,
+  listSignals,
   type MemexClient,
   type NoteLayer,
   parseTags,
@@ -21,6 +22,7 @@ export type NoteDetail = {
   obsidianUrl: string | null;
   filePath: string;
   wikiLinks: { title: string; id: number }[];
+  stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
   backlinks: NoteRef[];
@@ -76,6 +78,24 @@ export const bodyOf = (content: string, title: string): string => {
     : withoutFrontmatter;
 };
 
+// The inverse of bodyOf. A note's frontmatter carries fields nothing else
+// records — original date, categories, aliases — and renderNoteFile only
+// preserves them when it can still see them. Saving an edited body means
+// putting the head back on, not regenerating it from what we happen to know.
+export const recompose = (original: string, body: string, title: string): string => {
+  const front = FRONTMATTER.exec(original)?.[0] ?? '';
+  const rest = original.slice(front.length);
+  const gap = /^\s*\r?\n/.exec(rest)?.[0] ?? '';
+  const heading = /^#[ \t]+(.+?)[ \t]*\r?\n/.exec(rest.slice(gap.length));
+
+  // Only the heading bodyOf removed comes back. One that says something the
+  // title does not was never part of the head; it is still in the body.
+  if (!heading || heading[1].trim() !== title.trim()) return `${front}${gap}${body}`;
+
+  const after = /^\s*\r?\n/.exec(rest.slice(gap.length + heading[0].length))?.[0] ?? '';
+  return `${front}${gap}${heading[0]}${after}${body}`;
+};
+
 const outgoingWikiLinks = (client: MemexClient, id: number) =>
   client.sqlite
     .prepare(
@@ -84,6 +104,31 @@ const outgoingWikiLinks = (client: MemexClient, id: number) =>
        WHERE l.source_id = ? AND l.source = 'wiki'`,
     )
     .all(id) as { title: string; id: number }[];
+
+// Which notes have piled up since this state note was last touched. Present
+// only when a stale_state signal is still open, so the screen and the sidebar
+// warning always agree.
+const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string }) => {
+  if (note.layer !== 'state') return null;
+  const signal = listSignals(client, { type: 'stale_state', status: 'new' }).find(
+    (s) => s.evidenceIds[0] === note.id,
+  );
+  if (!signal) return null;
+
+  const newer = (
+    client.sqlite
+      .prepare(
+        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt
+         FROM notes WHERE id IN (${signal.evidenceIds
+           .slice(1)
+           .map(() => '?')
+           .join(',')})
+         ORDER BY COALESCE(authored_at, created_at) DESC`,
+      )
+      .all(...signal.evidenceIds.slice(1)) as RawNote[]
+  ).map(toRef);
+  return { newer };
+};
 
 export const noteDetail = (
   client: MemexClient,
@@ -113,6 +158,7 @@ export const noteDetail = (
     obsidianUrl: obsidianUrl(note.filePath, vaultPath),
     filePath: note.filePath,
     wikiLinks: outgoingWikiLinks(client, id),
+    stale: staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,

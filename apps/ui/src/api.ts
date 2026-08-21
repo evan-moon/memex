@@ -34,6 +34,7 @@ export type NoteDetail = {
   tags: string[];
   obsidianUrl: string | null;
   wikiLinks: { title: string; id: number }[];
+  stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
   backlinks: NoteRef[];
@@ -78,6 +79,18 @@ const get = async <T>(path: string): Promise<T> => {
   return res.json() as Promise<T>;
 };
 
+const post = async <T>(path: string, body?: unknown): Promise<T> => {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok)
+    throw new Error((data as { error?: string } | null)?.error ?? `${path} → ${res.status}`);
+  return data as T;
+};
+
 export const api = {
   sidebar: () => get<Sidebar>('/api/sidebar'),
   overview: () => get<Overview>('/api/overview'),
@@ -85,4 +98,7 @@ export const api = {
   topic: (tag: string) => get<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => get<NoteDetail>(`/api/note/${id}`),
   search: (q: string) => get<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  draft: (id: number) => post<{ body: string; cost: number }>(`/api/draft/${id}`),
+  saveNote: (id: number, body: string) => post<NoteDetail>(`/api/note/${id}`, { body }),
+  stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
 };
