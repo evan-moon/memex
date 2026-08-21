@@ -69,7 +69,6 @@ export type Overview = {
   changed: number;
   review: number;
   activity: { date: string; notes: number }[];
-  tidy: { pairs: { keep: string; drop: string[]; notes: number }[]; notes: number };
   staleness: {
     tag: string;
     count: number;
@@ -115,6 +114,21 @@ export type NewNote = {
   folder?: string;
   tags?: string[];
   amends?: number;
+};
+
+export type MergeCandidate = {
+  kind: 'spelling' | 'overlap';
+  keep: string;
+  drop: string[];
+  notes: number;
+  overlap?: number;
+};
+
+export type RenameResult = {
+  notes: number;
+  files: number;
+  unwritten: string[];
+  skipped: number;
 };
 
 export type Facets = {
@@ -194,6 +208,8 @@ export const api = {
     request<SearchPage>(`/api/search?${searchQuery(query, filters)}`),
   titles: () => request<NoteTitle[]>('/api/titles'),
   facets: () => request<Facets>('/api/facets'),
+  tagMerges: () => request<MergeCandidate[]>('/api/tag-merges'),
+  renameTags: (from: string[], to: string) => post<RenameResult>('/api/tags/rename', { from, to }),
   draft: (id: number) =>
     post<{
       body: string;

@@ -15,6 +15,7 @@ import {
   setSignalStatus,
 } from '@memex/db';
 import { buildDigest } from '../digest.ts';
+import { mergeCandidates, renameTags } from '../tidy.ts';
 import { draftStateUpdate } from '../draft.ts';
 import {
   bodyOf,
@@ -94,6 +95,7 @@ export type ApiErrorCode =
   | 'nothing-to-change'
   | 'empty-title'
   | 'invalid-layer'
+  | 'invalid-rename'
   | 'save-rejected'
   | 'draft-state-only'
   | 'draft-no-evidence'
@@ -189,7 +191,7 @@ export const route = async (
     return json(buildDigest(client, { days }));
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
-    return json(buildOverview(client, vaultPath));
+    return json(buildOverview(client));
   }
   if (method === 'GET' && url.pathname === '/api/topics') {
     return json(buildTopics(client));
@@ -215,6 +217,9 @@ export const route = async (
   if (method === 'GET' && url.pathname === '/api/facets') {
     return json(searchFacets(client));
   }
+  if (method === 'GET' && url.pathname === '/api/tag-merges') {
+    return json(mergeCandidates(client, vaultPath));
+  }
   if (method === 'POST' && url.pathname.startsWith('/api/draft/')) {
     const id = Number(url.pathname.split('/').pop());
     const note = getNote(client, id);
@@ -233,6 +238,15 @@ export const route = async (
     return 'error' in draft
       ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
       : json(draft);
+  }
+  if (method === 'POST' && url.pathname === '/api/tags/rename') {
+    const fields = asRecord(payload);
+    const to = text(fields?.to);
+    const from = words(fields?.from)?.filter((tag) => tag.trim().length > 0 && tag !== to);
+    if (!to || !from || from.length === 0) return bad(400, 'invalid-rename');
+
+    const rename = from.reduce((acc, tag) => acc.set(tag, to), new Map<string, string>());
+    return json(renameTags(client, vaultPath, rename));
   }
   if (method === 'POST' && url.pathname === '/api/notes') {
     const fields = asRecord(payload);

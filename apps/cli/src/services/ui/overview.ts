@@ -1,5 +1,4 @@
 import { countChunks, countNotes, type MemexClient } from '@memex/db';
-import { planTidy } from '../tidy.ts';
 import { buildTopics } from './topics.ts';
 
 const DAY = 86_400_000;
@@ -12,7 +11,6 @@ export type Overview = {
   changed: number;
   review: number;
   activity: { date: string; notes: number }[];
-  tidy: { pairs: { keep: string; drop: string[]; notes: number }[]; notes: number };
   staleness: {
     tag: string;
     count: number;
@@ -48,12 +46,7 @@ const activity = (client: MemexClient, days: number, now: number) => {
   });
 };
 
-export const buildOverview = (
-  client: MemexClient,
-  vaultPath: string,
-  now = Date.now(),
-): Overview => {
-  const tidy = planTidy(client, vaultPath);
+export const buildOverview = (client: MemexClient, now = Date.now()): Overview => {
   const links = client.sqlite
     .prepare('SELECT source, COUNT(*) AS c FROM note_links GROUP BY source')
     .all() as { source: string; c: number }[];
@@ -70,14 +63,6 @@ export const buildOverview = (
     changed: topics.reduce((acc, t) => acc + t.changedCount, 0),
     review: topics.reduce((acc, t) => acc + t.reviewCount, 0),
     activity: activity(client, 90, now),
-    tidy: {
-      pairs: tidy.ours.map((v) => ({
-        keep: v.keep,
-        drop: v.drop.map((d) => d.tag),
-        notes: v.notes,
-      })),
-      notes: tidy.mine.length,
-    },
     staleness: topics
       .map((t) => ({
         tag: t.tag,

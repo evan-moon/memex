@@ -12,6 +12,7 @@ import type { Overview as Data } from './api.ts';
 import { ago } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Spark } from './Spark.tsx';
+import { TagMerges } from './TagMerges.tsx';
 import { ThisWeek } from './ThisWeek.tsx';
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
@@ -21,43 +22,6 @@ const Stat = ({ label, value, hint }: { label: string; value: string; hint?: str
     {hint ? <div className="mt-1 text-xs text-muted">{hint}</div> : null}
   </div>
 );
-
-const TidyProposal = ({ tidy }: { tidy: Data['tidy'] }) => {
-  const t = useT();
-  if (tidy.pairs.length === 0) return null;
-
-  return (
-    <section className="mt-6 rounded-card border border-brand/30 bg-brand/5 p-4 sm:p-5">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h2 className="text-sm font-semibold">{t.overview.tidyTitle}</h2>
-        <span className="text-xs text-muted">
-          {t.overview.tidyCount(tidy.pairs.length, tidy.notes)}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-muted">{t.overview.tidyWhy}</p>
-      <ul className="mt-3 flex flex-wrap gap-2">
-        {tidy.pairs.slice(0, 12).map((p) => (
-          <li
-            key={p.keep}
-            className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs"
-          >
-            {p.drop.map((d) => (
-              <span key={d} className="text-muted line-through">
-                {d}
-              </span>
-            ))}
-            <span className="text-muted">&rarr;</span>
-            <span className="font-medium">{p.keep}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-muted">
-        {t.overview.tidyHow}{' '}
-        <code className="rounded bg-line/60 px-1 py-0.5">memex tags tidy --apply</code>
-      </p>
-    </section>
-  );
-};
 
 export const Overview = ({ data }: { data: Data }) => {
   const t = useT();
@@ -71,7 +35,7 @@ export const Overview = ({ data }: { data: Data }) => {
 
       <ThisWeek />
 
-      <TidyProposal tidy={data.tidy} />
+      <TagMerges />
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat

@@ -105,6 +105,42 @@ describe('GET /api/note/:id', () => {
   });
 });
 
+describe('POST /api/tags/rename', () => {
+  const tagsOf = (id: number) =>
+    JSON.parse(
+      client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(id) as string,
+    ) as string[];
+
+  it('folds one tag into another across every note that carries it', async () => {
+    const a = addNote('a', 'past');
+    const b = addNote('b', 'past');
+    client.sqlite
+      .prepare('UPDATE notes SET tags = ? WHERE id IN (?, ?)')
+      .run(JSON.stringify(['커피챗']), a.id, b.id);
+
+    const reply = await post('/api/tags/rename', { from: ['커피챗'], to: 'coffee-chat' });
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toMatchObject({ notes: 2 });
+    expect(tagsOf(a.id)).toEqual(['coffee-chat']);
+    expect(tagsOf(b.id)).toEqual(['coffee-chat']);
+  });
+
+  it('turns down a rename with no source or no destination', async () => {
+    expect(body(await post('/api/tags/rename', { from: [], to: 'x' })).error).toMatchObject({
+      code: 'invalid-rename',
+    });
+    expect(body(await post('/api/tags/rename', { from: ['a'], to: ' ' })).error).toMatchObject({
+      code: 'invalid-rename',
+    });
+  });
+
+  it('turns down a rename onto itself, which would change nothing', async () => {
+    const reply = await post('/api/tags/rename', { from: ['same'], to: 'same' });
+    expect(body(reply).error).toMatchObject({ code: 'invalid-rename' });
+  });
+});
+
 describe('POST /api/notes', () => {
   it('writes a correction that points back at what it corrects', async () => {
     const original = addNote('what happened', 'past');

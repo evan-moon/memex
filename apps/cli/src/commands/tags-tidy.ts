@@ -1,47 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { type MemexClient, openDb, serializeTags } from '@memex/db';
-import { CONFIG_DIR, expandPath, loadConfig, rewriteTags, type TagVariant } from '@memex/utils';
+import { openDb } from '@memex/db';
+import { CONFIG_DIR, expandPath, loadConfig, type TagVariant } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { type Pending, planTidy, renameMap } from '../services/tidy.ts';
-
-type Applied = { notes: number; files: number; unwritten: string[] };
-
-// Deliberately not updateNote(): that stamps updated_at, and a spelling fix is
-// not a person revising a note. Bumping it would report every touched note as
-// freshly written and flatten the staleness readings the dashboard is built on.
-const applyRenames = (
-  client: MemexClient,
-  rename: Map<string, string>,
-  todo: Pending[],
-): Applied => {
-  const setTags = client.sqlite.prepare('UPDATE notes SET tags = ? WHERE id = ?');
-
-  return client.sqlite.transaction(() =>
-    todo.reduce<Applied>(
-      (acc, { note, next }) => {
-        setTags.run(serializeTags(next), note.id);
-
-        const before = existsSync(note.filePath) ? readFileSync(note.filePath, 'utf8') : '';
-        const after = before && rewriteTags(before, rename);
-        if (after && after !== before) {
-          writeFileSync(note.filePath, after, 'utf8');
-          return { ...acc, notes: acc.notes + 1, files: acc.files + 1 };
-        }
-
-        // Nothing in the file carries the change, so the next `memex index`
-        // puts the old spelling straight back. Say so rather than report a
-        // clean number.
-        return {
-          ...acc,
-          notes: acc.notes + 1,
-          unwritten: [...acc.unwritten, `#${note.id} ${note.title}`],
-        };
-      },
-      { notes: 0, files: 0, unwritten: [] },
-    ),
-  )();
-};
+import { applyRenames, planTidy, renameMap } from '../services/tidy.ts';
 
 const list = (variants: TagVariant[]) => {
   for (const v of variants.slice(0, 15)) {
