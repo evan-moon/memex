@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
+import { setNoteEvidence } from './evidence.ts';
 import { insertNote, linkTargets, saveEmbedding, serializeTags } from './repository.ts';
 import {
   computeSignalHash,
@@ -148,6 +149,25 @@ describe('detectStaleState', () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0].evidenceIds[0]).toBe(state.id);
     expect(candidates[0].evidenceIds).toHaveLength(3); // state + 2 newer
+  });
+
+  it('leaves a note that names its sources to the comparison', () => {
+    const t0 = Date.now() - 100 * DAY;
+    const state = addNote({
+      title: 'Roadmap',
+      layer: 'state',
+      embedding: unit(0),
+      createdAt: t0,
+      updatedAt: t0,
+    });
+    const source = addNote({ layer: 'past', embedding: unit(0), createdAt: t0 - 30 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 20 * DAY });
+
+    expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(1);
+
+    setNoteEvidence(client, state.id, [source.id]);
+    expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(0);
   });
 
   it('does not flag when fewer than minNewer', () => {

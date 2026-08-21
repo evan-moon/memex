@@ -67,6 +67,17 @@ export {
   syncLinks,
   updateNote,
 } from './repository.ts';
+export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
+export {
+  bodyHash,
+  evidenceFor,
+  evidenceStaleness,
+  getNoteEvidence,
+  isStale,
+  notesDeclaringEvidence,
+  setNoteEvidence,
+  syncNoteEvidence,
+} from './evidence.ts';
 export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource } from './schema.ts';
 export type {
   HiddenArcOptions,

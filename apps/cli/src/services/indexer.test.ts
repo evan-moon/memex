@@ -1,7 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getBacklinks, getNoteByFilePath, type MemexClient, openDb } from '@memex/db';
+import {
+  evidenceStaleness,
+  getBacklinks,
+  getNoteByFilePath,
+  getNoteEvidence,
+  type MemexClient,
+  openDb,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory } from './indexer.ts';
 
@@ -22,6 +29,44 @@ describe('indexDirectory', () => {
     client.sqlite.close();
     rmSync(dbDir, { recursive: true, force: true });
     rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  const declare = (file: string, sourceIds: number[], body: string) =>
+    writeFileSync(
+      join(vaultDir, file),
+      `---\ntitle: ${file.replace('.md', '')}\nlayer: state\nderives_from: [${sourceIds.join(', ')}]\n---\n\n${body}\n`,
+      'utf8',
+    );
+
+  it('reads what a note declares it was built from', async () => {
+    writeFileSync(join(vaultDir, 'source.md'), '# what happened\n\nwe chose JWT\n', 'utf8');
+    writeFileSync(join(vaultDir, 'plan.md'), '# plan\n\nwe use JWT\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    declare('plan.md', [source?.id ?? 0], 'we use JWT');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const plan = getNoteByFilePath(client, join(vaultDir, 'plan.md'));
+    expect(getNoteEvidence(client, plan?.id ?? 0).map((e) => e.sourceId)).toEqual([source?.id]);
+  });
+
+  it('keeps the hash a source was declared with, so a later change still shows', async () => {
+    writeFileSync(join(vaultDir, 'source.md'), '# a rule\n\nFP first\n', 'utf8');
+    writeFileSync(join(vaultDir, 'plan.md'), '# plan\n\nwe write FP\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    declare('plan.md', [source?.id ?? 0], 'we write FP');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const plan = getNoteByFilePath(client, join(vaultDir, 'plan.md'));
+    expect(evidenceStaleness(client, plan?.id ?? 0)?.changed).toHaveLength(0);
+
+    writeFileSync(join(vaultDir, 'source.md'), '# a rule\n\nOOP now\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(evidenceStaleness(client, plan?.id ?? 0)?.changed).toHaveLength(1);
   });
 
   it('rebuilds the link graph, so a link written against a filename becomes an edge', async () => {

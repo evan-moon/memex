@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
+import { notesDeclaringEvidence } from './evidence.ts';
 import { linkTargets, parseTags, resolveLinkTargets } from './repository.ts';
 
 // Lv1 deterministic inference signals.
@@ -199,9 +200,15 @@ export const detectStaleState = (
   const maxDistance = options.maxDistance ?? 0.45;
   const minNewer = options.minNewer ?? 3;
 
-  const states = client.sqlite
-    .prepare("SELECT id, title, updated_at FROM notes WHERE layer = 'state'")
-    .all() as { id: number; title: string; updated_at: number }[];
+  // A note that names its sources is checked by comparing them, not by asking
+  // which notes look close enough to matter. Guessing is what is left for the
+  // ones that have not said.
+  const declared = new Set(notesDeclaringEvidence(client));
+  const states = (
+    client.sqlite
+      .prepare("SELECT id, title, updated_at FROM notes WHERE layer = 'state'")
+      .all() as { id: number; title: string; updated_at: number }[]
+  ).filter((state) => !declared.has(state.id));
 
   const candidates: SignalCandidate[] = [];
 

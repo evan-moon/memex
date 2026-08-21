@@ -264,6 +264,17 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       updated_at     INTEGER NOT NULL
     );
   `);
+  // What a state note declares it was built from, with each source's body hash
+  // at declaration time. The frontmatter is the record; this is the index.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_evidence (
+      note_id     INTEGER NOT NULL,
+      source_id   INTEGER NOT NULL,
+      source_hash TEXT    NOT NULL,
+      declared_at INTEGER NOT NULL,
+      PRIMARY KEY (note_id, source_id)
+    );
+  `);
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS inference_evidence (
       inference_id   INTEGER NOT NULL,

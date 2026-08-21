@@ -13,9 +13,10 @@ import {
   parseTags,
   serializeTags,
   syncLinks,
+  syncNoteEvidence,
   updateNote,
 } from '@memex/db';
-import { authorOfPath, extractCategory } from '@memex/utils';
+import { authorOfPath, extractCategory, parseDerivesFrom } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -193,6 +194,19 @@ const resyncLinks = (client: MemexClient): number => {
   return after - before;
 };
 
+// Run after the walk, not during it: a note can declare a source that has not
+// been read yet, and an edge to a note the index has never heard of is dropped.
+const resyncEvidence = (client: MemexClient) => {
+  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
+    id: number;
+    content: string;
+  }[];
+  for (const note of notes) {
+    const declared = parseDerivesFrom(note.content);
+    if (declared.length > 0) syncNoteEvidence(client, note.id, declared);
+  }
+};
+
 export const indexDirectory = async (
   client: MemexClient,
   embedder: Embedder,
@@ -231,5 +245,6 @@ export const indexDirectory = async (
   }
 
   stats.relinked = resyncLinks(client);
+  resyncEvidence(client);
   return stats;
 };
