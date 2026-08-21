@@ -67,11 +67,12 @@ export const registerSignals = (program: Command) => {
     .option('-s, --status <status>', 'Filter by status (new|snoozed|dismissed|minted)', 'new')
     .option('-t, --type <type>', 'Filter by type (hidden_arc|stale_state|tag_burst|dangling_link)')
     .option('--no-refresh', 'Skip detection; just list stored signals')
-    .action((opts: { status: string; type?: SignalType; refresh: boolean }) => {
+    .option('--rescan', 'Re-run detection even if no note changed since last time')
+    .action((opts: { status: string; type?: SignalType; refresh: boolean; rescan?: boolean }) => {
       const client = openDb(CONFIG_DIR);
       guardEmbeddingModel(client);
 
-      if (opts.refresh) refreshSignals(client, detectorOptions());
+      if (opts.refresh) refreshSignals(client, { ...detectorOptions(), force: opts.rescan });
 
       const found = listSignals(client, {
         status: opts.status as SignalStatus,

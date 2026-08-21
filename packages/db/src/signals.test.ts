@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { insertNote, saveEmbedding, serializeTags } from './repository.ts';
+import { insertNote, linkTargets, saveEmbedding, serializeTags } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,
@@ -306,5 +306,77 @@ describe('detectHiddenArcs', () => {
       addNote({ tags: ['arc'], embedding: unit(5), createdAt: now - i * DAY });
     }
     expect(detectHiddenArcs(client, { minMembers: 4 })).toHaveLength(0);
+  });
+});
+
+describe('linkTargets', () => {
+  it('reads the target, not the display text', () => {
+    expect(linkTargets('see [[Note|shown as this]]')).toEqual(['Note']);
+  });
+
+  it('reads the target, not the heading anchor', () => {
+    expect(linkTargets('see [[Note#Some Heading]]')).toEqual(['Note']);
+  });
+
+  it('handles both at once and dedupes', () => {
+    expect(linkTargets('[[Note#H|shown]] and [[Note]]')).toEqual(['Note']);
+  });
+
+  it('normalizes composed forms so NFD and NFC name the same note', () => {
+    expect(linkTargets('[[\uAC00\u11A8]]')).toEqual(['\uAC01']);
+  });
+
+  it('finds nothing in text without links', () => {
+    expect(linkTargets('본문뿐이다')).toEqual([]);
+  });
+});
+
+describe('detectDanglingLinks — link syntax', () => {
+  it('does not flag a link that only carries display text', () => {
+    addNote({ title: '도착' });
+    addNote({ title: '출발', content: 'see [[도착|이렇게 보임]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+
+  it('does not flag a link into a heading of a note that exists', () => {
+    addNote({ title: '도착' });
+    addNote({ title: '출발', content: 'see [[도착#어떤 절]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+});
+
+describe('refreshSignals retirement', () => {
+  const dangling = () => listSignals(client, { type: 'dangling_link' });
+
+  it('drops a dangling-link signal once the target note is written', () => {
+    const src = addNote({ title: '출발', content: 'see [[아직 없는 노트]]' });
+    refreshSignals(client, { force: true });
+    expect(dangling()).toHaveLength(1);
+
+    addNote({ title: '아직 없는 노트' });
+    client.sqlite
+      .prepare('UPDATE notes SET updated_at = ? WHERE id = ?')
+      .run(Date.now() + DAY, src.id);
+    refreshSignals(client, { force: true });
+    expect(dangling()).toHaveLength(0);
+  });
+
+  it('keeps a signal whose target still does not exist', () => {
+    addNote({ title: '출발', content: 'see [[없는 노트]]' });
+    refreshSignals(client, { force: true });
+    refreshSignals(client, { force: true });
+    expect(dangling()).toHaveLength(1);
+  });
+
+  it('never resurrects or discards a signal the user already triaged', () => {
+    const src = addNote({ title: '출발', content: 'see [[없는 노트]]' });
+    refreshSignals(client, { force: true });
+    setSignalStatus(client, dangling()[0].id, 'dismissed');
+
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run('링크 없음', src.id);
+    refreshSignals(client, { force: true });
+
+    expect(dangling()).toHaveLength(1);
+    expect(dangling()[0].status).toBe('dismissed');
   });
 });

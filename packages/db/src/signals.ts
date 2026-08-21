@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
-import { parseTags } from './repository.ts';
+import { linkTargets, parseTags } from './repository.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -140,7 +140,6 @@ export const setSignalStatus = (
 // free of side effects.
 
 const DAY_MS = 86_400_000;
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
 type NoteRow = {
   id: number;
@@ -162,12 +161,12 @@ export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
     'id' | 'title' | 'content'
   >[];
 
-  const titleExists = new Set(notes.map((n) => n.title.trim().toLowerCase()));
+  const titleExists = new Set(notes.map((n) => n.title.trim().normalize('NFC').toLowerCase()));
   const candidates: SignalCandidate[] = [];
   const seen = new Set<string>();
 
   for (const note of notes) {
-    const titles = [...note.content.matchAll(WIKI_LINK_RE)].map((m) => m[1].trim());
+    const titles = linkTargets(note.content);
     for (const title of titles) {
       const key = title.toLowerCase();
       if (titleExists.has(key)) continue;
@@ -479,6 +478,27 @@ const setMeta = (client: MemexClient, key: string, value: number): void => {
     .run(key, value);
 };
 
+// A signal is an observation, not a record: once the thing it observed is no
+// longer true, it is void. Without this, fixing a dangling link left its signal
+// open forever and the backlog could only grow — 152 of 502 dangling links in
+// a real vault pointed at notes that had since been written. Only untriaged
+// signals are dropped; dismissed and minted are decisions, and re-raising those
+// would argue with the user.
+const retireResolved = (client: MemexClient, candidates: SignalCandidate[]) => {
+  const live = new Set(candidates.map(computeSignalHash));
+  const open = client.sqlite
+    .prepare("SELECT id, signal_hash FROM signals WHERE status = 'new'")
+    .all() as { id: number; signal_hash: string }[];
+
+  const gone = open.filter((row) => !live.has(row.signal_hash));
+  if (gone.length === 0) return;
+
+  const remove = client.sqlite.prepare('DELETE FROM signals WHERE id = ?');
+  client.sqlite.transaction(() => {
+    for (const row of gone) remove.run(row.id);
+  })();
+};
+
 // Run all detectors and persist their candidates. Returns the signals touched.
 //
 // Dirty-flag: detection is skipped when no note has changed since the last
@@ -505,6 +525,7 @@ export const refreshSignals = (
     ...detectHiddenArcs(client, options.arc),
   ];
   const touched = candidates.map((c) => upsertSignal(client, c));
+  retireResolved(client, candidates);
   setMeta(client, REFRESH_META_KEY, Date.now());
   return touched;
 };

@@ -466,12 +466,25 @@ export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
 const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
+// `[[Note|shown as this]]` and `[[Note#Heading]]` both target `Note`; the rest
+// is display text and an anchor. Reading the whole bracket as the title made
+// every such link look dead — to the graph and to the dangling-link detector
+// alike. Composed forms are normalized because the vault holds both NFC and
+// NFD spellings of the same Korean title.
+export const linkTargets = (content: string): string[] => [
+  ...new Set(
+    [...content.matchAll(WIKI_LINK_RE)]
+      .map((m) => m[1].split('|')[0].split('#')[0].trim().normalize('NFC'))
+      .filter(Boolean),
+  ),
+];
+
 export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
   client.sqlite
     .prepare("DELETE FROM note_links WHERE source_id = ? AND source = 'wiki'")
     .run(sourceId);
 
-  const titles = [...content.matchAll(WIKI_LINK_RE)].map((m) => m[1].trim());
+  const titles = linkTargets(content);
   if (titles.length === 0) return;
 
   const insert = client.sqlite.prepare(
@@ -491,13 +504,7 @@ export const syncLinks = (client: MemexClient, sourceId: number, content: string
 // declares it as an alias), so an unmatched target is a dead link on disk, not
 // just a missing row in note_links.
 export const findUnresolvedLinks = (client: MemexClient, content: string): string[] => {
-  const targets = [
-    ...new Set(
-      [...content.matchAll(WIKI_LINK_RE)].map((m) =>
-        m[1].split('|')[0].split('#')[0].trim().normalize('NFC'),
-      ),
-    ),
-  ].filter(Boolean);
+  const targets = linkTargets(content);
   if (targets.length === 0) return [];
 
   const findByTitle = client.sqlite.prepare(

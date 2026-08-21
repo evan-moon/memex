@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { EMBEDDING_DIM } from '@memex/utils';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { EMBEDDING_DIM } from '@memex/utils';
 import * as sqliteVec from 'sqlite-vec';
 import { parseAuthoredAt } from './dates.ts';
 import * as schema from './schema.ts';
