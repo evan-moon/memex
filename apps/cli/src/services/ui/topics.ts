@@ -1,4 +1,4 @@
-import { listSignals, type MemexClient } from '@memex/db';
+import { inferencesOverNotes, listSignals, type MemexClient } from '@memex/db';
 import { amendedStatuses, type NoteStatus, piledUpStatuses } from './status.ts';
 
 const MIN_USES = 20;
@@ -41,6 +41,7 @@ export type Topic = {
   outdated: TopicNoteRef[];
   companions: Companion[];
   arcs: Arc[];
+  hypotheses: { id: number; title: string; status: string; shared: number }[];
 };
 
 type Row = { id: number; title: string; layer: string; at: number };
@@ -149,6 +150,7 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
     outdated: outdated.slice(0, PREVIEW),
     companions: companionsFor(client, tag),
     arcs: arcsFor(client, new Set(ids)),
+    hypotheses: inferencesOverNotes(client, ids),
   };
 };
 

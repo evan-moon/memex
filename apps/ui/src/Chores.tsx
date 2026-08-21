@@ -45,6 +45,7 @@ const Rows = ({ children }: { children: React.ReactNode }) => (
 export const ChoresList = ({ data }: { data: Data }) => {
   const t = useT();
   const total =
+    data.hypotheses.total +
     data.undeclared.total +
     data.staleNotes.total +
     data.deadLinks.total +
@@ -62,6 +63,18 @@ export const ChoresList = ({ data }: { data: Data }) => {
 
   return (
     <ul className="divide-y divide-line">
+      <Chore label={t.chores.hypotheses} count={data.hypotheses.total}>
+        <Rows>
+          {data.hypotheses.top.map((hypothesis) => (
+            <li key={hypothesis.id} className="truncate">
+              <Link to={`/inference/${hypothesis.id}`} className="text-primary hover:underline">
+                {hypothesis.title}
+              </Link>
+            </li>
+          ))}
+        </Rows>
+      </Chore>
+
       <Chore
         label={t.chores.undeclared}
         count={data.undeclared.total}

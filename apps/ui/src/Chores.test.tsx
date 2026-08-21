@@ -8,6 +8,7 @@ import { dictionaries, setLocale } from './i18n.ts';
 const t = dictionaries.en;
 
 const chores = (over: Partial<Chores> = {}): Chores => ({
+  hypotheses: { total: 0, top: [] },
   undeclared: { total: 0, top: [] },
   staleNotes: { total: 0, top: [] },
   deadLinks: { total: 0, notes: 0, top: [] },

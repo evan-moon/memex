@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { api, type Overview as OverviewData, type Sidebar as SidebarData, type Topic } from './api.ts';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { useLocale } from './i18n.ts';
+import { HypothesisScreen } from './Hypothesis.tsx';
 import { Palette } from './Palette.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { Overview } from './Overview.tsx';
@@ -123,6 +124,7 @@ export const App = () => {
             <Route path="/note/:id" element={<NoteScreen />} />
             <Route path="/search" element={<SearchScreen />} />
             <Route path="/tags" element={<TagsScreen />} />
+            <Route path="/inference/:id" element={<HypothesisScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </ErrorBoundary>

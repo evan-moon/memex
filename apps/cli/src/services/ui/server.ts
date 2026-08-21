@@ -10,15 +10,21 @@ import {
 import {
   evidenceStaleness,
   getAmendmentsFor,
+  getInference,
   getNote,
   listSignals,
   type MemexClient,
+  refreshInferenceStaleness,
+  restampInference,
+  rewriteInference,
+  setInferenceStatus,
   setNoteEvidence,
   setSignalStatus,
 } from '@memex/db';
 import { writeDerivesFrom } from '@memex/utils';
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
+import { redraftInference } from '../inference-draft.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { buildChores } from './chores.ts';
 import {
@@ -114,6 +120,7 @@ export type ApiErrorCode =
   | 'invalid-layer'
   | 'invalid-rename'
   | 'save-rejected'
+  | 'inference-archived'
   | 'draft-state-only'
   | 'draft-no-evidence'
   | 'draft-failed'
@@ -241,6 +248,11 @@ export const route = async (
   if (method === 'GET' && url.pathname === '/api/tag-merges') {
     return json(mergeCandidates(client, vaultPath));
   }
+  if (method === 'GET' && url.pathname.startsWith('/api/inference/')) {
+    refreshInferenceStaleness(client);
+    const found = getInference(client, Number(url.pathname.split('/').pop()));
+    return found ? json(found) : notFound;
+  }
   if (method === 'GET' && url.pathname === '/api/tags') {
     return json(listTags(client, vaultPath));
   }
@@ -262,6 +274,82 @@ export const route = async (
     return 'error' in draft
       ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
       : json(draft);
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/inference/')) {
+    const [, , , rawId, action] = url.pathname.split('/');
+    const inferenceId = Number(rawId);
+    const found = getInference(client, inferenceId);
+    if (!found) return notFound;
+    if (found.inference.status === 'archived') return bad(409, 'inference-archived');
+
+    if (action === 'archive') {
+      setInferenceStatus(client, inferenceId, 'archived');
+      return json({ ok: true });
+    }
+    if (action === 'still-true') {
+      restampInference(client, inferenceId);
+      return json(getInference(client, inferenceId));
+    }
+    if (action === 'redraft') {
+      const notes = found.evidence.flatMap((edge) => {
+        const note = getNote(client, edge.noteId);
+        return note
+          ? [{ id: note.id, title: note.title, body: bodyOf(note.content, note.title) }]
+          : [];
+      });
+      if (notes.length === 0) return bad(400, 'draft-no-evidence');
+
+      const draft = await redraftInference({
+        title: found.inference.title,
+        summary: found.inference.summary,
+        notes,
+      });
+      return 'error' in draft
+        ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
+        : json(draft);
+    }
+    if (action === 'rewrite') {
+      const fields = asRecord(payload);
+      const title = text(fields?.title);
+      const summary = text(fields?.summary);
+      if (!title || !summary) return bad(400, 'nothing-to-change');
+      rewriteInference(client, inferenceId, {
+        title,
+        summary,
+        modelId: found.inference.modelId ?? undefined,
+      });
+      return json(getInference(client, inferenceId));
+    }
+    if (action === 'promote') {
+      // The hypothesis becomes a judgement the person owns, declaring the same
+      // primary records. It points at those, never at itself — which is what
+      // keeps a synthesis from becoming the input to the next one.
+      const sources = found.evidence.filter((edge) => !edge.missing).map((edge) => edge.noteId);
+      const result = await saveNote(client, deps.embedder, vaultPath, {
+        title: found.inference.title,
+        content: found.inference.summary,
+        source: 'manual',
+        layer: 'state',
+        actor: 'user',
+      });
+      if (isSaveRejection(result)) return bad(409, 'save-rejected', result.message);
+
+      setNoteEvidence(client, result.note.id, sources);
+      const note = getNote(client, result.note.id);
+      if (note) {
+        await editNote(
+          deps.client,
+          deps.embedder,
+          vaultPath,
+          result.note.id,
+          { content: writeDerivesFrom(note.content, sources) },
+          { actor: 'user' },
+        );
+      }
+      setInferenceStatus(client, inferenceId, 'archived');
+      return json(noteDetail(client, result.note.id, vaultPath));
+    }
+    return notFound;
   }
   if (method === 'POST' && url.pathname === '/api/tags/rename') {
     const fields = asRecord(payload);

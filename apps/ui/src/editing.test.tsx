@@ -20,6 +20,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   deadLinks: [],
   evidence: [],
   candidateSources: [],
+  hypotheses: [],
   folder: 'projects/memex',
   amendment: null,
   wikiLinks: [],

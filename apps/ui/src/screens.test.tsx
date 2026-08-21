@@ -26,6 +26,7 @@ const topic: Topic = {
   ],
   companions: [{ tag: 'mcp', shared: 6, overlap: 0.9, sameThing: false }],
   arcs: [{ reasoning: null, noteIds: [1, 2] }],
+  hypotheses: [],
 };
 
 const render = (locale: Locale) => {

@@ -8,6 +8,7 @@ import {
   getAmendments,
   getBacklinks,
   getNote,
+  inferencesCiting,
   listSignals,
   type MemexClient,
   type NoteLayer,
@@ -47,6 +48,7 @@ export type NoteDetail = {
   }[];
   /** Notes this one links to that could be declared as sources. */
   candidateSources: NoteRef[];
+  hypotheses: { id: number; title: string; status: string }[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -274,6 +276,7 @@ export const noteDetail = (
       amendedBy: edge.amendedBy,
     })),
     candidateSources: candidateSources(client, note),
+    hypotheses: inferencesCiting(client, id),
     stale: declaredStaleness(client, note) ?? staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,

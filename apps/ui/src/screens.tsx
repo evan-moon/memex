@@ -12,6 +12,7 @@ import {
 } from './api.ts';
 import { Agent, ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
 import { Evidence } from './Evidence.tsx';
+import { HypothesisLinks } from './Hypothesis.tsx';
 import {
   Composer,
   correctionDraft,
@@ -121,6 +122,12 @@ export const TopicScreen = () => {
         {t.topic.subtitle(data.count, ago(t, data.lastAt))}
         {data.dormant ? t.topic.dormantSuffix : ''}
       </p>
+      <HypothesisLinks
+        heading={t.hypothesis.onTopic}
+        hint={t.hypothesis.onNoteHint}
+        refs={data.hypotheses}
+      />
+
       {data.arcs.map((arc) => (
         <Card key={arc.noteIds.join(',')} className="mt-4 border-l-2">
           <div className="text-sm">💡 {arc.reasoning ?? t.topic.arcFallback}</div>
@@ -272,6 +279,12 @@ export const NoteScreen = () => {
           <p className="text-sm text-muted">{t.note.emptyBody}</p>
         )}
       </article>
+      <HypothesisLinks
+        heading={t.hypothesis.onNote}
+        hint={t.hypothesis.onNoteHint}
+        refs={note.hypotheses}
+      />
+
       {note.deadLinks.length > 0 ? (
         <Card className="mt-8">
           <h2 className="text-sm font-semibold">{t.edit.deadLinks(note.deadLinks.length)}</h2>

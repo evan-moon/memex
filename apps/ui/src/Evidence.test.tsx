@@ -22,6 +22,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   deadLinks: [],
   evidence: [],
   candidateSources: [],
+  hypotheses: [],
   stale: null,
   supersededBy: [],
   corrects: [],

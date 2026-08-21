@@ -1,8 +1,11 @@
 import {
   getNote,
+  type InferenceRef,
+  listInferences,
   listSignals,
   type MemexClient,
   notesDeclaringEvidence,
+  refreshInferenceStaleness,
   refreshSignals,
   unresolvedLinksByNote,
 } from '@memex/db';
@@ -17,6 +20,7 @@ export type TagPair = { keep: string; drop: string[] };
 export type Undeclared = { id: number; title: string; candidates: number };
 
 export type Chores = {
+  hypotheses: { total: number; top: InferenceRef[] };
   undeclared: { total: number; top: Undeclared[] };
   staleNotes: { total: number; top: StaleNote[] };
   deadLinks: { total: number; notes: number; top: DeadLinkNote[] };
@@ -80,7 +84,14 @@ export const buildChores = (client: MemexClient, vaultPath: string): Chores => {
   const loose = listTags(client, vaultPath).filter((row) => row.notes === 1);
   const mine = loose.filter((row) => row.mine > 0);
 
+  refreshInferenceStaleness(client);
+  const shaken = listInferences(client, { status: 'stale' });
+
   return {
+    hypotheses: {
+      total: shaken.length,
+      top: shaken.slice(0, TOP).map(({ id, title, status }) => ({ id, title, status })),
+    },
     undeclared: undeclared(client),
     staleNotes: staleNotes(client),
     deadLinks: deadLinks(client),

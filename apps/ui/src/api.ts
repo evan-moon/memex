@@ -27,6 +27,7 @@ export type Topic = {
   outdated: NoteRef[];
   companions: Companion[];
   arcs: { reasoning: string | null; noteIds: number[] }[];
+  hypotheses: { id: number; title: string; status: string; shared: number }[];
 };
 
 export type TopicDetail = Topic & { notes: NoteRef[] };
@@ -60,6 +61,7 @@ export type NoteDetail = {
     amendedBy: { id: number; title: string } | null;
   }[];
   candidateSources: NoteRef[];
+  hypotheses: { id: number; title: string; status: string }[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -114,6 +116,28 @@ export type SearchPage = {
   limit: number;
 };
 
+export type InferenceDetail = {
+  inference: {
+    id: number;
+    title: string;
+    summary: string;
+    confidence: number | null;
+    status: string;
+    modelId: string | null;
+    promptText: string | null;
+    createdAt: number;
+    updatedAt: number;
+  };
+  evidence: {
+    noteId: number;
+    role: string;
+    title: string | null;
+    sourceExcerpt: string | null;
+    changed: boolean;
+    missing: boolean;
+  }[];
+};
+
 export type NoteTitle = { id: number; title: string; layer: string; author?: string };
 
 export type NotePatch = {
@@ -151,6 +175,7 @@ export type RenameResult = {
 export type TagRow = { tag: string; notes: number; mine: number };
 
 export type Chores = {
+  hypotheses: { total: number; top: { id: number; title: string; status: string }[] };
   undeclared: { total: number; top: { id: number; title: string; candidates: number }[] };
   staleNotes: { total: number; top: { id: number; title: string; count: number }[] };
   deadLinks: {
@@ -242,6 +267,14 @@ export const api = {
   tagMerges: () => request<MergeCandidate[]>('/api/tag-merges'),
   tags: () => request<TagRow[]>('/api/tags'),
   chores: () => request<Chores>('/api/chores'),
+  inference: (id: number) => request<InferenceDetail>(`/api/inference/${id}`),
+  archiveInference: (id: number) => post<{ ok: true }>(`/api/inference/${id}/archive`),
+  keepInference: (id: number) => post<InferenceDetail>(`/api/inference/${id}/still-true`),
+  promoteInference: (id: number) => post<NoteDetail>(`/api/inference/${id}/promote`),
+  redraftInference: (id: number) =>
+    post<{ title: string; summary: string; durationMs: number }>(`/api/inference/${id}/redraft`),
+  rewriteInference: (id: number, next: { title: string; summary: string }) =>
+    post<InferenceDetail>(`/api/inference/${id}/rewrite`, next),
   deleteTags: (tags: string[]) => post<RenameResult>('/api/tags/delete', { tags }),
   renameTags: (from: string[], to: string) => post<RenameResult>('/api/tags/rename', { from, to }),
   draft: (id: number) =>

@@ -2,10 +2,12 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  getInference,
   getNote,
   insertNote,
   linkAmendment,
   type MemexClient,
+  mintInference,
   openDb,
   serializeTags,
   setNoteEvidence,
@@ -179,6 +181,75 @@ describe('declared sources', () => {
 
     await post(`/api/still-true/${plan.id}`, {});
     expect((await detail(plan.id)).evidence[0].changed).toBe(false);
+  });
+});
+
+describe('hypotheses', () => {
+  const mint = (title: string, sources: number[]) =>
+    mintInference(client, {
+      title,
+      summary: 'the reading',
+      evidence: sources.map((noteId) => ({ noteId })),
+      confidence: 0.8,
+      modelId: 'test-model',
+    });
+
+  it('lets every note it was read out of point at it', async () => {
+    const a = addNote('essay a', 'past');
+    const b = addNote('essay b', 'past');
+    const inference = mint('an engine', [a.id, b.id]);
+
+    const detail = JSON.parse(
+      (await route(deps, 'GET', new URL(`/api/note/${a.id}`, 'http://localhost'), null)).body,
+    );
+    expect(detail.hypotheses).toMatchObject([{ id: inference.id, title: 'an engine' }]);
+  });
+
+  it('turns a hypothesis into a judgement that declares the same records', async () => {
+    const a = addNote('essay a', 'past');
+    const b = addNote('essay b', 'past');
+    const inference = mint('an engine', [a.id, b.id]);
+
+    const reply = await post(`/api/inference/${inference.id}/promote`, {});
+    expect(reply.status).toBe(200);
+
+    const note = body(reply);
+    expect(note.layer).toBe('state');
+    expect(note.evidence).toMatchObject([{ id: a.id }, { id: b.id }]);
+    expect(getInference(client, inference.id)?.inference.status).toBe('archived');
+  });
+
+  it('will not act on one that was already discarded', async () => {
+    const a = addNote('essay a', 'past');
+    const inference = mint('an engine', [a.id]);
+    await post(`/api/inference/${inference.id}/archive`, {});
+
+    const reply = await post(`/api/inference/${inference.id}/promote`, {});
+    expect(reply.status).toBe(409);
+    expect(body(reply).error).toMatchObject({ code: 'inference-archived' });
+  });
+
+  it('restarts the comparison when a person says it still holds', async () => {
+    const a = addNote('essay a', 'past', 'first wording');
+    const inference = mint('an engine', [a.id]);
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run('rewritten', a.id);
+
+    const before = JSON.parse(
+      (
+        await route(
+          deps,
+          'GET',
+          new URL(`/api/inference/${inference.id}`, 'http://localhost'),
+          null,
+        )
+      ).body,
+    );
+    expect(before.evidence[0].changed).toBe(true);
+
+    const after = JSON.parse(
+      (await post(`/api/inference/${inference.id}/still-true`, {})).body,
+    ) as { evidence: { changed: boolean }[] };
+    expect(after.evidence[0].changed).toBe(false);
   });
 });
 
