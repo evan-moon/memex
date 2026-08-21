@@ -51,6 +51,28 @@ describe('NoteEditor', () => {
   });
 });
 
+describe('the body field', () => {
+  it('paints the markdown behind the text a person types', () => {
+    const html = render(
+      <NoteEditor
+        note={note({ content: '## 배경\n\nsee [[Some Note]]' })}
+        onSaved={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(html).toContain('var(--brand)');
+    expect(html).toContain('[[Some Note]]');
+  });
+
+  it('leaves the typed text itself transparent, so only one copy is visible', () => {
+    const html = render(
+      <NoteEditor note={note()} onSaved={() => undefined} onCancel={() => undefined} />,
+    );
+    expect(html).toContain('text-transparent');
+    expect(html).toContain('caret-foreground');
+  });
+});
+
 describe('Composer', () => {
   const past = note({
     layer: 'past',

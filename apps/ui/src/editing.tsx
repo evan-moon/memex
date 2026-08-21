@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, type ApiFailure, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
 import { type Strings, useT } from './i18n.ts';
+import { MarkdownInput } from './MarkdownInput.tsx';
 
 const LAYERS = ['state', 'rule', 'past'];
 
@@ -108,12 +109,7 @@ export const NoteEditor = ({
 
       <div className="mt-3">
         <Field label={t.edit.body}>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={18}
-            className={`${inputClass} font-mono text-xs leading-6`}
-          />
+          <MarkdownInput value={body} onChange={setBody} rows={18} />
         </Field>
       </div>
 
@@ -224,12 +220,7 @@ export const Composer = ({
 
       <div className="mt-3">
         <Field label={t.edit.body}>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={12}
-            className={`${inputClass} font-mono text-xs leading-6`}
-          />
+          <MarkdownInput value={body} onChange={setBody} rows={12} />
         </Field>
       </div>
 
