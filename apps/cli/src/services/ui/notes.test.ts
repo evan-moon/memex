@@ -3,14 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '@memex/db';
 import { afterAll, describe, expect, it } from 'vitest';
-import {
-  bodyOf,
-  listByLayer,
-  noteTitles,
-  plainSnippet,
-  recompose,
-  searchFacets,
-} from './notes.ts';
+import { bodyOf, listByLayer, noteTitles, plainSnippet, recompose, searchFacets } from './notes.ts';
 
 describe('bodyOf', () => {
   it('drops the frontmatter block', () => {
@@ -191,7 +184,9 @@ describe('plainSnippet', () => {
   });
 
   it('leaves ordinary prose alone apart from its whitespace', () => {
-    expect(plainSnippet('  두 문장이   있다. 그리고 또 하나.  ')).toBe('두 문장이 있다. 그리고 또 하나.');
+    expect(plainSnippet('  두 문장이   있다. 그리고 또 하나.  ')).toBe(
+      '두 문장이 있다. 그리고 또 하나.',
+    );
   });
 
   it('does not eat a colon that belongs to the sentence', () => {

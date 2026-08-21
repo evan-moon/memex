@@ -11,6 +11,7 @@ import {
   type TopicDetail,
 } from './api.ts';
 import { Agent, ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Evidence } from './Evidence.tsx';
 import {
   Composer,
   correctionDraft,
@@ -254,6 +255,8 @@ export const NoteScreen = () => {
         />
       ) : null}
       {draft ? <Composer draft={draft} note={note} onCancel={() => setDraft(null)} /> : null}
+
+      <Evidence note={note} onSaved={setEdited} />
 
       <StalePanel
         note={note}

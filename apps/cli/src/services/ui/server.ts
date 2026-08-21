@@ -8,15 +8,19 @@ import {
   searchPage,
 } from '@memex/core';
 import {
+  evidenceStaleness,
   getAmendmentsFor,
   getNote,
   listSignals,
   type MemexClient,
+  setNoteEvidence,
   setSignalStatus,
 } from '@memex/db';
+import { writeDerivesFrom } from '@memex/utils';
 import { buildDigest } from '../digest.ts';
-import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { draftStateUpdate } from '../draft.ts';
+import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
+import { buildChores } from './chores.ts';
 import {
   bodyOf,
   layerCounts,
@@ -28,7 +32,6 @@ import {
   searchFacets,
   staleStateIds,
 } from './notes.ts';
-import { buildChores } from './chores.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
 import type { NoteStatus } from './status.ts';
@@ -51,6 +54,11 @@ const text = (value: unknown): string | undefined =>
 
 const words = (value: unknown): string[] | undefined =>
   Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined;
+
+const ids = (value: unknown): number[] | undefined =>
+  Array.isArray(value) && value.every((item) => typeof item === 'number' && Number.isInteger(item))
+    ? value
+    : undefined;
 
 const positiveInt = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
@@ -304,9 +312,15 @@ export const route = async (
     }
     if (fields && 'layer' in fields && !isLayer(fields.layer)) return bad(400, 'invalid-layer');
 
+    const declared = ids(fields?.derivesFrom);
     const patch = {
       title: text(fields?.title),
-      content: typeof body === 'string' ? recompose(note.content, body, note.title) : undefined,
+      content: (() => {
+        const withBody =
+          typeof body === 'string' ? recompose(note.content, body, note.title) : undefined;
+        if (declared === undefined) return withBody;
+        return writeDerivesFrom(withBody ?? note.content, declared);
+      })(),
       tags: words(fields?.tags),
       layer: isLayer(fields?.layer) ? fields?.layer : undefined,
     };
@@ -322,12 +336,28 @@ export const route = async (
 
     // The reason the signal existed is gone, so it goes with it — leaving it
     // 'new' would put the warning back on a note that was just reconciled.
+    if (declared !== undefined) setNoteEvidence(client, noteId, declared);
+
     const evidence = patch.content === undefined ? null : staleEvidence(client, noteId);
     if (evidence) setSignalStatus(client, evidence.signal.id, 'minted');
     return json(noteDetail(client, noteId, vaultPath));
   }
   if (method === 'POST' && url.pathname.startsWith('/api/still-true/')) {
     const id = Number(url.pathname.split('/').pop());
+
+    // For a projection that names its sources this is not dismissing a hunch —
+    // it is saying the sources have been read as they stand, so the comparison
+    // starts again from here.
+    const declaredIds = (
+      client.sqlite.prepare('SELECT source_id FROM note_evidence WHERE note_id = ?').all(id) as {
+        source_id: number;
+      }[]
+    ).map((row) => row.source_id);
+    if (declaredIds.length > 0) {
+      setNoteEvidence(client, id, declaredIds);
+      return json({ ok: true });
+    }
+
     const evidence = staleEvidence(client, id);
     if (!evidence) return notFound;
     setSignalStatus(client, evidence.signal.id, 'dismissed');

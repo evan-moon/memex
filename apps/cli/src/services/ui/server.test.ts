@@ -1,7 +1,16 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getNote, insertNote, type MemexClient, openDb, serializeTags } from '@memex/db';
+import {
+  getNote,
+  insertNote,
+  linkAmendment,
+  type MemexClient,
+  openDb,
+  serializeTags,
+  setNoteEvidence,
+  syncLinks,
+} from '@memex/db';
 import { EMBEDDING_DIM } from '@memex/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { route, type UiDeps } from './server.ts';
@@ -93,7 +102,11 @@ describe('POST /api/note/:id', () => {
 describe('GET /api/note/:id', () => {
   it('names the links that open nothing, and leaves out the ones that do', async () => {
     addNote('Round-2/3 통과', 'past');
-    const source = addNote('source', 'past', 'see [[Round-2／3 통과]] and [[a note nobody wrote]]\n');
+    const source = addNote(
+      'source',
+      'past',
+      'see [[Round-2／3 통과]] and [[a note nobody wrote]]\n',
+    );
 
     const reply = await route(
       deps,
@@ -105,14 +118,77 @@ describe('GET /api/note/:id', () => {
   });
 });
 
+describe('declared sources', () => {
+  const detail = async (id: number) =>
+    JSON.parse(
+      (await route(deps, 'GET', new URL(`/api/note/${id}`, 'http://localhost'), null)).body,
+    );
+
+  it('writes the declaration into the file and the index together', async () => {
+    const source = addNote(
+      'what happened',
+      'past',
+      '---\ntitle: what happened\n---\n\nwe chose JWT\n',
+    );
+    const plan = addNote('plan', 'state', '---\ntitle: plan\n---\n\nwe use JWT\n');
+
+    const reply = await post(`/api/note/${plan.id}`, { derivesFrom: [source.id] });
+    expect(reply.status).toBe(200);
+
+    expect(body(reply).evidence).toMatchObject([{ id: source.id, changed: false }]);
+    expect(readFileSync(plan.filePath, 'utf8')).toContain(`derives_from: [${source.id}]`);
+  });
+
+  it('offers the notes it links to when it has declared nothing', async () => {
+    const source = addNote('what happened', 'past');
+    const plan = addNote('plan', 'state', `see [[what happened]]\n`);
+    syncLinks(client, plan.id, plan.content);
+
+    expect((await detail(plan.id)).candidateSources).toMatchObject([{ id: source.id }]);
+  });
+
+  it('stops offering candidates once something is declared', async () => {
+    const source = addNote('what happened', 'past');
+    const plan = addNote('plan', 'state', `see [[what happened]]\n`);
+    syncLinks(client, plan.id, plan.content);
+    setNoteEvidence(client, plan.id, [source.id]);
+
+    expect((await detail(plan.id)).candidateSources).toEqual([]);
+  });
+
+  it('warns with the correction that undermined it, not with a guess', async () => {
+    const source = addNote('what happened', 'past');
+    const plan = addNote('plan', 'state');
+    setNoteEvidence(client, plan.id, [source.id]);
+
+    const fix = addNote('[Amendment] what happened', 'past');
+    linkAmendment(client, fix.id, source.id);
+
+    const note = await detail(plan.id);
+    expect(note.stale.newer).toMatchObject([{ id: fix.id }]);
+    expect(note.evidence[0].amendedBy).toMatchObject({ id: fix.id });
+  });
+
+  it('starts the comparison again when a person says it still holds', async () => {
+    const source = addNote('a rule', 'past', 'FP first');
+    const plan = addNote('plan', 'state');
+    setNoteEvidence(client, plan.id, [source.id]);
+
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run('OOP now', source.id);
+    expect((await detail(plan.id)).evidence[0].changed).toBe(true);
+
+    await post(`/api/still-true/${plan.id}`, {});
+    expect((await detail(plan.id)).evidence[0].changed).toBe(false);
+  });
+});
+
 describe('GET /api/chores', () => {
   const chores = async () =>
-    JSON.parse(
-      (await route(deps, 'GET', new URL('/api/chores', 'http://localhost'), null)).body,
-    );
+    JSON.parse((await route(deps, 'GET', new URL('/api/chores', 'http://localhost'), null)).body);
 
   it('reports nothing waiting on an empty vault', async () => {
     const c = await chores();
+    expect(c.undeclared.total).toBe(0);
     expect(c.staleNotes.total).toBe(0);
     expect(c.deadLinks.total).toBe(0);
     expect(c.looseTags.total).toBe(0);

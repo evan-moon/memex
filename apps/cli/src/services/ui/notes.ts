@@ -1,5 +1,8 @@
 import { basename, dirname, relative } from 'node:path';
+import { amendmentSuggestion } from '@memex/core';
 import {
+  evidenceFor,
+  evidenceStaleness,
   findRelatedNotes,
   findUnresolvedLinks,
   getAmendments,
@@ -10,7 +13,6 @@ import {
   type NoteLayer,
   parseTags,
 } from '@memex/db';
-import { amendmentSuggestion } from '@memex/core';
 import { type NoteStatus, statusesFor } from './status.ts';
 
 export type NoteRef = {
@@ -36,6 +38,15 @@ export type NoteDetail = {
   amendment: ReturnType<typeof amendmentSuggestion> | null;
   wikiLinks: { title: string; id: number }[];
   deadLinks: string[];
+  evidence: {
+    id: number;
+    title: string | null;
+    changed: boolean;
+    missing: boolean;
+    amendedBy: { id: number; title: string } | null;
+  }[];
+  /** Notes this one links to that could be declared as sources. */
+  candidateSources: NoteRef[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -186,6 +197,43 @@ export const plainSnippet = (text: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// What a projection could plausibly name, offered rather than assumed: a link
+// is a reference, and only some references are what a judgement rests on.
+const candidateSources = (client: MemexClient, note: { id: number; layer: string }): NoteRef[] => {
+  if (note.layer !== 'state' || evidenceFor(client, note.id).length > 0) return [];
+  return outgoingWikiLinks(client, note.id).flatMap((link) => {
+    const row = client.sqlite
+      .prepare(
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+         FROM notes WHERE id = ?`,
+      )
+      .get(link.id) as RawNote | undefined;
+    return row ? [toRef(row)] : [];
+  });
+};
+
+// A declared projection is checked by comparison, so the panel's evidence is
+// the corrections and rewrites of what it named — not a guess at what might be
+// related.
+const declaredStaleness = (client: MemexClient, note: { id: number }) => {
+  const staleness = evidenceStaleness(client, note.id);
+  if (!staleness) return null;
+
+  const newer = [
+    ...staleness.amended.map((entry) => entry.by.id),
+    ...staleness.changed.map((edge) => edge.sourceId),
+  ];
+  if (newer.length === 0) return { newer: [] };
+
+  const rows = client.sqlite
+    .prepare(
+      `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+       FROM notes WHERE id IN (${newer.map(() => '?').join(',')})`,
+    )
+    .all(...newer) as RawNote[];
+  return { newer: rows.map(toRef) };
+};
+
 export const noteDetail = (
   client: MemexClient,
   id: number,
@@ -218,7 +266,15 @@ export const noteDetail = (
     amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
     wikiLinks: outgoingWikiLinks(client, id),
     deadLinks: findUnresolvedLinks(client, note.content),
-    stale: staleNewerNotes(client, note),
+    evidence: evidenceFor(client, id).map((edge) => ({
+      id: edge.sourceId,
+      title: edge.title,
+      changed: edge.changed,
+      missing: edge.missing,
+      amendedBy: edge.amendedBy,
+    })),
+    candidateSources: candidateSources(client, note),
+    stale: declaredStaleness(client, note) ?? staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,

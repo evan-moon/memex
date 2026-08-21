@@ -52,6 +52,14 @@ export type NoteDetail = {
   amendment: Amendment | null;
   wikiLinks: { title: string; id: number }[];
   deadLinks: string[];
+  evidence: {
+    id: number;
+    title: string | null;
+    changed: boolean;
+    missing: boolean;
+    amendedBy: { id: number; title: string } | null;
+  }[];
+  candidateSources: NoteRef[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -108,7 +116,13 @@ export type SearchPage = {
 
 export type NoteTitle = { id: number; title: string; layer: string; author?: string };
 
-export type NotePatch = { body?: string; title?: string; tags?: string[]; layer?: string };
+export type NotePatch = {
+  body?: string;
+  title?: string;
+  tags?: string[];
+  layer?: string;
+  derivesFrom?: number[];
+};
 
 export type NewNote = {
   title: string;
@@ -137,6 +151,7 @@ export type RenameResult = {
 export type TagRow = { tag: string; notes: number; mine: number };
 
 export type Chores = {
+  undeclared: { total: number; top: { id: number; title: string; candidates: number }[] };
   staleNotes: { total: number; top: { id: number; title: string; count: number }[] };
   deadLinks: {
     total: number;

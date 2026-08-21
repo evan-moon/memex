@@ -87,8 +87,9 @@ describe('indexDirectory', () => {
     await indexDirectory(client, stubEmbedder, vaultDir);
 
     const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
-    expect(getBacklinks(client, getNoteByFilePath(client, join(vaultDir, 'target.md'))?.id ?? 0))
-      .toHaveLength(0);
+    expect(
+      getBacklinks(client, getNoteByFilePath(client, join(vaultDir, 'target.md'))?.id ?? 0),
+    ).toHaveLength(0);
 
     writeFileSync(join(vaultDir, 'target.md'), '# New Name\n\nbody', 'utf8');
     await indexDirectory(client, stubEmbedder, vaultDir);

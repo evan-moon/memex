@@ -103,9 +103,7 @@ export const applyRenames = (
 const pendingFor = (client: MemexClient, vault: string, rename: Map<string, string>) => {
   const all = listNotes(client, 100_000).flatMap<Pending>((note) => {
     const tags = parseTags(note.tags);
-    const next = [...new Set(tags.map((t) => rename.get(t) ?? t))].filter(
-      (tag) => tag.length > 0,
-    );
+    const next = [...new Set(tags.map((t) => rename.get(t) ?? t))].filter((tag) => tag.length > 0);
     return next.join(' ') === tags.join(' ') ? [] : [{ note, next }];
   });
   return {

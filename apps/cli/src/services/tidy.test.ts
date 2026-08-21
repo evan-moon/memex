@@ -24,7 +24,11 @@ afterEach(() => {
 
 const addNote = (title: string, tags: string[], dir = vaultDir) => {
   const filePath = join(dir, `${title}.md`);
-  writeFileSync(filePath, `---\ntitle: ${title}\ntags: [${tags.join(', ')}]\n---\n\nbody\n`, 'utf8');
+  writeFileSync(
+    filePath,
+    `---\ntitle: ${title}\ntags: [${tags.join(', ')}]\n---\n\nbody\n`,
+    'utf8',
+  );
   return insertNote(client, {
     title,
     content: 'body',
@@ -86,7 +90,11 @@ describe('renameTags', () => {
     const result = renameTags(client, vaultDir, new Map([['커피챗', 'coffee-chat']]));
 
     expect(result).toMatchObject({ notes: 1, files: 1, skipped: 0 });
-    expect(parseTags(client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(note.id) as string)).toEqual(['coffee-chat']);
+    expect(
+      parseTags(
+        client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(note.id) as string,
+      ),
+    ).toEqual(['coffee-chat']);
     expect(readFileSync(note.filePath, 'utf8')).toContain('coffee-chat');
   });
 
@@ -95,7 +103,11 @@ describe('renameTags', () => {
 
     renameTags(client, vaultDir, new Map([['커피챗', 'coffee-chat']]));
 
-    expect(parseTags(client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(note.id) as string)).toEqual(['coffee-chat']);
+    expect(
+      parseTags(
+        client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(note.id) as string,
+      ),
+    ).toEqual(['coffee-chat']);
   });
 
   it('will not edit a note that belongs to someone else', () => {
@@ -111,7 +123,9 @@ describe('renameTags', () => {
 
 describe('dropTags', () => {
   const tagsOf = (id: number) =>
-    parseTags(client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(id) as string);
+    parseTags(
+      client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(id) as string,
+    );
 
   it('takes a tag off every note and out of every file', () => {
     const note = addNote('a', ['keep', 'junk']);
@@ -129,7 +143,7 @@ describe('dropTags', () => {
     expect(tagsOf(note.id)).toEqual([]);
   });
 
-  it('will not reach into someone else\'s notes', () => {
+  it("will not reach into someone else's notes", () => {
     const outside = addNote('theirs', ['junk'], outsideDir);
     dropTags(client, vaultDir, ['junk']);
     expect(readFileSync(outside.filePath, 'utf8')).toContain('junk');

@@ -82,9 +82,7 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
       }))
       .sort(
         (a, b) =>
-          Number(a.dormant) - Number(b.dormant) ||
-          b.outdated - a.outdated ||
-          b.share - a.share,
+          Number(a.dormant) - Number(b.dormant) || b.outdated - a.outdated || b.share - a.share,
       )
       .slice(0, 12),
   };

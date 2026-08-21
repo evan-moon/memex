@@ -2,6 +2,7 @@ import {
   getNote,
   listSignals,
   type MemexClient,
+  notesDeclaringEvidence,
   refreshSignals,
   unresolvedLinksByNote,
 } from '@memex/db';
@@ -13,7 +14,10 @@ export type StaleNote = { id: number; title: string; count: number };
 export type DeadLinkNote = { id: number; title: string; targets: string[] };
 export type TagPair = { keep: string; drop: string[] };
 
+export type Undeclared = { id: number; title: string; candidates: number };
+
 export type Chores = {
+  undeclared: { total: number; top: Undeclared[] };
   staleNotes: { total: number; top: StaleNote[] };
   deadLinks: { total: number; notes: number; top: DeadLinkNote[] };
   tagMerges: { total: number; top: TagPair[] };
@@ -50,6 +54,26 @@ const deadLinks = (client: MemexClient) => {
   };
 };
 
+// A projection that has not said what it stands on can only be checked by
+// guessing. Counting them is how the guessing shrinks.
+const undeclared = (client: MemexClient) => {
+  const declared = new Set(notesDeclaringEvidence(client));
+  const rows = (
+    client.sqlite
+      .prepare(
+        `SELECT n.id, n.title, COUNT(l.target_id) AS candidates
+         FROM notes n
+         LEFT JOIN note_links l ON l.source_id = n.id AND l.source = 'wiki'
+         WHERE n.layer = 'state' AND n.author = 'person'
+         GROUP BY n.id
+         ORDER BY candidates DESC, n.updated_at DESC`,
+      )
+      .all() as Undeclared[]
+  ).filter((row) => !declared.has(row.id));
+
+  return { total: rows.length, top: rows.slice(0, TOP) };
+};
+
 export const buildChores = (client: MemexClient, vaultPath: string): Chores => {
   refreshSignals(client);
   const merges = mergeCandidates(client, vaultPath);
@@ -57,6 +81,7 @@ export const buildChores = (client: MemexClient, vaultPath: string): Chores => {
   const mine = loose.filter((row) => row.mine > 0);
 
   return {
+    undeclared: undeclared(client),
     staleNotes: staleNotes(client),
     deadLinks: deadLinks(client),
     tagMerges: {

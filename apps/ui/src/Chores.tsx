@@ -45,7 +45,11 @@ const Rows = ({ children }: { children: React.ReactNode }) => (
 export const ChoresList = ({ data }: { data: Data }) => {
   const t = useT();
   const total =
-    data.staleNotes.total + data.deadLinks.total + data.tagMerges.total + data.looseTags.total;
+    data.undeclared.total +
+    data.staleNotes.total +
+    data.deadLinks.total +
+    data.tagMerges.total +
+    data.looseTags.total;
 
   if (total === 0) {
     return (
@@ -58,6 +62,22 @@ export const ChoresList = ({ data }: { data: Data }) => {
 
   return (
     <ul className="divide-y divide-line">
+      <Chore
+        label={t.chores.undeclared}
+        count={data.undeclared.total}
+        hint={t.chores.undeclaredHint(data.undeclared.top.filter((n) => n.candidates > 0).length)}
+      >
+        <Rows>
+          {data.undeclared.top.map((note) => (
+            <li key={note.id} className="truncate">
+              <Link to={`/note/${note.id}`} className="text-primary hover:underline">
+                {note.title}
+              </Link>
+            </li>
+          ))}
+        </Rows>
+      </Chore>
+
       <Chore label={t.chores.staleNotes} count={data.staleNotes.total}>
         <Rows>
           {data.staleNotes.top.map((note) => (

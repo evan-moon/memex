@@ -18,6 +18,8 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   tags: ['one', 'two'],
   obsidianUrl: null,
   deadLinks: [],
+  evidence: [],
+  candidateSources: [],
   folder: 'projects/memex',
   amendment: null,
   wikiLinks: [],
