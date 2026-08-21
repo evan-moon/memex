@@ -37,6 +37,7 @@ export const App = () => {
     });
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the path is the trigger, not an input — dropping it would leave the menu open across navigation
   useEffect(() => setDrawer(false), [location.pathname]);
 
   useEffect(() => {
@@ -66,8 +67,12 @@ export const App = () => {
 
       {drawer ? (
         <div className="fixed inset-0 z-30 lg:hidden">
-          {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss */}
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDrawer(false)} />
+          <button
+            type="button"
+            aria-label={t.common.close}
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setDrawer(false)}
+          />
           <div className="absolute inset-y-0 left-0 w-72 border-r border-line bg-background">
             <Sidebar data={sidebar} topics={topics} onNavigate={() => setDrawer(false)} />
           </div>

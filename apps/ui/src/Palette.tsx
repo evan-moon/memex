@@ -82,8 +82,12 @@ export const Palette = ({ open, onClose }: { open: boolean; onClose: () => void 
 
   return (
     <div className="fixed inset-0 z-40 flex justify-center px-4 pt-[12vh]">
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <button
+        type="button"
+        aria-label={t.common.close}
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
       <div className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-card border border-line bg-surface shadow-xl">
         <div className="flex items-center gap-2 border-b border-line px-3">
           <Search size={14} className="shrink-0 text-muted" />

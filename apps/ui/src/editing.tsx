@@ -9,6 +9,7 @@ import { MarkdownInput } from './MarkdownInput.tsx';
 const LAYERS = ['state', 'rule', 'past'];
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  // biome-ignore lint/a11y/noLabelWithoutControl: the control arrives as children, which the rule cannot see through — every call site passes one
   <label className="flex flex-col gap-1 text-xs text-muted">
     {label}
     {children}

@@ -18,6 +18,7 @@ const en = {
     loading: '…',
     none: 'None',
     retry: 'Try again',
+    close: 'Close',
     notes: (n: number) => `${n} notes`,
     staleBreakdown: (changed: number, review: number) =>
       `${changed} already changed · ${review} to review`,
@@ -308,6 +309,7 @@ const ko: typeof en = {
     loading: '…',
     none: '없음',
     retry: '다시 시도',
+    close: '닫기',
     notes: (n) => `${n}개`,
     staleBreakdown: (changed, review) => `이미 바뀜 ${changed} · 다시 볼 것 ${review}`,
   },
