@@ -15,7 +15,7 @@ import {
   syncLinks,
   updateNote,
 } from '@memex/db';
-import { extractCategory } from '@memex/utils';
+import { authorOfPath, extractCategory } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -121,6 +121,7 @@ const indexFile = async (
       category: category ?? undefined,
       authoredAt,
       tags: serializeTags(tags),
+      author: authorOfPath(filePath),
     });
     await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
@@ -135,6 +136,7 @@ const indexFile = async (
         authoredAt,
         tags: serializeTags(fmTags),
         layer,
+        author: authorOfPath(filePath),
       });
       await indexNoteVectors(client, embedder, note.id, {
         title,

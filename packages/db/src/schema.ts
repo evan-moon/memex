@@ -13,6 +13,11 @@ export const notes = sqliteTable('notes', {
   layer: text('layer', { enum: ['past', 'state', 'rule'] })
     .notNull()
     .default('past'),
+  // person: the vault owner's memory, however it was typed.
+  // agent: an agent's own working notes, kept in a `memory/` directory.
+  author: text('author', { enum: ['person', 'agent'] })
+    .notNull()
+    .default('person'),
   // When the note was actually authored (parsed from frontmatter/title date),
   // as opposed to createdAt which is the import timestamp. Nullable; temporal
   // reasoning falls back to createdAt when absent.
@@ -24,4 +29,5 @@ export const notes = sqliteTable('notes', {
 export type Note = typeof notes.$inferSelect;
 export type NoteSource = Note['source'];
 export type NoteLayer = Note['layer'];
+export type NoteAuthor = Note['author'];
 export type NewNote = Omit<typeof notes.$inferInsert, 'id' | 'createdAt' | 'updatedAt'>;

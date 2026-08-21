@@ -10,7 +10,7 @@ import {
   type Topic,
   type TopicDetail,
 } from './api.ts';
-import { ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Agent, ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
 import {
   Composer,
   correctionDraft,
@@ -205,6 +205,7 @@ export const NoteScreen = () => {
       <h1 className="text-xl font-semibold leading-snug tracking-tight">{note.title}</h1>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
         <Layer layer={note.layer} />
+        {note.author === 'agent' ? <Agent /> : null}
         <span className="tabular-nums">{day(note.at)}</span>
         {note.tags.map((tag) => (
           <Link key={tag} to={`/topic/${encodeURIComponent(tag)}`} className="text-primary">
@@ -306,6 +307,7 @@ const SEARCH_LIMIT = 12;
 
 const filtersFrom = (params: URLSearchParams): SearchFilters => ({
   layer: params.get('layer') ?? undefined,
+  author: params.get('author') ?? undefined,
   tag: params.get('tag') ?? undefined,
   folder: params.get('folder') ?? undefined,
   from: params.get('from') ?? undefined,
@@ -372,7 +374,9 @@ export const SearchScreen = () => {
       next.delete('limit');
     });
 
-  const filtered = ['layer', 'tag', 'folder', 'from', 'to'].some((key) => params.get(key));
+  const filtered = ['layer', 'author', 'tag', 'folder', 'from', 'to'].some((key) =>
+    params.get(key),
+  );
 
   return (
     <Page>
@@ -387,6 +391,11 @@ export const SearchScreen = () => {
           <option value="state">state</option>
           <option value="past">past</option>
           <option value="rule">rule</option>
+        </Choice>
+        <Choice value={params.get('author') ?? ''} onChange={(v) => setFilter('author', v)}>
+          <option value="">{t.search.anyAuthor}</option>
+          <option value="person">{t.search.mine}</option>
+          <option value="agent">{t.search.agents}</option>
         </Choice>
         <Choice value={params.get('folder') ?? ''} onChange={(v) => setFilter('folder', v)}>
           <option value="">{t.search.anyFolder}</option>
@@ -417,7 +426,7 @@ export const SearchScreen = () => {
         {filtered ? (
           <button
             type="button"
-            onClick={() => replace((next) => ['layer', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) => next.delete(key)))}
+            onClick={() => replace((next) => ['layer', 'author', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) => next.delete(key)))}
             className="rounded-md px-2 py-1.5 text-xs text-muted hover:bg-surface"
           >
             {t.search.clear}

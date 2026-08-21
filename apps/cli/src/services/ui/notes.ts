@@ -17,6 +17,7 @@ export type NoteRef = {
   id: number;
   title: string;
   layer: string;
+  author: string;
   at: number;
   status?: NoteStatus | null;
 };
@@ -28,6 +29,7 @@ export type NoteDetail = {
   layer: NoteLayer;
   at: number;
   tags: string[];
+  author: string;
   obsidianUrl: string | null;
   filePath: string;
   folder: string | null;
@@ -48,6 +50,7 @@ type RawNote = {
   id: number;
   title: string;
   layer: string;
+  author?: string;
   authoredAt?: number | null;
   createdAt?: number;
   updatedAt?: number;
@@ -60,6 +63,7 @@ const toRef = (n: RawNote): NoteRef => ({
   id: n.id,
   title: n.title,
   layer: n.layer,
+  author: n.author ?? 'person',
   at: n.authoredAt ?? n.authored_at ?? n.createdAt ?? n.created_at ?? 0,
 });
 
@@ -130,7 +134,7 @@ const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string 
   const newer = (
     client.sqlite
       .prepare(
-        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
          FROM notes WHERE id IN (${signal.evidenceIds
            .slice(1)
            .map(() => '?')
@@ -193,7 +197,7 @@ export const noteDetail = (
   const corrects = (
     client.sqlite
       .prepare(
-        `SELECT n.id, n.title, n.layer, n.authored_at AS authoredAt, n.created_at AS createdAt
+        `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt
          FROM note_links l JOIN notes n ON n.id = l.target_id
          WHERE l.source_id = ? AND l.source = 'amends'`,
       )
@@ -205,6 +209,7 @@ export const noteDetail = (
     title: note.title,
     content: bodyOf(note.content, note.title),
     layer: note.layer,
+    author: note.author,
     at: note.authoredAt ?? note.createdAt,
     tags: parseTags(note.tags),
     obsidianUrl: obsidianUrl(note.filePath, vaultPath),
@@ -218,6 +223,7 @@ export const noteDetail = (
       id: a.id,
       title: a.title,
       layer: 'past',
+      author: 'person',
       at: a.authoredAt,
     })),
     corrects,
@@ -238,7 +244,7 @@ export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 5000)
   (
     client.sqlite
       .prepare(
-        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt,
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt,
                 updated_at AS updatedAt
          FROM notes WHERE layer = ?
          ORDER BY ${recencyColumn(layer)} DESC LIMIT ?`,
@@ -275,14 +281,14 @@ export const staleStateIds = (client: MemexClient): number[] => {
   ];
 };
 
-export type NoteTitle = { id: number; title: string; layer: string };
+export type NoteTitle = { id: number; title: string; layer: string; author: string };
 
 // The palette matches on titles alone, so it ships titles alone — the sidebar
 // used to hand over every note in full for the same job.
 export const noteTitles = (client: MemexClient, limit: number): NoteTitle[] =>
   client.sqlite
     .prepare(
-      `SELECT id, title, layer FROM notes
+      `SELECT id, title, layer, author FROM notes
        ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
     )
     .all(limit) as NoteTitle[];

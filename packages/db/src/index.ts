@@ -67,7 +67,7 @@ export {
   syncLinks,
   updateNote,
 } from './repository.ts';
-export type { NewNote, Note, NoteLayer, NoteSource } from './schema.ts';
+export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource } from './schema.ts';
 export type {
   HiddenArcOptions,
   ListSignalsOptions,

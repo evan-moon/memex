@@ -56,11 +56,16 @@ const positiveInt = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 
 const LAYERS = ['past', 'state', 'rule'] as const;
+const AUTHORS = ['person', 'agent'] as const;
 
 type Layer = (typeof LAYERS)[number];
+type Author = (typeof AUTHORS)[number];
 
 const isLayer = (value: unknown): value is Layer =>
   typeof value === 'string' && LAYERS.some((layer) => layer === value);
+
+const isAuthor = (value: string | null): value is Author =>
+  value !== null && AUTHORS.some((author) => author === value);
 
 const day = (value: string | null): number | undefined => {
   if (!value) return undefined;
@@ -75,10 +80,12 @@ const clamp = (value: string | null, fallback: number, max: number): number => {
 
 const filtersFrom = (params: URLSearchParams): SearchOptions => {
   const layer = params.get('layer');
+  const author = params.get('author');
   return {
     category: params.get('folder') ?? undefined,
     tag: params.get('tag') ?? undefined,
     layer: isLayer(layer) ? layer : undefined,
+    author: isAuthor(author) ? author : undefined,
     dateFrom: day(params.get('from')),
     dateTo: day(params.get('to')),
   };
@@ -141,6 +148,7 @@ const search = async ({ client, embedder }: UiDeps, params: URLSearchParams) => 
       id: h.id,
       title: h.title,
       layer: h.layer,
+      author: h.author,
       at: h.authoredAt ?? h.createdAt,
       snippet: plainSnippet(h.matchSnippet ?? bodyOf(h.content, h.title)).slice(0, 240),
       status: statusOf(amendments.get(h.id)?.at(-1)),

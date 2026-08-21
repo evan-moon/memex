@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { NoteDetail } from './api.ts';
+import { NoteItem } from './bits.tsx';
 import { Composer, correctionDraft, missingNoteDraft, NoteEditor } from './editing.tsx';
 import { dictionaries, setLocale } from './i18n.ts';
 
@@ -12,6 +13,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   title: 'a plan',
   content: 'the body',
   layer: 'state',
+  author: 'person',
   at: Date.now(),
   tags: ['one', 'two'],
   obsidianUrl: null,
@@ -118,5 +120,25 @@ describe('Composer', () => {
     expect(render(<Composer draft={draft} note={past} onCancel={() => undefined} />)).not.toContain(
       t.edit.layer,
     );
+  });
+});
+
+describe('the agent marker', () => {
+  it('marks a note an agent keeps for itself', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <NoteItem note={{ id: 1, title: 'drivers', layer: 'state', author: 'agent', at: 1 }} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain(dictionaries.en.note.agent);
+  });
+
+  it('leaves the person\'s own memory unmarked', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <NoteItem note={{ id: 1, title: 'a plan', layer: 'state', author: 'person', at: 1 }} />
+      </MemoryRouter>,
+    );
+    expect(html).not.toContain(dictionaries.en.note.agent);
   });
 });

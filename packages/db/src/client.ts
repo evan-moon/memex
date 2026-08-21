@@ -117,6 +117,14 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     for (const f of RULE_FOLDERS) setLayer.run('rule', f, f);
   }
 
+  // author: whose memory a note is. Backfilled from the path, which is where
+  // the distinction already lived — an agent keeps its working notes in a
+  // `memory/` directory beside the project they belong to.
+  if (!cols.some((c) => c.name === 'author')) {
+    sqlite.exec("ALTER TABLE notes ADD COLUMN author TEXT NOT NULL DEFAULT 'person'");
+    sqlite.exec("UPDATE notes SET author = 'agent' WHERE file_path LIKE '%/memory/%'");
+  }
+
   // authored_at: the note's real authored date (frontmatter `date:` or a
   // (YYYY-MM-DD) in the title), distinct from created_at (import time). Without
   // it, temporal signals are meaningless on an imported vault where every

@@ -38,3 +38,18 @@ describe('SearchScreen', () => {
     expect(render('/search?q=auth&tag=memex')).toContain(t.search.clear);
   });
 });
+
+describe('the authorship filter', () => {
+  it('offers to look at one memory or the other', () => {
+    const html = render('/search?q=auth');
+    expect(html).toContain(t.search.anyAuthor);
+    expect(html).toContain(t.search.mine);
+    expect(html).toContain(t.search.agents);
+  });
+
+  it('remembers which one is chosen, and counts as a filter', () => {
+    const html = render('/search?q=auth&author=agent');
+    expect(html).toMatch(/<option value="agent"[^>]*selected/);
+    expect(html).toContain(t.search.clear);
+  });
+});

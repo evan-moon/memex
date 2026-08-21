@@ -159,9 +159,9 @@ describe('noteTitles and searchFacets', () => {
 
   it('hands the palette newest first, and nothing it will not use', () => {
     expect(noteTitles(client, 10)).toEqual([
-      { id: 2, title: 'newer', layer: 'past' },
-      { id: 3, title: 'loose', layer: 'past' },
-      { id: 1, title: 'older', layer: 'state' },
+      { id: 2, title: 'newer', layer: 'past', author: 'person' },
+      { id: 3, title: 'loose', layer: 'past', author: 'person' },
+      { id: 1, title: 'older', layer: 'state', author: 'person' },
     ]);
   });
 

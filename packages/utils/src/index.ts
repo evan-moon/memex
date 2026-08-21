@@ -4,7 +4,14 @@ export type { MemexConfig, MemexSource } from './config.ts';
 export { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR, saveConfig } from './config.ts';
 export { EMBEDDING_DIM } from './embedding.ts';
 export { filenameKey, sanitizeFilename, titleKey } from './filename.ts';
-export { buildEmbeddingText, extractCategory, formatDate, stripFrontmatter } from './format.ts';
+export type { NoteAuthor } from './format.ts';
+export {
+  authorOfPath,
+  buildEmbeddingText,
+  extractCategory,
+  formatDate,
+  stripFrontmatter,
+} from './format.ts';
 export type { CollapsedSeries, SeriesMember } from './series.ts';
 export { collapseSeries, isSameSeries, seriesKey, seriesLabel } from './series.ts';
 export type { TagVariant } from './tags.ts';

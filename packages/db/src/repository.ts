@@ -1,7 +1,7 @@
 import { filenameKey, titleKey } from '@memex/utils';
 import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
-import { type NewNote, type Note, type NoteLayer, notes } from './schema.ts';
+import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
 
@@ -189,6 +189,7 @@ export type SearchFilters = {
   category?: string;
   tag?: string;
   layer?: NoteLayer;
+  author?: NoteAuthor;
   dateFrom?: number;
   dateTo?: number;
   /** Candidates to return before the caller re-ranks or collapses them. */
@@ -202,21 +203,24 @@ export const searchNotes = (
   limit = 10,
   filters: SearchFilters = {},
 ): SearchResult[] => {
-  const { category, tag, layer, dateFrom, dateTo, rows = limit } = filters;
+  const { category, tag, layer, author, dateFrom, dateTo, rows = limit } = filters;
   const vec = new Float32Array(embedding);
   const filterArgs = [
     ...(category ? [category] : []),
     ...(tag ? [tag] : []),
     ...(layer ? [layer] : []),
+    ...(author ? [author] : []),
   ];
   const aliasedCategoryFilter = category ? 'AND n.category = ?' : '';
   const aliasedTagFilter = tag
     ? 'AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)'
     : '';
   const aliasedLayerFilter = layer ? ' AND n.layer = ?' : '';
+  const aliasedAuthorFilter = author ? ' AND n.author = ?' : '';
   const categoryFilter = category ? ' AND category = ?' : '';
   const tagFilter = tag ? ' AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)' : '';
   const layerFilter = layer ? ' AND layer = ?' : '';
+  const authorFilter = author ? ' AND author = ?' : '';
   // Date filters compare the note's effective date: authored_at (real authoring
   // time, parsed from frontmatter/title) when present, created_at (import time)
   // otherwise. Raw created_at would make "notes from April" miss anything
@@ -232,7 +236,7 @@ export const searchNotes = (
   // k is applied by the ANN index BEFORE the joined WHERE filters, so a
   // filtered search needs a much larger candidate pool or relevant notes get
   // crowded out by nearer-but-filtered-away ones. Cheap at personal scale.
-  const hasFilters = Boolean(category || tag || layer || dateFrom || dateTo);
+  const hasFilters = Boolean(category || tag || layer || author || dateFrom || dateTo);
   const vectorK = hasFilters ? Math.max(limit * 5, 250) : limit * 5;
 
   const wholeNoteResults = client.sqlite
@@ -244,7 +248,7 @@ export const searchNotes = (
        AND k = ?
        AND NOT EXISTS (SELECT 1 FROM note_chunks c WHERE c.note_id = n.id)
        ${aliasedCategoryFilter}
-       ${aliasedTagFilter}${aliasedLayerFilter}
+       ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
        ${dateFromFilterAliased}
        ${dateToFilterAliased}
        ORDER BY e.distance`,
@@ -262,7 +266,7 @@ export const searchNotes = (
        WHERE e.embedding MATCH ?
        AND k = ?
        ${aliasedCategoryFilter}
-       ${aliasedTagFilter}${aliasedLayerFilter}
+       ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
        ${dateFromFilterAliased}
        ${dateToFilterAliased}
        ORDER BY e.distance`,
@@ -293,7 +297,7 @@ export const searchNotes = (
              JOIN notes n ON n.id = notes_fts.rowid
              WHERE notes_fts MATCH ?
              ${aliasedCategoryFilter}
-             ${aliasedTagFilter}${aliasedLayerFilter}
+             ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
              ${dateFromFilterAliased}
              ${dateToFilterAliased}
              ORDER BY bm25(notes_fts)
@@ -316,7 +320,7 @@ export const searchNotes = (
            SELECT 1 FROM json_each(tags)
            WHERE lower(value) IN (${tagPlaceholders})
          )
-         ${categoryFilter}${tagFilter}${layerFilter}${dateFromFilter}${dateToFilter}
+         ${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
@@ -326,7 +330,7 @@ export const searchNotes = (
     const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
     const titleResults = client.sqlite
       .prepare(
-        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter}${layerFilter}${dateFromFilter}${dateToFilter} LIMIT ?`,
+        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter} LIMIT ?`,
       )
       .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, ...dateArgs, limit) as Note[];
     rrf.add(titleResults, 2.0);
@@ -344,7 +348,7 @@ export const searchNotes = (
         `SELECT *, (${likeMatchCount}) AS match_count
          FROM notes
          WHERE (${likeWhere})
-         ${categoryFilter}${tagFilter}${layerFilter}${dateFromFilter}${dateToFilter}
+         ${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
@@ -368,7 +372,7 @@ export const searchNotes = (
          WHERE (l.source_id IN (${ph}) OR l.target_id IN (${ph}))
            AND n.id NOT IN (${ph})
            ${aliasedCategoryFilter}
-           ${aliasedTagFilter}${aliasedLayerFilter}
+           ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
            ${dateFromFilterAliased}
            ${dateToFilterAliased}
          GROUP BY n.id
@@ -411,7 +415,9 @@ export const deleteNote = (client: MemexClient, id: number): void => {
 export const updateNote = (
   client: MemexClient,
   id: number,
-  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer'>>,
+  patch: Partial<
+    Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer' | 'author'>
+  >,
 ): Note => {
   const [updated] = client.db
     .update(notes)

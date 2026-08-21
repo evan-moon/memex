@@ -13,6 +13,7 @@ import {
   linkAmendment,
   type MemexClient,
   type Note,
+  type NoteAuthor,
   type NoteLayer,
   type NoteSource,
   parseAuthoredAt,
@@ -230,6 +231,7 @@ export type SearchOptions = {
   category?: string;
   tag?: string;
   layer?: NoteLayer;
+  author?: NoteAuthor;
   dateFrom?: number;
   dateTo?: number;
   reranker?: Reranker;
@@ -288,12 +290,13 @@ export const searchPage = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, category, tag, layer, dateFrom, dateTo } = options;
+  const { reranker, category, tag, layer, author, dateFrom, dateTo } = options;
   const embedding = await embedder(query, 'query');
   const candidates = dbSearchNotes(client, query, embedding, limit, {
     category,
     tag,
     layer,
+    author,
     dateFrom,
     dateTo,
     rows: fetchSize(limit, options),

@@ -58,6 +58,7 @@ const en = {
   },
   sidebar: {
     state: 'What I believe now',
+    agentShare: (n: number) => `${n} of them an agent's`,
     rule: 'Guidance',
     topics: 'Topics',
     more: (n: number) => `${n} more`,
@@ -123,6 +124,7 @@ const en = {
   },
   note: {
     openInObsidian: 'Open in Obsidian ↗',
+    agent: 'agent',
     correctedBy: (n: number) => `⚠ Corrected by ${n} later ${n === 1 ? 'note' : 'notes'}`,
     newest: (title: string) => `Newest: ${title}`,
     corrects: 'What this note corrects',
@@ -191,6 +193,9 @@ const en = {
     summary: (query: string, n: number) => `${query} · ${n} results`,
     filters: 'Filters',
     anyLayer: 'Any layer',
+    anyAuthor: 'Anyone',
+    mine: 'My memory',
+    agents: 'Agent notes',
     anyFolder: 'Any folder',
     anyTag: 'Any tag',
     from: 'From',
@@ -278,6 +283,7 @@ const ko: typeof en = {
   },
   sidebar: {
     state: '지금 믿는 것',
+    agentShare: (n) => `그중 ${n}개는 에이전트 것`,
     rule: '지침',
     topics: '주제',
     more: (n) => `${n}개 더 보기`,
@@ -339,6 +345,7 @@ const ko: typeof en = {
   },
   note: {
     openInObsidian: 'Obsidian에서 열기 ↗',
+    agent: '에이전트',
     correctedBy: (n) => `⚠ 이후 ${n}개 노트에서 정정됐어`,
     newest: (title) => `최신: ${title}`,
     corrects: '이 노트가 정정하는 것',
@@ -406,6 +413,9 @@ const ko: typeof en = {
     summary: (query, n) => `${query} · ${n}건`,
     filters: '필터',
     anyLayer: '레이어 전체',
+    anyAuthor: '누구 것이든',
+    mine: '내 기억',
+    agents: '에이전트 메모',
     anyFolder: '폴더 전체',
     anyTag: '태그 전체',
     from: '시작',

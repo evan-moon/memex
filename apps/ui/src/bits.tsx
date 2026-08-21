@@ -30,6 +30,17 @@ export const Layer = ({ layer }: { layer: string }) => (
   </span>
 );
 
+// Only the agent's own notes are marked. Marking the person's would put a
+// badge on almost every row, which says nothing.
+export const Agent = () => {
+  const t = useT();
+  return (
+    <span className="shrink-0 rounded-full border border-line px-2 py-px text-[10px] leading-4 text-muted">
+      {t.note.agent}
+    </span>
+  );
+};
+
 export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string }) => {
   const t = useT();
   return (
@@ -39,6 +50,7 @@ export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string })
     >
       <div className="flex items-baseline gap-2">
         <Layer layer={note.layer} />
+        {note.author === 'agent' ? <Agent /> : null}
         <span className="min-w-0 flex-1 truncate text-sm">{note.title}</span>
         <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(note.at)}</span>
       </div>

@@ -7,6 +7,7 @@ export type NoteRef = {
   id: number;
   title: string;
   layer: string;
+  author?: string;
   at: number;
   status?: NoteStatus | null;
 };
@@ -43,6 +44,7 @@ export type NoteDetail = {
   title: string;
   content: string;
   layer: string;
+  author: string;
   at: number;
   tags: string[];
   obsidianUrl: string | null;
@@ -90,6 +92,7 @@ export type SearchHit = NoteRef & { snippet: string };
 
 export type SearchFilters = {
   layer?: string;
+  author?: string;
   tag?: string;
   folder?: string;
   from?: string;
@@ -103,7 +106,7 @@ export type SearchPage = {
   limit: number;
 };
 
-export type NoteTitle = { id: number; title: string; layer: string };
+export type NoteTitle = { id: number; title: string; layer: string; author?: string };
 
 export type NotePatch = { body?: string; title?: string; tags?: string[]; layer?: string };
 

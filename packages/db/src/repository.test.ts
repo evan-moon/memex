@@ -588,6 +588,32 @@ describe('searchNotes — substring and link-expansion arms', () => {
     expect(found).not.toContain(recorded.id);
   });
 
+  it('can look at one person\'s memories without an agent\'s working notes', () => {
+    const mine = insertNote(client, {
+      title: 'opula pricing',
+      content: 'we picked two tiers',
+      filePath: join(dbDir, 'mine.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+    const theirs = insertNote(client, {
+      title: 'opula-pricing-drivers',
+      content: 'we picked two tiers',
+      filePath: join(dbDir, 'memory', 'theirs.md'),
+      source: 'index',
+      layer: 'state',
+      author: 'agent',
+    });
+    saveEmbedding(client, mine.id, fakeEmbedding);
+    saveEmbedding(client, theirs.id, fakeEmbedding);
+
+    const found = searchNotes(client, 'opula', fakeEmbedding, 10, { author: 'person' }).map(
+      (r) => r.id,
+    );
+    expect(found).toContain(mine.id);
+    expect(found).not.toContain(theirs.id);
+  });
+
   it('matches inside agglutinated Korean words (substring arm)', () => {
     const note = insertNote(client, {
       title: '어제 한 일',
