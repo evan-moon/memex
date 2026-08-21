@@ -330,9 +330,10 @@ export const detectConflictPairs = (
            ${cap === null ? '' : 'AND e.distance < ?'}
          ORDER BY e.distance`,
       )
-      .all(
-        ...[embRow.embedding, neighbours, id, layer, ...(cap === null ? [] : [cap])],
-      ) as { id: number; distance: number }[];
+      .all(...[embRow.embedding, neighbours, id, layer, ...(cap === null ? [] : [cap])]) as {
+      id: number;
+      distance: number;
+    }[];
   };
 
   const remember = (id: number, near: { id: number; distance: number }[]) => {

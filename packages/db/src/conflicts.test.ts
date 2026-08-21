@@ -29,7 +29,9 @@ const addNote = (title: string, layer: 'past' | 'state' | 'rule') =>
   });
 
 const pairsOf = () =>
-  detectConflictPairs(client).map((candidate) => candidate.evidenceIds.slice().sort((a, b) => a - b));
+  detectConflictPairs(client).map((candidate) =>
+    candidate.evidenceIds.slice().sort((a, b) => a - b),
+  );
 
 describe('detectConflictPairs', () => {
   it('compares every rule against every other, since they govern what happens', () => {

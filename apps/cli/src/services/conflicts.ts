@@ -118,7 +118,8 @@ export const judgeConflict = async (a: ConflictSide, b: ConflictSide): Promise<J
       return { error: envelope.result ?? 'Claude reported an error' };
     }
     const parsed = parseJudgement(envelope.result);
-    if (!parsed) return { error: `Could not read a verdict from: ${envelope.result.slice(0, 200)}` };
+    if (!parsed)
+      return { error: `Could not read a verdict from: ${envelope.result.slice(0, 200)}` };
     return { ...parsed, durationMs: envelope.duration_ms ?? 0 };
   } catch (error) {
     const raw = error instanceof Error ? error.message : String(error);
