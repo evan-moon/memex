@@ -11,7 +11,7 @@ import { draftStateUpdate } from '../draft.ts';
 import { bodyOf, layerCounts, listByLayer, noteDetail, recompose, staleStateIds } from './notes.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
-import { buildTopic, buildTopics, topicNotes } from './topics.ts';
+import { buildTopic, buildTopics, type NoteStatus, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -23,23 +23,31 @@ const json = (body: unknown): Reply => ({
   body: JSON.stringify(body),
 });
 
-const bad = (status: number, message: string): Reply => ({
+export type ApiErrorCode =
+  | 'not-found'
+  | 'draft-state-only'
+  | 'draft-no-evidence'
+  | 'draft-failed'
+  | 'draft-no-claude'
+  | 'empty-body'
+  | 'edit-rejected';
+
+const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
   headers: { 'content-type': 'application/json; charset=utf-8' },
-  body: JSON.stringify({ error: message }),
+  body: JSON.stringify({ error: { code, detail } }),
 });
 
-const notFound: Reply = {
-  status: 404,
-  headers: { 'content-type': 'text/plain' },
-  body: 'not found',
-};
+const notFound = bad(404, 'not-found');
 
 export type UiDeps = {
   client: MemexClient;
   embedder: Embedder;
   vaultPath: string;
 };
+
+const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
+  amendment ? { kind: 'amended', by: { id: amendment.id, title: amendment.title } } : null;
 
 const search = async ({ client, embedder }: UiDeps, query: string) => {
   const hits = await semanticSearch(client, embedder, query, 12);
@@ -53,7 +61,7 @@ const search = async ({ client, embedder }: UiDeps, query: string) => {
     layer: h.layer,
     at: h.authoredAt ?? h.createdAt,
     snippet: (h.matchSnippet ?? h.content).replace(/\s+/g, ' ').slice(0, 240),
-    supersededBy: amendments.get(h.id)?.at(-1) ?? null,
+    status: statusOf(amendments.get(h.id)?.at(-1)),
   }));
 };
 
@@ -111,10 +119,10 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
     const id = Number(url.pathname.split('/').pop());
     const note = getNote(client, id);
     if (!note) return notFound;
-    if (note.layer !== 'state') return bad(400, 'state 노트만 갱신 초안을 만들 수 있어.');
+    if (note.layer !== 'state') return bad(400, 'draft-state-only');
 
     const evidence = staleEvidence(client, id);
-    if (!evidence || evidence.newer.length === 0) return bad(400, '갱신할 근거 노트가 없어.');
+    if (!evidence || evidence.newer.length === 0) return bad(400, 'draft-no-evidence');
 
     const draft = await draftStateUpdate({
       title: note.title,
@@ -122,12 +130,14 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
       since: new Date(note.updatedAt).toISOString().slice(0, 10),
       newer: evidence.newer,
     });
-    return 'error' in draft ? bad(502, draft.error) : json(draft);
+    return 'error' in draft
+      ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
+      : json(draft);
   }
   if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
     const id = Number(url.pathname.split('/').pop());
     const body = (payload as { body?: string } | null)?.body;
-    if (typeof body !== 'string' || body.trim().length === 0) return bad(400, '본문이 비었어.');
+    if (typeof body !== 'string' || body.trim().length === 0) return bad(400, 'empty-body');
 
     const note = getNote(client, id);
     if (!note) return notFound;
@@ -136,7 +146,7 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
       content: recompose(note.content, body, note.title),
     });
     if (result === null) return notFound;
-    if (isEditRejection(result)) return bad(409, result.message);
+    if (isEditRejection(result)) return bad(409, 'edit-rejected', result.message);
 
     // The reason the signal existed is gone, so it goes with it — leaving it
     // 'new' would put the warning back on a note that was just reconciled.

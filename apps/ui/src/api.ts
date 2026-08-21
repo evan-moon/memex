@@ -1,9 +1,14 @@
+export type NoteStatus =
+  | { kind: 'amended'; by: { id: number; title: string } }
+  | { kind: 'piled-up'; count: number }
+  | { kind: 'recent' };
+
 export type NoteRef = {
   id: number;
   title: string;
   layer: string;
   at: number;
-  reason?: string | null;
+  status?: NoteStatus | null;
 };
 
 export type Companion = { tag: string; shared: number; overlap: number; sameThing: boolean };
@@ -20,7 +25,7 @@ export type Topic = {
   current: NoteRef[];
   outdated: NoteRef[];
   companions: Companion[];
-  arcs: { reasoning: string; noteIds: number[] }[];
+  arcs: { reasoning: string | null; noteIds: number[] }[];
 };
 
 export type TopicDetail = Topic & { notes: NoteRef[] };
@@ -72,36 +77,55 @@ export type Sidebar = {
   past: NoteRef[];
 };
 
-export type SearchHit = NoteRef & {
-  snippet: string;
-  supersededBy: { id: number; title: string } | null;
+export type SearchHit = NoteRef & { snippet: string };
+
+export type ApiFailure = { code: string; detail?: string };
+
+const failed = (failure: ApiFailure) => Object.assign(new Error(failure.code), { failure });
+
+const carriesFailure = (error: unknown): error is { failure: ApiFailure } =>
+  typeof error === 'object' && error !== null && 'failure' in error;
+
+export const toFailure = (error: unknown): ApiFailure =>
+  carriesFailure(error)
+    ? error.failure
+    : { code: 'unknown', detail: error instanceof Error ? error.message : String(error) };
+
+const failureOf = (data: unknown): ApiFailure | null => {
+  if (typeof data !== 'object' || data === null || !('error' in data)) return null;
+  const { error } = data;
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null;
+  const { code } = error;
+  if (typeof code !== 'string') return null;
+  const detail = 'detail' in error && typeof error.detail === 'string' ? error.detail : undefined;
+  return { code, detail };
 };
 
-const get = async <T>(path: string): Promise<T> => {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
-  return res.json() as Promise<T>;
+const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const res = await fetch(path, init).catch(() => null);
+  if (!res) throw failed({ code: 'unreachable' });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw failed(failureOf(data) ?? { code: 'unknown', detail: `${path} → ${res.status}` });
+  }
+  return data as T;
 };
 
-const post = async <T>(path: string, body?: unknown): Promise<T> => {
-  const res = await fetch(path, {
+const post = <T>(path: string, body?: unknown) =>
+  request<T>(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok)
-    throw new Error((data as { error?: string } | null)?.error ?? `${path} → ${res.status}`);
-  return data as T;
-};
 
 export const api = {
-  sidebar: () => get<Sidebar>('/api/sidebar'),
-  overview: () => get<Overview>('/api/overview'),
-  topics: () => get<Topic[]>('/api/topics'),
-  topic: (tag: string) => get<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
-  note: (id: number) => get<NoteDetail>(`/api/note/${id}`),
-  search: (q: string) => get<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  sidebar: () => request<Sidebar>('/api/sidebar'),
+  overview: () => request<Overview>('/api/overview'),
+  topics: () => request<Topic[]>('/api/topics'),
+  topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
+  note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
+  search: (q: string) => request<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
   draft: (id: number) =>
     post<{
       body: string;

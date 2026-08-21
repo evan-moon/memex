@@ -1,9 +1,10 @@
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown';
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
+import { type Strings, useT } from './i18n.ts';
 import { remarkWikiLinks } from './wiki-links.ts';
 
-const componentsFor = (targets: Map<string, number>): Components => ({
+const componentsFor = (targets: Map<string, number>, t: Strings): Components => ({
   h1: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h2: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h3: ({ children }) => <h3 className="doc-h3">{children}</h3>,
@@ -41,7 +42,7 @@ const componentsFor = (targets: Map<string, number>): Components => ({
     const id = targets.get(href.slice('wiki:'.length).toLowerCase());
     if (id === undefined) {
       return (
-        <span className="doc-wiki-dead" title="아직 없는 노트">
+        <span className="doc-wiki-dead" title={t.note.deadLink}>
           {children}
         </span>
       );
@@ -61,12 +62,13 @@ export const Markdown = ({
   children: string;
   links?: { title: string; id: number }[];
 }) => {
+  const t = useT();
   const targets = new Map(links.map((l) => [l.title.toLowerCase(), l.id]));
   return (
     <div className="doc">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkWikiLinks]}
-        components={componentsFor(targets)}
+        components={componentsFor(targets, t)}
         urlTransform={(url) => (url.startsWith('wiki:') ? url : defaultUrlTransform(url))}
       >
         {children}

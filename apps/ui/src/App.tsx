@@ -1,15 +1,17 @@
-import { LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { Languages, LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, type Overview as OverviewData, type Sidebar as SidebarData, type Topic } from './api.ts';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
+import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { useTheme } from './theme.ts';
 
 export const App = () => {
-  const { theme, toggle } = useTheme();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const { locale, t, toggle: toggleLocale } = useLocale();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebar, setSidebar] = useState<SidebarData | null>(null);
@@ -29,6 +31,10 @@ export const App = () => {
   useEffect(() => setDrawer(false), [location.pathname]);
 
   useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -40,7 +46,7 @@ export const App = () => {
   }, []);
 
   if (!sidebar || !topics || !overview) {
-    return <div className="p-10 text-sm text-muted">…</div>;
+    return <div className="p-10 text-sm text-muted">{t.common.loading}</div>;
   }
 
   return (
@@ -65,7 +71,7 @@ export const App = () => {
             type="button"
             className="rounded-md p-2 text-muted hover:bg-surface lg:hidden"
             onClick={() => setDrawer(!drawer)}
-            aria-label="메뉴"
+            aria-label={t.app.menu}
           >
             {drawer ? <X size={16} /> : <Menu size={16} />}
           </button>
@@ -73,7 +79,7 @@ export const App = () => {
             type="button"
             className="rounded-md p-2 text-muted hover:bg-surface"
             onClick={() => navigate('/')}
-            aria-label="Overview"
+            aria-label={t.app.overview}
           >
             <LayoutDashboard size={16} />
           </button>
@@ -93,23 +99,32 @@ export const App = () => {
               id="q"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="검색  (⌘K)"
+              placeholder={t.app.searchPlaceholder}
               autoComplete="off"
               className="w-full max-w-lg rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
             />
           </form>
           <button
             type="button"
+            className="flex items-center gap-1.5 rounded-md p-2 text-xs text-muted hover:bg-surface"
+            onClick={toggleLocale}
+            aria-label={t.app.language}
+            title={t.switchLanguage}
+          >
+            <Languages size={16} />
+          </button>
+          <button
+            type="button"
             className="rounded-md p-2 text-muted hover:bg-surface"
-            onClick={toggle}
-            aria-label="테마"
+            onClick={toggleTheme}
+            aria-label={t.app.theme}
           >
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <ErrorBoundary key={location.pathname}>
+          <ErrorBoundary key={location.pathname} t={t}>
           <Routes>
             <Route path="/" element={<Overview data={overview} />} />
             <Route path="/topics" element={<TopicsScreen topics={topics} />} />

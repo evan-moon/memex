@@ -7,15 +7,20 @@ const SPARK_WEEKS = 52;
 const WEEK = 7 * 86_400_000;
 const DAY = 86_400_000;
 
+export type NoteStatus =
+  | { kind: 'amended'; by: { id: number; title: string } }
+  | { kind: 'piled-up'; count: number }
+  | { kind: 'recent' };
+
 export type TopicNoteRef = {
   id: number;
   title: string;
   layer: string;
   at: number;
-  reason: string | null;
+  status: NoteStatus | null;
 };
 
-export type Arc = { reasoning: string; noteIds: number[] };
+export type Arc = { reasoning: string | null; noteIds: number[] };
 
 export type Companion = {
   tag: string;
@@ -57,7 +62,7 @@ const notesForTag = (client: MemexClient, tag: string): Row[] =>
 // A note is out of date for one of two reasons the vault already records: a
 // later note corrected it, or it claims to be a current plan while newer
 // records piled up behind it.
-const supersededBy = (client: MemexClient, ids: number[]): Map<number, string> => {
+const supersededBy = (client: MemexClient, ids: number[]): Map<number, NoteStatus> => {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(', ');
   const rows = client.sqlite
@@ -70,26 +75,23 @@ const supersededBy = (client: MemexClient, ids: number[]): Map<number, string> =
     )
     .all(...ids) as { id: number; fixId: number; fixTitle: string }[];
   return rows.reduce(
-    (acc, r) => acc.set(r.id, `#${r.fixId} "${r.fixTitle}" 에서 이야기가 바뀌었어`),
-    new Map<number, string>(),
+    (acc, r) => acc.set(r.id, { kind: 'amended', by: { id: r.fixId, title: r.fixTitle } }),
+    new Map<number, NoteStatus>(),
   );
 };
 
-const staleReasons = (client: MemexClient): Map<number, string> =>
+const staleStatuses = (client: MemexClient): Map<number, NoteStatus> =>
   listSignals(client, { type: 'stale_state', status: 'new' }).reduce((acc, s) => {
     const [stateNote, ...newer] = s.evidenceIds;
     return stateNote === undefined
       ? acc
-      : acc.set(
-          stateNote,
-          `이 뒤로 관련 기록이 ${newer.length}개 쌓였어 — 아직 맞는 얘긴지 확인해봐`,
-        );
-  }, new Map<number, string>());
+      : acc.set(stateNote, { kind: 'piled-up', count: newer.length });
+  }, new Map<number, NoteStatus>());
 
 const arcsFor = (client: MemexClient, ids: Set<number>): Arc[] =>
   listSignals(client, { type: 'hidden_arc', status: 'new' })
     .filter((s) => s.evidenceIds.filter((id) => ids.has(id)).length >= 2)
-    .map((s) => ({ reasoning: s.reasoning ?? '아직 엮이지 않은 흐름', noteIds: s.evidenceIds }));
+    .map((s) => ({ reasoning: s.reasoning, noteIds: s.evidenceIds }));
 
 // Every topic is bucketed over the same absolute window, the way a repository
 // list does it: the same x position is the same week on every row, so a flat
@@ -148,12 +150,12 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
 
   const ids = notes.map((n) => n.id);
   const fixed = supersededBy(client, ids);
-  const stale = staleReasons(client);
+  const stale = staleStatuses(client);
 
-  const reasonFor = (n: Row) => fixed.get(n.id) ?? stale.get(n.id) ?? null;
+  const statusFor = (n: Row) => fixed.get(n.id) ?? stale.get(n.id) ?? null;
   const outdated = notes
-    .filter((n) => reasonFor(n) !== null)
-    .map((n) => ({ ...n, reason: reasonFor(n), changed: fixed.has(n.id) }));
+    .filter((n) => statusFor(n) !== null)
+    .map((n) => ({ ...n, status: statusFor(n), changed: fixed.has(n.id) }));
 
   const outdatedIds = new Set(outdated.map((n) => n.id));
   const believed = notes.filter((n) => n.layer === 'state' && !outdatedIds.has(n.id));
@@ -162,8 +164,10 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
   // answer there is its latest entries, not an empty column.
   const current =
     believed.length > 0
-      ? believed.map((n) => ({ ...n, reason: null }))
-      : notes.filter((n) => !outdatedIds.has(n.id)).map((n) => ({ ...n, reason: '최근 기록' }));
+      ? believed.map((n) => ({ ...n, status: null }))
+      : notes
+          .filter((n) => !outdatedIds.has(n.id))
+          .map((n) => ({ ...n, status: { kind: 'recent' as const } }));
 
   return {
     tag,

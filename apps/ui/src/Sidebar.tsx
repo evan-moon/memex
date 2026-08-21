@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import type { NoteRef, Sidebar as SidebarData, Topic } from './api.ts';
+import { useT } from './i18n.ts';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-1.5 truncate rounded-md py-1.5 pl-7 pr-2 text-xs ${
@@ -43,6 +44,7 @@ const PAGE = 300;
 // stall, and cutting the list at a fixed limit made the sidebar look like the
 // vault ended there. Show a page at a time and say how many are left.
 const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
+  const t = useT();
   const [shown, setShown] = useState(PAGE);
   const rest = list.length - shown;
 
@@ -65,7 +67,7 @@ const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
           }}
           className="mt-1 w-full rounded-md py-1.5 pl-7 pr-2 text-left text-xs text-muted hover:bg-surface hover:text-foreground"
         >
-          {rest}개 더 보기
+          {t.sidebar.more(rest)}
         </button>
       ) : null}
     </>
@@ -81,6 +83,7 @@ export const Sidebar = ({
   topics: Topic[];
   onNavigate?: () => void;
 }) => {
+  const t = useT();
   const stale = new Set(data.stale);
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: closing the mobile drawer on tap
@@ -90,16 +93,16 @@ export const Sidebar = ({
           memex
         </NavLink>
       </div>
-      <Section label="지금 믿는 것" count={data.counts.state ?? 0} defaultOpen>
+      <Section label={t.sidebar.state} count={data.counts.state ?? 0} defaultOpen>
         <NoteRows list={data.state} stale={stale} />
       </Section>
-      <Section label="기록" count={data.counts.past ?? 0}>
+      <Section label={t.sidebar.past} count={data.counts.past ?? 0}>
         <NoteRows list={data.past} stale={stale} />
       </Section>
-      <Section label="지침" count={data.counts.rule ?? 0}>
+      <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
         <NoteRows list={data.rule} stale={stale} />
       </Section>
-      <Section label="주제" count={topics.length} defaultOpen>
+      <Section label={t.sidebar.topics} count={topics.length} defaultOpen>
         {topics.map((t) => (
           <NavLink key={t.tag} to={`/topic/${encodeURIComponent(t.tag)}`} className={linkClass}>
             <span className="truncate">{t.tag}</span>

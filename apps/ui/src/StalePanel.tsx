@@ -1,15 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type DraftChange, type DraftVerdict, type NoteDetail } from './api.ts';
+import {
+  api,
+  type ApiFailure,
+  type DraftChange,
+  type DraftVerdict,
+  type NoteDetail,
+  toFailure,
+} from './api.ts';
 import { collapseUnchanged, diffLines } from './diff.ts';
+import { useT } from './i18n.ts';
 
-const DiffView = ({ before, after }: { before: string; after: string }) => (
+const DiffView = ({ before, after }: { before: string; after: string }) => {
+  const t = useT();
+  return (
   <div className="mt-3 overflow-x-auto rounded-card border border-line bg-background">
     <pre className="min-w-full py-2 font-mono text-xs leading-6">
       {collapseUnchanged(diffLines(before, after)).map((line, i) =>
         line.kind === 'skip' ? (
           <div key={`skip-${i}`} className="px-3 text-muted">
-            {`⋯ ${line.count}줄 그대로`}
+            {t.stale.unchangedLines(line.count)}
           </div>
         ) : (
           <div
@@ -31,7 +41,8 @@ const DiffView = ({ before, after }: { before: string; after: string }) => (
       )}
     </pre>
   </div>
-);
+  );
+};
 
 // The diff says what moved; this says why, and names the note that made it
 // wrong. Without it the reader has to take the rewrite on faith.
@@ -46,18 +57,15 @@ const Rationale = ({
   reason: string;
   newer: { id: number; title: string }[];
 }) => {
+  const t = useT();
   const titleOf = new Map(newer.map((n) => [n.id, n.title]));
 
   if (verdict === 'no-change') {
     return (
       <div className="mt-3 rounded-card border border-line bg-background p-3">
-        <div className="text-xs font-semibold text-muted">고칠 게 없대</div>
-        <p className="mt-1.5 text-xs leading-6">
-          {reason || '새 노트들을 읽어봤지만 이 노트가 말하는 것과 어긋나는 게 없어.'}
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          경고를 끄려면 「이건 아직 맞아」를 눌러.
-        </p>
+        <div className="text-xs font-semibold text-muted">{t.stale.noChangeTitle}</div>
+        <p className="mt-1.5 text-xs leading-6">{reason || t.stale.noChangeFallback}</p>
+        <p className="mt-2 text-xs text-muted">{t.stale.noChangeHint}</p>
       </div>
     );
   }
@@ -65,14 +73,14 @@ const Rationale = ({
   if (verdict === 'unexplained') {
     return (
       <p className="mt-3 text-xs" style={{ color: 'var(--caution)' }}>
-        바꾼 이유를 안 적었어 — 근거를 확인할 수 없으니 diff를 직접 읽고 판단해줘.
+        {t.stale.unexplained}
       </p>
     );
   }
 
   return (
     <div className="mt-3 rounded-card border border-line bg-background p-3">
-      <div className="text-xs font-semibold text-muted">왜 이렇게 바꿨는지</div>
+      <div className="text-xs font-semibold text-muted">{t.stale.whyTitle}</div>
       <ul className="mt-2 flex flex-col gap-1.5">
         {changes.map((c) => (
           <li key={c.text} className="text-xs leading-6">
@@ -81,7 +89,7 @@ const Rationale = ({
                 key={id}
                 to={`/note/${id}`}
                 className="mr-1.5 rounded bg-surface-muted px-1.5 py-0.5 text-primary"
-                title={titleOf.get(id) ?? `노트 #${id}`}
+                title={titleOf.get(id) ?? t.stale.noteRef(id)}
               >
                 #{id}
               </Link>
@@ -131,7 +139,7 @@ type State =
       durationMs: number;
     }
   | { phase: 'saving' }
-  | { phase: 'error'; message: string };
+  | { phase: 'error'; failure: ApiFailure };
 
 export const StalePanel = ({
   note,
@@ -142,13 +150,12 @@ export const StalePanel = ({
   onSaved: (next: NoteDetail) => void;
   onDismissed: () => void;
 }) => {
+  const t = useT();
   const [state, setState] = useState<State>({ phase: 'idle' });
   if (!note.stale) return null;
 
   const guard = (run: () => Promise<void>) => {
-    run().catch((e: unknown) =>
-      setState({ phase: 'error', message: e instanceof Error ? e.message : String(e) }),
-    );
+    run().catch((error: unknown) => setState({ phase: 'error', failure: toFailure(error) }));
   };
 
   const draft = () => {
@@ -184,7 +191,7 @@ export const StalePanel = ({
   return (
     <section className="mt-4 rounded-card border border-line bg-surface p-4">
       <div className="text-sm font-semibold" style={{ color: 'var(--caution)' }}>
-        ⚠ 이 노트를 마지막으로 손본 뒤 관련 노트 {note.stale.newer.length}개가 쌓였어
+        {t.stale.header(note.stale.newer.length)}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {note.stale.newer.map((n) => (
@@ -206,16 +213,18 @@ export const StalePanel = ({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {state.verdict === 'no-change' ? (
               <Button tone="primary" onClick={stillTrue}>
-                이건 아직 맞아
+                {t.stale.stillTrue}
               </Button>
             ) : (
               <Button tone="primary" onClick={() => save(state.body)}>
-                저장
+                {t.stale.save}
               </Button>
             )}
-            <Button onClick={draft}>다시 뽑기</Button>
-            <Button onClick={() => setState({ phase: 'idle' })}>버리기</Button>
-            <span className="text-xs text-muted">{Math.round(state.durationMs / 1000)}초 걸림</span>
+            <Button onClick={draft}>{t.stale.redraft}</Button>
+            <Button onClick={() => setState({ phase: 'idle' })}>{t.stale.discard}</Button>
+            <span className="text-xs text-muted">
+              {t.stale.took(Math.round(state.durationMs / 1000))}
+            </span>
           </div>
         </>
       ) : (
@@ -225,22 +234,20 @@ export const StalePanel = ({
             onClick={draft}
             disabled={state.phase === 'drafting' || state.phase === 'saving'}
           >
-            {state.phase === 'drafting' ? '초안 쓰는 중…' : '갱신본 초안 받기'}
+            {state.phase === 'drafting' ? t.stale.drafting : t.stale.draftCta}
           </Button>
           <Button onClick={stillTrue} disabled={state.phase === 'drafting'}>
-            이건 아직 맞아
+            {t.stale.stillTrue}
           </Button>
           <span className="text-xs text-muted">
-            {state.phase === 'drafting'
-              ? 'Claude가 관련 노트를 읽는 중 — 1~2분 걸려'
-              : '1~2분 걸려'}
+            {state.phase === 'drafting' ? t.stale.draftingHint : t.stale.idleHint}
           </span>
         </div>
       )}
 
       {state.phase === 'error' ? (
         <p className="mt-2 text-xs" style={{ color: 'var(--negative)' }}>
-          {state.message}
+          {t.error(state.failure)}
         </p>
       ) : null}
     </section>

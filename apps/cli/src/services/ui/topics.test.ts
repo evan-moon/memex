@@ -58,7 +58,10 @@ describe('buildTopic', () => {
     const topic = buildTopic(client, 't', base + 3 * DAY);
     expect(topic?.current.map((n) => n.id)).toEqual([stillGood.id]);
     expect(topic?.outdated[0]).toMatchObject({ id: plan.id });
-    expect(topic?.outdated[0].reason).toContain('바뀌었어');
+    expect(topic?.outdated[0].status).toEqual({
+      kind: 'amended',
+      by: { id: fix.id, title: '[Amendment] plan' },
+    });
     expect(topic?.changedCount).toBe(1);
     expect(topic?.reviewCount).toBe(0);
   });
@@ -74,7 +77,7 @@ describe('buildTopic', () => {
 
     const topic = buildTopic(client, 't', base + 2 * DAY);
     expect(topic?.outdated.map((n) => n.id)).toEqual([plan.id]);
-    expect(topic?.outdated[0].reason).toContain('확인해봐');
+    expect(topic?.outdated[0].status).toEqual({ kind: 'piled-up', count: 1 });
     expect(topic?.reviewCount).toBe(1);
     expect(topic?.changedCount).toBe(0);
   });
@@ -85,7 +88,7 @@ describe('buildTopic', () => {
 
     const topic = buildTopic(client, 't', base + 2 * DAY);
     expect(topic?.current).toHaveLength(2);
-    expect(topic?.current[0].reason).toBe('최근 기록');
+    expect(topic?.current[0].status).toEqual({ kind: 'recent' });
   });
 
   it('calls a topic dormant once it has been quiet for a season', () => {
