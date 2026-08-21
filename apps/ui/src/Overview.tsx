@@ -12,7 +12,6 @@ import type { Overview as Data } from './api.ts';
 import { ago } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Spark } from './Spark.tsx';
-import { TagMerges } from './TagMerges.tsx';
 import { ThisWeek } from './ThisWeek.tsx';
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
@@ -34,8 +33,6 @@ export const Overview = ({ data }: { data: Data }) => {
       <p className="mt-1 text-sm text-muted">{t.overview.subtitle}</p>
 
       <ThisWeek />
-
-      <TagMerges />
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat

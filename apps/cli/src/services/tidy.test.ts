@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { insertNote, type MemexClient, openDb, parseTags, serializeTags } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mergeCandidates, renameTags } from './tidy.ts';
+import { dropTags, listTags, mergeCandidates, renameTags } from './tidy.ts';
 
 let dbDir: string;
 let vaultDir: string;
@@ -106,5 +106,45 @@ describe('renameTags', () => {
 
     expect(result).toMatchObject({ notes: 0, skipped: 1 });
     expect(readFileSync(outside.filePath, 'utf8')).toBe(before);
+  });
+});
+
+describe('dropTags', () => {
+  const tagsOf = (id: number) =>
+    parseTags(client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(id) as string);
+
+  it('takes a tag off every note and out of every file', () => {
+    const note = addNote('a', ['keep', 'junk']);
+
+    const result = dropTags(client, vaultDir, ['junk']);
+
+    expect(result).toMatchObject({ notes: 1, files: 1 });
+    expect(tagsOf(note.id)).toEqual(['keep']);
+    expect(readFileSync(note.filePath, 'utf8')).not.toContain('junk');
+  });
+
+  it('leaves a note with no tags at all rather than an empty one', () => {
+    const note = addNote('a', ['only']);
+    dropTags(client, vaultDir, ['only']);
+    expect(tagsOf(note.id)).toEqual([]);
+  });
+
+  it('will not reach into someone else\'s notes', () => {
+    const outside = addNote('theirs', ['junk'], outsideDir);
+    dropTags(client, vaultDir, ['junk']);
+    expect(readFileSync(outside.filePath, 'utf8')).toContain('junk');
+  });
+});
+
+describe('listTags', () => {
+  it('counts every tag and says how much of it memex may rewrite', () => {
+    addNote('a', ['shared']);
+    addNote('b', ['shared', 'mine']);
+    addNote('theirs', ['shared'], outsideDir);
+
+    expect(listTags(client, vaultDir)).toEqual([
+      { tag: 'shared', notes: 3, mine: 2 },
+      { tag: 'mine', notes: 1, mine: 1 },
+    ]);
   });
 });

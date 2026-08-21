@@ -97,10 +97,15 @@ export const applyRenames = (
   )();
 };
 
+// An empty destination drops the tag: rewriteTags already discards blanks
+// when it rebuilds the frontmatter, so removing a tag and renaming one are
+// the same edit with a different target.
 const pendingFor = (client: MemexClient, vault: string, rename: Map<string, string>) => {
   const all = listNotes(client, 100_000).flatMap<Pending>((note) => {
     const tags = parseTags(note.tags);
-    const next = [...new Set(tags.map((t) => rename.get(t) ?? t))];
+    const next = [...new Set(tags.map((t) => rename.get(t) ?? t))].filter(
+      (tag) => tag.length > 0,
+    );
     return next.join(' ') === tags.join(' ') ? [] : [{ note, next }];
   });
   return {
@@ -192,3 +197,28 @@ export const mergeCandidates = (client: MemexClient, vault: string): MergeCandid
   const covered = new Set(spelling.flatMap((c) => [c.keep, ...c.drop]));
   return [...spelling, ...overlapCandidates(client, covered)];
 };
+
+export const dropTags = (client: MemexClient, vault: string, tags: string[]): RenameResult =>
+  renameTags(
+    client,
+    vault,
+    tags.reduce((acc, tag) => acc.set(tag, ''), new Map<string, string>()),
+  );
+
+export type TagRow = {
+  tag: string;
+  notes: number;
+  /** Notes inside the vault — the only ones memex may rewrite. */
+  mine: number;
+};
+
+export const listTags = (client: MemexClient, vault: string): TagRow[] =>
+  client.sqlite
+    .prepare(
+      `SELECT j.value AS tag, COUNT(*) AS notes,
+              SUM(CASE WHEN instr(n.file_path, ?) = 1 THEN 1 ELSE 0 END) AS mine
+       FROM notes n, json_each(n.tags) j
+       GROUP BY j.value
+       ORDER BY notes DESC, tag`,
+    )
+    .all(vault.endsWith(sep) ? vault : `${vault}${sep}`) as TagRow[];

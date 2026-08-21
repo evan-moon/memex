@@ -15,7 +15,7 @@ import {
   setSignalStatus,
 } from '@memex/db';
 import { buildDigest } from '../digest.ts';
-import { mergeCandidates, renameTags } from '../tidy.ts';
+import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { draftStateUpdate } from '../draft.ts';
 import {
   bodyOf,
@@ -220,6 +220,9 @@ export const route = async (
   if (method === 'GET' && url.pathname === '/api/tag-merges') {
     return json(mergeCandidates(client, vaultPath));
   }
+  if (method === 'GET' && url.pathname === '/api/tags') {
+    return json(listTags(client, vaultPath));
+  }
   if (method === 'POST' && url.pathname.startsWith('/api/draft/')) {
     const id = Number(url.pathname.split('/').pop());
     const note = getNote(client, id);
@@ -247,6 +250,11 @@ export const route = async (
 
     const rename = from.reduce((acc, tag) => acc.set(tag, to), new Map<string, string>());
     return json(renameTags(client, vaultPath, rename));
+  }
+  if (method === 'POST' && url.pathname === '/api/tags/delete') {
+    const tags = words(asRecord(payload)?.tags)?.filter((tag) => tag.trim().length > 0);
+    if (!tags || tags.length === 0) return bad(400, 'invalid-rename');
+    return json(dropTags(client, vaultPath, tags));
   }
   if (method === 'POST' && url.pathname === '/api/notes') {
     const fields = asRecord(payload);

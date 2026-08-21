@@ -113,6 +113,18 @@ export const Sidebar = ({
       <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
         <NoteRows list={data.rule} stale={stale} />
       </Section>
+      <div className="px-4 pt-2">
+        <NavLink
+          to="/tags"
+          className={({ isActive }) =>
+            `block rounded-md px-2 py-2 text-sm ${
+              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
+            }`
+          }
+        >
+          {t.tags.screenTitle}
+        </NavLink>
+      </div>
       <p className="mt-3 px-4 text-[11px] leading-5 text-muted">
         {t.sidebar.recordsElsewhere(data.counts.past ?? 0)}
       </p>

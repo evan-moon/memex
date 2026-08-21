@@ -5,6 +5,7 @@ import { api, type Overview as OverviewData, type Sidebar as SidebarData, type T
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { useLocale } from './i18n.ts';
 import { Palette } from './Palette.tsx';
+import { TagsScreen } from './Tags.tsx';
 import { Overview } from './Overview.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
@@ -121,6 +122,7 @@ export const App = () => {
             <Route path="/topic/:tag" element={<TopicScreen />} />
             <Route path="/note/:id" element={<NoteScreen />} />
             <Route path="/search" element={<SearchScreen />} />
+            <Route path="/tags" element={<TagsScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </ErrorBoundary>

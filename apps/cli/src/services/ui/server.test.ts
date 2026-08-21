@@ -141,6 +141,41 @@ describe('POST /api/tags/rename', () => {
   });
 });
 
+describe('tag maintenance', () => {
+  const tagNotes = (id: number, tags: string[]) =>
+    client.sqlite.prepare('UPDATE notes SET tags = ? WHERE id = ?').run(JSON.stringify(tags), id);
+
+  it('lists every tag with what memex may rewrite', async () => {
+    const a = addNote('a', 'past');
+    tagNotes(a.id, ['keep', 'junk']);
+
+    const reply = await route(deps, 'GET', new URL('/api/tags', 'http://localhost'), null);
+    expect(JSON.parse(reply.body)).toEqual([
+      { tag: 'junk', notes: 1, mine: 1 },
+      { tag: 'keep', notes: 1, mine: 1 },
+    ]);
+  });
+
+  it('takes a tag off the notes that carry it', async () => {
+    const a = addNote('a', 'past');
+    tagNotes(a.id, ['keep', 'junk']);
+
+    const reply = await post('/api/tags/delete', { tags: ['junk'] });
+    expect(reply.status).toBe(200);
+    expect(
+      JSON.parse(
+        client.sqlite.prepare('SELECT tags FROM notes WHERE id = ?').pluck().get(a.id) as string,
+      ),
+    ).toEqual(['keep']);
+  });
+
+  it('turns down a delete that names no tag', async () => {
+    expect(body(await post('/api/tags/delete', { tags: [] })).error).toMatchObject({
+      code: 'invalid-rename',
+    });
+  });
+});
+
 describe('POST /api/notes', () => {
   it('writes a correction that points back at what it corrects', async () => {
     const original = addNote('what happened', 'past');
