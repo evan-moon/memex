@@ -36,8 +36,10 @@ type RawNote = {
   layer: string;
   authoredAt?: number | null;
   createdAt?: number;
+  updatedAt?: number;
   authored_at?: number | null;
   created_at?: number;
+  updated_at?: number;
 };
 
 const toRef = (n: RawNote): NoteRef => ({
@@ -45,6 +47,11 @@ const toRef = (n: RawNote): NoteRef => ({
   title: n.title,
   layer: n.layer,
   at: n.authoredAt ?? n.authored_at ?? n.createdAt ?? n.created_at ?? 0,
+});
+
+const toStateRef = (n: RawNote): NoteRef => ({
+  ...toRef(n),
+  at: n.updatedAt ?? n.updated_at ?? toRef(n).at,
 });
 
 // Obsidian can only open what is inside the vault it has open; notes indexed
@@ -118,16 +125,25 @@ export const noteDetail = (
   };
 };
 
-export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 500): NoteRef[] =>
+// `state` is what is believed now, so its recency is the last time it was
+// touched — and that is the same clock the stale_state signal reads, so the
+// order and the warning stop disagreeing about which notes are recent. A
+// `past` note records something that happened, so it sorts by when it
+// happened, whatever date a later edit carries.
+const recencyColumn = (layer: NoteLayer) =>
+  layer === 'state' ? 'updated_at' : 'COALESCE(authored_at, created_at)';
+
+export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 5000): NoteRef[] =>
   (
     client.sqlite
       .prepare(
-        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt
+        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt,
+                updated_at AS updatedAt
          FROM notes WHERE layer = ?
-         ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
+         ORDER BY ${recencyColumn(layer)} DESC LIMIT ?`,
       )
       .all(layer, limit) as RawNote[]
-  ).map(toRef);
+  ).map(layer === 'state' ? toStateRef : toRef);
 
 export const layerCounts = (client: MemexClient): Record<string, number> =>
   (

@@ -58,7 +58,7 @@ const route = async (deps: UiDeps, method: string, url: URL): Promise<Reply> => 
       stale: staleStateIds(client),
       state: listByLayer(client, 'state'),
       rule: listByLayer(client, 'rule'),
-      past: listByLayer(client, 'past', 300),
+      past: listByLayer(client, 'past'),
     });
   }
   if (method === 'GET' && url.pathname === '/api/overview') {

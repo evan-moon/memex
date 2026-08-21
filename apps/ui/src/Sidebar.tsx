@@ -37,15 +37,40 @@ const Section = ({
   );
 };
 
-const notes = (list: NoteRef[], stale: Set<number>) =>
-  list.map((n) => (
-    <NavLink key={n.id} to={`/note/${n.id}`} className={linkClass}>
-      {stale.has(n.id) ? (
-        <TriangleAlert size={11} style={{ color: 'var(--caution)' }} className="shrink-0" />
+const PAGE = 300;
+
+// The vault outgrew a single render: 1104 past notes mounted at once is a
+// stall, and cutting the list at a fixed limit made the sidebar look like the
+// vault ended there. Show a page at a time and say how many are left.
+const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
+  const [shown, setShown] = useState(PAGE);
+  const rest = list.length - shown;
+
+  return (
+    <>
+      {list.slice(0, shown).map((n) => (
+        <NavLink key={n.id} to={`/note/${n.id}`} className={linkClass}>
+          {stale.has(n.id) ? (
+            <TriangleAlert size={11} style={{ color: 'var(--caution)' }} className="shrink-0" />
+          ) : null}
+          <span className="truncate">{n.title}</span>
+        </NavLink>
+      ))}
+      {rest > 0 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShown(shown + PAGE);
+          }}
+          className="mt-1 w-full rounded-md py-1.5 pl-7 pr-2 text-left text-xs text-muted hover:bg-surface hover:text-foreground"
+        >
+          {rest}개 더 보기
+        </button>
       ) : null}
-      <span className="truncate">{n.title}</span>
-    </NavLink>
-  ));
+    </>
+  );
+};
 
 export const Sidebar = ({
   data,
@@ -66,13 +91,13 @@ export const Sidebar = ({
         </NavLink>
       </div>
       <Section label="지금 믿는 것" count={data.counts.state ?? 0} defaultOpen>
-        {notes(data.state, stale)}
+        <NoteRows list={data.state} stale={stale} />
       </Section>
       <Section label="기록" count={data.counts.past ?? 0}>
-        {notes(data.past, stale)}
+        <NoteRows list={data.past} stale={stale} />
       </Section>
       <Section label="지침" count={data.counts.rule ?? 0}>
-        {notes(data.rule, stale)}
+        <NoteRows list={data.rule} stale={stale} />
       </Section>
       <Section label="주제" count={topics.length} defaultOpen>
         {topics.map((t) => (
