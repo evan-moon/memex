@@ -41,6 +41,10 @@ export type NoteDetail = {
   related: NoteRef[];
 };
 
+export type DraftChange = { text: string; from: number[] };
+
+export type DraftVerdict = 'changed' | 'no-change' | 'unexplained';
+
 export type Overview = {
   notes: number;
   chunks: number;
@@ -98,7 +102,14 @@ export const api = {
   topic: (tag: string) => get<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => get<NoteDetail>(`/api/note/${id}`),
   search: (q: string) => get<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
-  draft: (id: number) => post<{ body: string; cost: number }>(`/api/draft/${id}`),
+  draft: (id: number) =>
+    post<{
+      body: string;
+      changes: DraftChange[];
+      verdict: DraftVerdict;
+      reason: string;
+      cost: number;
+    }>(`/api/draft/${id}`),
   saveNote: (id: number, body: string) => post<NoteDetail>(`/api/note/${id}`, { body }),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
 };
