@@ -10,16 +10,12 @@ import {
   type Topic,
   type TopicDetail,
 } from './api.ts';
-import { Agent, ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Agent, Button, Card, Layer, NoteItem, NoteList } from './bits.tsx';
+import { ago, day } from './time.ts';
 import { Evidence } from './Evidence.tsx';
 import { HypothesisLinks } from './Hypothesis.tsx';
-import {
-  Composer,
-  correctionDraft,
-  type Draft,
-  missingNoteDraft,
-  NoteEditor,
-} from './editing.tsx';
+import { correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
+import { Composer, NoteEditor } from './editing.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';

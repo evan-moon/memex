@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { Overview as Data } from './api.ts';
-import { ago } from './bits.tsx';
+import { ago } from './time.ts';
 import { useT } from './i18n.ts';
 import { Chores } from './Chores.tsx';
 import { Spark } from './Spark.tsx';

@@ -3,7 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { NoteDetail } from './api.ts';
 import { NoteItem } from './bits.tsx';
-import { Composer, correctionDraft, missingNoteDraft, NoteEditor } from './editing.tsx';
+import { correctionDraft, missingNoteDraft } from './drafts.ts';
+import { Composer, NoteEditor } from './editing.tsx';
 import { dictionaries, setLocale } from './i18n.ts';
 
 const t = dictionaries.en;
