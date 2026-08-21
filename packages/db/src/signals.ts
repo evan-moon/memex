@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
-import { linkTargets, parseTags } from './repository.ts';
+import { linkTargets, parseTags, resolveLinkTargets } from './repository.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -161,7 +161,10 @@ export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
     'id' | 'title' | 'content'
   >[];
 
-  const titleExists = new Set(notes.map((n) => n.title.trim().normalize('NFC').toLowerCase()));
+  const resolved = resolveLinkTargets(
+    client,
+    notes.flatMap((n) => linkTargets(n.content)),
+  );
   const candidates: SignalCandidate[] = [];
   const seen = new Set<string>();
 
@@ -169,7 +172,7 @@ export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
     const titles = linkTargets(note.content);
     for (const title of titles) {
       const key = title.toLowerCase();
-      if (titleExists.has(key)) continue;
+      if (resolved.has(title)) continue;
       const dedup = `${note.id}:${key}`;
       if (seen.has(dedup)) continue;
       seen.add(dedup);

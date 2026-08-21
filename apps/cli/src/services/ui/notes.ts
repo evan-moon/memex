@@ -1,6 +1,7 @@
 import { basename, dirname, relative } from 'node:path';
 import {
   findRelatedNotes,
+  findUnresolvedLinks,
   getAmendments,
   getBacklinks,
   getNote,
@@ -32,6 +33,7 @@ export type NoteDetail = {
   folder: string | null;
   amendment: ReturnType<typeof amendmentSuggestion> | null;
   wikiLinks: { title: string; id: number }[];
+  deadLinks: string[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -187,6 +189,7 @@ export const noteDetail = (
     folder: folderOf(note.filePath, vaultPath),
     amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
     wikiLinks: outgoingWikiLinks(client, id),
+    deadLinks: findUnresolvedLinks(client, note.content),
     stale: staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,

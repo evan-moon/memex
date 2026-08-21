@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { NoteDetail } from './api.ts';
-import { Correction, NoteEditor } from './editing.tsx';
+import { Composer, correctionDraft, missingNoteDraft, NoteEditor } from './editing.tsx';
 import { dictionaries, setLocale } from './i18n.ts';
 
 const t = dictionaries.en;
@@ -15,6 +15,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   at: Date.now(),
   tags: ['one', 'two'],
   obsidianUrl: null,
+  deadLinks: [],
   folder: 'projects/memex',
   amendment: null,
   wikiLinks: [],
@@ -50,29 +51,50 @@ describe('NoteEditor', () => {
   });
 });
 
-describe('Correction', () => {
-  it('starts from the amendment the server proposed', () => {
-    const html = render(
-      <Correction
-        note={note({
-          layer: 'past',
-          amendment: {
-            action: 'save_note',
-            title: '[Amendment] what happened',
-            link: '[[what happened]]',
-            layer: 'past',
-            amends: 7,
-          },
-        })}
-        onCancel={() => undefined}
-      />,
-    );
+describe('Composer', () => {
+  const past = note({
+    layer: 'past',
+    amendment: {
+      action: 'save_note',
+      title: '[Amendment] what happened',
+      link: '[[what happened]]',
+      layer: 'past',
+      amends: 7,
+    },
+  });
+
+  it('starts a correction from the amendment the server proposed', () => {
+    const draft = correctionDraft(past, t);
+    expect(draft).not.toBeNull();
+    if (!draft) return;
+
+    const html = render(<Composer draft={draft} note={past} onCancel={() => undefined} />);
     expect(html).toContain('[Amendment] what happened');
     expect(html).toContain('[[what happened]]');
     expect(html).toContain('projects/memex');
   });
 
-  it('renders nothing for a note that can simply be edited', () => {
-    expect(render(<Correction note={note()} onCancel={() => undefined} />)).toBe('');
+  it('offers no correction for a note that can simply be edited', () => {
+    expect(correctionDraft(note(), t)).toBeNull();
+  });
+
+  it('starts a missing note from the name that pointed nowhere', () => {
+    const draft = missingNoteDraft('a note nobody wrote', t);
+    const html = render(<Composer draft={draft} note={note()} onCancel={() => undefined} />);
+    expect(html).toContain('a note nobody wrote');
+    expect(html).toContain(t.edit.createNote);
+  });
+
+  it('lets a new note choose its layer, but never a correction', () => {
+    const missing = render(
+      <Composer draft={missingNoteDraft('x', t)} note={note()} onCancel={() => undefined} />,
+    );
+    expect(missing).toContain(t.edit.layer);
+
+    const draft = correctionDraft(past, t);
+    if (!draft) return;
+    expect(render(<Composer draft={draft} note={past} onCancel={() => undefined} />)).not.toContain(
+      t.edit.layer,
+    );
   });
 });

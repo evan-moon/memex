@@ -51,6 +51,7 @@ export {
   getNoteByFilePath,
   insertNote,
   linkAmendment,
+  linkTargets,
   listAllFolders,
   listAllTags,
   listNotes,

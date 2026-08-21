@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type ApiFailure, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
-import { useT } from './i18n.ts';
+import { type Strings, useT } from './i18n.ts';
 
 const LAYERS = ['state', 'rule', 'past'];
 
@@ -136,36 +136,90 @@ export const NoteEditor = ({
   );
 };
 
-export const Correction = ({ note, onCancel }: { note: NoteDetail; onCancel: () => void }) => {
+export type Draft = {
+  heading: string;
+  explain?: string;
+  title: string;
+  body: string;
+  layer: string;
+  fixedLayer?: boolean;
+  amends?: number;
+  submitLabel: string;
+};
+
+export const correctionDraft = (note: NoteDetail, t: Strings): Draft | null =>
+  note.amendment
+    ? {
+        heading: t.edit.correctionTitle,
+        explain: t.edit.correctionWhy,
+        title: note.amendment.title,
+        body: `${note.amendment.link}\n\n`,
+        layer: note.amendment.layer,
+        fixedLayer: true,
+        amends: note.amendment.amends,
+        submitLabel: t.edit.createCorrection,
+      }
+    : null;
+
+export const missingNoteDraft = (title: string, t: Strings): Draft => ({
+  heading: t.edit.missingTitle,
+  explain: t.edit.missingWhy,
+  title,
+  body: '',
+  layer: 'past',
+  submitLabel: t.edit.createNote,
+});
+
+export const Composer = ({
+  draft,
+  note,
+  onCancel,
+}: {
+  draft: Draft;
+  note: NoteDetail;
+  onCancel: () => void;
+}) => {
   const t = useT();
   const navigate = useNavigate();
-  const amendment = note.amendment;
-  const [title, setTitle] = useState(amendment?.title ?? '');
-  const [body, setBody] = useState(amendment ? `${amendment.link}\n\n` : '');
+  const [title, setTitle] = useState(draft.title);
+  const [body, setBody] = useState(draft.body);
+  const [layer, setLayer] = useState(draft.layer);
   const { failure, busy, submit } = useWriter<void>(async () => {
-    if (!amendment) return;
     const created = await api.createNote({
       title,
       content: body,
-      layer: amendment.layer,
+      layer,
       folder: note.folder ?? undefined,
       tags: note.tags,
-      amends: amendment.amends,
+      amends: draft.amends,
     });
     navigate(`/note/${created.id}`);
   });
 
-  if (!amendment) return null;
-
   return (
     <Card className="mt-4">
-      <h2 className="text-sm font-semibold">{t.edit.correctionTitle}</h2>
-      <p className="mt-1 text-xs text-muted">{t.edit.correctionWhy}</p>
+      <h2 className="text-sm font-semibold">{draft.heading}</h2>
+      {draft.explain ? <p className="mt-1 text-xs text-muted">{draft.explain}</p> : null}
 
-      <div className="mt-3">
+      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
         <Field label={t.edit.title}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </Field>
+        {draft.fixedLayer ? null : (
+          <Field label={t.edit.layer}>
+            <select
+              value={layer}
+              onChange={(e) => setLayer(e.target.value)}
+              className={inputClass}
+            >
+              {LAYERS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
       </div>
 
       <div className="mt-3">
@@ -179,9 +233,7 @@ export const Correction = ({ note, onCancel }: { note: NoteDetail; onCancel: () 
         </Field>
       </div>
 
-      <p className="mt-2 text-xs text-muted">
-        {t.edit.landsIn(note.folder ?? t.edit.vaultRoot)}
-      </p>
+      <p className="mt-2 text-xs text-muted">{t.edit.landsIn(note.folder ?? t.edit.vaultRoot)}</p>
 
       <div className="mt-3 flex items-center gap-2">
         <Button
@@ -189,7 +241,7 @@ export const Correction = ({ note, onCancel }: { note: NoteDetail; onCancel: () 
           onClick={() => submit()}
           disabled={busy || title.trim().length === 0 || body.trim().length === 0}
         >
-          {busy ? t.edit.saving : t.edit.createCorrection}
+          {busy ? t.edit.saving : draft.submitLabel}
         </Button>
         <Button onClick={onCancel} disabled={busy}>
           {t.edit.cancel}

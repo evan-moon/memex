@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getNoteByFilePath, type MemexClient, openDb } from '@memex/db';
+import { getBacklinks, getNoteByFilePath, type MemexClient, openDb } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory } from './indexer.ts';
 
@@ -22,6 +22,34 @@ describe('indexDirectory', () => {
     client.sqlite.close();
     rmSync(dbDir, { recursive: true, force: true });
     rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  it('rebuilds the link graph, so a link written against a filename becomes an edge', async () => {
+    writeFileSync(join(vaultDir, 'target.md'), '---\ntitle: Round-2/3 통과\n---\n\nbody', 'utf8');
+    writeFileSync(join(vaultDir, 'source.md'), '# Source\n\nsee [[Round-2／3 통과]]', 'utf8');
+
+    const stats = await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const target = getNoteByFilePath(client, join(vaultDir, 'target.md'));
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    expect(stats.relinked).toBe(1);
+    expect(getBacklinks(client, target?.id ?? 0).map((n) => n.id)).toEqual([source?.id]);
+  });
+
+  it('repairs a link that a rename broke in a file it never had to touch', async () => {
+    writeFileSync(join(vaultDir, 'target.md'), '# Old Name\n\nbody', 'utf8');
+    writeFileSync(join(vaultDir, 'source.md'), '# Source\n\nsee [[New Name]]', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    expect(getBacklinks(client, getNoteByFilePath(client, join(vaultDir, 'target.md'))?.id ?? 0))
+      .toHaveLength(0);
+
+    writeFileSync(join(vaultDir, 'target.md'), '# New Name\n\nbody', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const renamed = getNoteByFilePath(client, join(vaultDir, 'target.md'));
+    expect(getBacklinks(client, renamed?.id ?? 0).map((n) => n.id)).toEqual([source?.id]);
   });
 
   it('parses authored_at from frontmatter dates on insert', async () => {

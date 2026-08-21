@@ -11,7 +11,13 @@ import {
   type TopicDetail,
 } from './api.ts';
 import { ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
-import { Correction, NoteEditor } from './editing.tsx';
+import {
+  Composer,
+  correctionDraft,
+  type Draft,
+  missingNoteDraft,
+  NoteEditor,
+} from './editing.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';
@@ -182,12 +188,14 @@ export const NoteScreen = () => {
   const { id = '' } = useParams();
   const { data, failure } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
   const [edited, setEdited] = useState<NoteDetail | null>(null);
-  const [mode, setMode] = useState<'read' | 'edit' | 'correct'>('read');
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const note = edited?.id === Number(id) ? edited : data;
 
   useEffect(() => {
     if (data) rememberVisit({ id: data.id, title: data.title });
-    setMode('read');
+    setEditing(false);
+    setDraft(null);
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
@@ -209,13 +217,11 @@ export const NoteScreen = () => {
           </a>
         ) : null}
         <span className="ml-auto">
-          {mode === 'read' ? (
-            note.layer === 'past' ? (
-              <Button onClick={() => setMode('correct')}>{t.edit.correct}</Button>
-            ) : (
-              <Button onClick={() => setMode('edit')}>{t.edit.start}</Button>
-            )
-          ) : null}
+          {editing || draft ? null : note.layer === 'past' ? (
+            <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
+          ) : (
+            <Button onClick={() => setEditing(true)}>{t.edit.start}</Button>
+          )}
         </span>
       </div>
       {newest ? (
@@ -236,17 +242,17 @@ export const NoteScreen = () => {
           </Link>
         </Card>
       ) : null}
-      {mode === 'edit' ? (
+      {editing ? (
         <NoteEditor
           note={note}
           onSaved={(next) => {
             setEdited(next);
-            setMode('read');
+            setEditing(false);
           }}
-          onCancel={() => setMode('read')}
+          onCancel={() => setEditing(false)}
         />
       ) : null}
-      {mode === 'correct' ? <Correction note={note} onCancel={() => setMode('read')} /> : null}
+      {draft ? <Composer draft={draft} note={note} onCancel={() => setDraft(null)} /> : null}
 
       <StalePanel
         note={note}
@@ -262,6 +268,20 @@ export const NoteScreen = () => {
           <p className="text-sm text-muted">{t.note.emptyBody}</p>
         )}
       </article>
+      {note.deadLinks.length > 0 ? (
+        <Card className="mt-8">
+          <h2 className="text-sm font-semibold">{t.edit.deadLinks(note.deadLinks.length)}</h2>
+          <p className="mt-1 text-xs text-muted">{t.edit.deadLinksWhy}</p>
+          <ul className="mt-3 flex flex-col gap-1.5">
+            {note.deadLinks.map((title) => (
+              <li key={title} className="flex items-center gap-2 text-xs">
+                <span className="min-w-0 flex-1 truncate text-muted">[[{title}]]</span>
+                <Button onClick={() => setDraft(missingNoteDraft(title, t))}>{t.edit.write}</Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {note.backlinks.length > 0 ? (
         <Card className="mt-8">
           <h2 className="text-sm font-semibold">{t.note.backlinks(note.backlinks.length)}</h2>

@@ -26,31 +26,15 @@ import {
   syncLinks,
   updateNote,
 } from '@memex/db';
-import { buildEmbeddingText, collapseSeries, extractCategory } from '@memex/utils';
+import {
+  buildEmbeddingText,
+  collapseSeries,
+  extractCategory,
+  sanitizeFilename,
+} from '@memex/utils';
 import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
-
-const FILENAME_MAX_BYTES = 200;
-
-// The filename IS the Obsidian link target: `[[Some Note]]` resolves to
-// "Some Note.md". Slugging the title (lowercase, spaces to hyphens) silently
-// breaks every wiki link pointing at the note, so the title is preserved and
-// only the characters Obsidian and the filesystem reject are replaced.
-const sanitizeFilename = (title: string): string => {
-  const cleaned = title
-    .replace(/\//g, '／')
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from filenames is intentional
-    .replace(/[<>:"\\|?*#^[\]\x00-\x1f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/^[.\s]+|[.\s]+$/g, '');
-  const buf = Buffer.from(cleaned, 'utf8');
-  if (buf.byteLength <= FILENAME_MAX_BYTES) return cleaned;
-  return Buffer.from(buf.subarray(0, FILENAME_MAX_BYTES))
-    .toString('utf8')
-    .replace(/\uFFFD+$/, '')
-    .trim();
-};
 
 const yamlString = (value: string): string =>
   /[:#[\]{}&*!|>'"%@`,]|^\s|\s$/.test(value)

@@ -1,3 +1,4 @@
+import { filenameKey, titleKey } from '@memex/utils';
 import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
 import { type NewNote, type Note, type NoteLayer, notes } from './schema.ts';
@@ -492,38 +493,50 @@ export const linkTargets = (content: string): string[] => [
   ),
 ];
 
+// Obsidian opens `[[X]]` when X is a note's title or the name of its file, and
+// those two differ whenever the title held a character a filesystem rejects —
+// a slash, a question mark. Matching on the title alone called a third of this
+// vault's links dead while Obsidian followed them fine.
+export const resolveLinkTargets = (client: MemexClient, targets: string[]): Map<string, number> => {
+  if (targets.length === 0) return new Map();
+
+  const rows = client.sqlite.prepare('SELECT id, title FROM notes').all() as {
+    id: number;
+    title: string;
+  }[];
+  const byTitle = new Map(rows.map((row) => [titleKey(row.title), row.id]));
+  const byFilename = rows.reduce((acc, row) => {
+    const key = filenameKey(row.title);
+    return byTitle.has(key) || acc.has(key) ? acc : acc.set(key, row.id);
+  }, new Map<string, number>());
+
+  return targets.reduce((acc, target) => {
+    const key = titleKey(target);
+    const id = byTitle.get(key) ?? byFilename.get(key);
+    return id === undefined ? acc : acc.set(target, id);
+  }, new Map<string, number>());
+};
+
 export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
   client.sqlite
     .prepare("DELETE FROM note_links WHERE source_id = ? AND source = 'wiki'")
     .run(sourceId);
 
-  const titles = linkTargets(content);
-  if (titles.length === 0) return;
+  const resolved = resolveLinkTargets(client, linkTargets(content));
+  if (resolved.size === 0) return;
 
   const insert = client.sqlite.prepare(
     "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')",
   );
-  const findByTitle = client.sqlite.prepare(
-    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
-  );
-
-  titles.forEach((title) => {
-    const row = findByTitle.get(title) as { id: number } | undefined;
-    if (row) insert.run(sourceId, row.id);
-  });
+  resolved.forEach((targetId) => insert.run(sourceId, targetId));
 };
 
-// A wiki link only works in Obsidian when a note carries that exact title (or
-// declares it as an alias), so an unmatched target is a dead link on disk, not
-// just a missing row in note_links.
+// An unmatched target is a dead link on disk, not just a missing row in
+// note_links — nothing in the vault opens it, under either name.
 export const findUnresolvedLinks = (client: MemexClient, content: string): string[] => {
   const targets = linkTargets(content);
-  if (targets.length === 0) return [];
-
-  const findByTitle = client.sqlite.prepare(
-    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
-  );
-  return targets.filter((target) => !findByTitle.get(target));
+  const resolved = resolveLinkTargets(client, targets);
+  return targets.filter((target) => !resolved.has(target));
 };
 
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>

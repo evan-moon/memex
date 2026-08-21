@@ -49,6 +49,7 @@ export type NoteDetail = {
   folder: string | null;
   amendment: Amendment | null;
   wikiLinks: { title: string; id: number }[];
+  deadLinks: string[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];

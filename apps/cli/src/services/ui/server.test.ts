@@ -90,6 +90,21 @@ describe('POST /api/note/:id', () => {
   });
 });
 
+describe('GET /api/note/:id', () => {
+  it('names the links that open nothing, and leaves out the ones that do', async () => {
+    addNote('Round-2/3 통과', 'past');
+    const source = addNote('source', 'past', 'see [[Round-2／3 통과]] and [[a note nobody wrote]]\n');
+
+    const reply = await route(
+      deps,
+      'GET',
+      new URL(`/api/note/${source.id}`, 'http://localhost'),
+      null,
+    );
+    expect(body(reply).deadLinks).toEqual(['a note nobody wrote']);
+  });
+});
+
 describe('POST /api/notes', () => {
   it('writes a correction that points back at what it corrects', async () => {
     const original = addNote('what happened', 'past');

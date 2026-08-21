@@ -7,6 +7,7 @@ import {
   findFlashbacks,
   findUnresolvedLinks,
   getBacklinks,
+  resolveLinkTargets,
   getNote,
   insertNote,
   parseTags,
@@ -241,6 +242,65 @@ describe('note_links source column', () => {
 
     const backlinks = getBacklinks(client, target.id);
     expect(backlinks.map((b) => b.id)).toContain(src.id);
+  });
+});
+
+describe('resolveLinkTargets', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-links-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const addNote = (title: string, content = '') =>
+    insertNote(client, {
+      title,
+      content,
+      filePath: join(dbDir, `${encodeURIComponent(title)}.md`),
+      source: 'manual',
+      layer: 'past',
+    });
+
+  it('opens a link written against the title', () => {
+    const target = addNote('auth decision');
+    expect(resolveLinkTargets(client, ['auth decision']).get('auth decision')).toBe(target.id);
+  });
+
+  it('opens a link written against the filename, the way Obsidian does', () => {
+    const slashed = addNote('Round-2/3 25/25 통과');
+    const asked = addNote('앵커란 무엇인가요?');
+
+    expect(resolveLinkTargets(client, ['Round-2／3 25／25 통과']).get('Round-2／3 25／25 통과')).toBe(
+      slashed.id,
+    );
+    expect(resolveLinkTargets(client, ['앵커란 무엇인가요']).get('앵커란 무엇인가요')).toBe(asked.id);
+  });
+
+  it('prefers a note that actually carries the title over one whose filename matches', () => {
+    const byFilename = addNote('plan?');
+    const byTitle = addNote('plan');
+    expect(resolveLinkTargets(client, ['plan']).get('plan')).toBe(byTitle.id);
+    expect(byFilename.id).not.toBe(byTitle.id);
+  });
+
+  it('leaves a target nothing in the vault answers to unresolved', () => {
+    addNote('auth decision');
+    expect(resolveLinkTargets(client, ['a note nobody wrote']).size).toBe(0);
+  });
+
+  it('records the recovered link as a real edge, so it becomes a backlink', () => {
+    const target = addNote('Round-2/3 25/25 통과');
+    const source = addNote('later', 'see [[Round-2／3 25／25 통과]]');
+    syncLinks(client, source.id, source.content);
+
+    expect(getBacklinks(client, target.id).map((n) => n.id)).toEqual([source.id]);
   });
 });
 

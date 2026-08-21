@@ -12,6 +12,7 @@ import {
   parseAuthoredAt,
   parseTags,
   serializeTags,
+  syncLinks,
   updateNote,
 } from '@memex/db';
 import { extractCategory } from '@memex/utils';
@@ -23,6 +24,8 @@ type IndexStats = {
   updated: number;
   removed: number;
   skipped: number;
+  /** Wiki links the rebuilt graph gained (or lost, when negative). */
+  relinked: number;
 };
 
 type ExtractedNote = {
@@ -161,6 +164,33 @@ const IGNORE_DIRS = [
 const isIgnoredPath = (filePath: string): boolean =>
   filePath.split('/').some((segment) => IGNORE_DIRS.includes(segment));
 
+// A link lives in one note and points at another, so renaming the second one
+// breaks a row the first one owns — and the first one's file never changed, so
+// nothing above would touch it. Rebuilding the whole graph costs no embeddings
+// and is the only way the index and the vault agree after a rename.
+const resyncLinks = (client: MemexClient): number => {
+  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
+    id: number;
+    content: string;
+  }[];
+  const before = (
+    client.sqlite.prepare("SELECT COUNT(*) AS c FROM note_links WHERE source = 'wiki'").get() as {
+      c: number;
+    }
+  ).c;
+
+  client.sqlite.transaction(() => {
+    for (const note of notes) syncLinks(client, note.id, note.content);
+  })();
+
+  const after = (
+    client.sqlite.prepare("SELECT COUNT(*) AS c FROM note_links WHERE source = 'wiki'").get() as {
+      c: number;
+    }
+  ).c;
+  return after - before;
+};
+
 export const indexDirectory = async (
   client: MemexClient,
   embedder: Embedder,
@@ -168,7 +198,7 @@ export const indexDirectory = async (
   onProgress?: (file: string) => void,
   force = false,
 ): Promise<IndexStats> => {
-  const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0 };
+  const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0, relinked: 0 };
 
   const files: string[] = [];
   // The exclude callback sees paths like "sub/node_modules", so match path
@@ -198,5 +228,6 @@ export const indexDirectory = async (
     }
   }
 
+  stats.relinked = resyncLinks(client);
   return stats;
 };
