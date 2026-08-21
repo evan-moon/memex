@@ -23,7 +23,9 @@ const componentsFor = (targets: Map<string, number>, t: Strings): Components => 
   pre: ({ children }) => <pre className="doc-pre">{children}</pre>,
   blockquote: ({ children }) => <blockquote className="doc-blockquote">{children}</blockquote>,
   hr: () => <hr className="doc-hr" />,
-  img: ({ src, alt }) => <img className="doc-img" src={typeof src === 'string' ? src : ''} alt={alt ?? ''} />,
+  img: ({ src, alt }) => (
+    <img className="doc-img" src={typeof src === 'string' ? src : ''} alt={alt ?? ''} />
+  ),
   table: ({ children }) => (
     <div className="doc-table-wrap">
       <table className="doc-table">{children}</table>

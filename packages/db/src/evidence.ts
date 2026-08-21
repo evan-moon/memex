@@ -142,7 +142,9 @@ export const evidenceStaleness = (client: MemexClient, noteId: number): Stalenes
   if (edges.length === 0) return null;
 
   return {
-    amended: edges.flatMap((edge) => (edge.amendedBy ? [{ source: edge, by: edge.amendedBy }] : [])),
+    amended: edges.flatMap((edge) =>
+      edge.amendedBy ? [{ source: edge, by: edge.amendedBy }] : [],
+    ),
     changed: edges.filter((edge) => edge.changed),
     missing: edges.filter((edge) => edge.missing),
   };

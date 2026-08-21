@@ -15,33 +15,33 @@ import { useT } from './i18n.ts';
 const DiffView = ({ before, after }: { before: string; after: string }) => {
   const t = useT();
   return (
-  <div className="mt-3 overflow-x-auto rounded-card border border-line bg-background">
-    <pre className="min-w-full py-2 font-mono text-xs leading-6">
-      {collapseUnchanged(diffLines(before, after)).map((line, i) =>
-        line.kind === 'skip' ? (
-          <div key={`skip-${i}`} className="px-3 text-muted">
-            {t.stale.unchangedLines(line.count)}
-          </div>
-        ) : (
-          <div
-            key={`${line.kind}-${i}`}
-            className="whitespace-pre-wrap break-words px-3"
-            style={{
-              background:
-                line.kind === 'add'
-                  ? 'color-mix(in oklab, var(--positive) 14%, transparent)'
-                  : line.kind === 'remove'
-                    ? 'color-mix(in oklab, var(--negative) 14%, transparent)'
-                    : undefined,
-              color: line.kind === 'same' ? 'var(--muted-foreground)' : 'var(--foreground)',
-            }}
-          >
-            {`${line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '} ${line.text}`}
-          </div>
-        ),
-      )}
-    </pre>
-  </div>
+    <div className="mt-3 overflow-x-auto rounded-card border border-line bg-background">
+      <pre className="min-w-full py-2 font-mono text-xs leading-6">
+        {collapseUnchanged(diffLines(before, after)).map((line, i) =>
+          line.kind === 'skip' ? (
+            <div key={`skip-${i}`} className="px-3 text-muted">
+              {t.stale.unchangedLines(line.count)}
+            </div>
+          ) : (
+            <div
+              key={`${line.kind}-${i}`}
+              className="whitespace-pre-wrap break-words px-3"
+              style={{
+                background:
+                  line.kind === 'add'
+                    ? 'color-mix(in oklab, var(--positive) 14%, transparent)'
+                    : line.kind === 'remove'
+                      ? 'color-mix(in oklab, var(--negative) 14%, transparent)'
+                      : undefined,
+                color: line.kind === 'same' ? 'var(--muted-foreground)' : 'var(--foreground)',
+              }}
+            >
+              {`${line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '} ${line.text}`}
+            </div>
+          ),
+        )}
+      </pre>
+    </div>
   );
 };
 

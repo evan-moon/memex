@@ -2,18 +2,19 @@ export default function Home() {
   return (
     <>
       <main className="page">
-
         {/* ── Hero ──────────────────────────────────────────────── */}
         <section className="hero">
           <span className="logo">memex</span>
           <h1 className="hero-headline">
-            Make Claude smarter<br />about you.
+            Make Claude smarter
+            <br />
+            about you.
           </h1>
           <p className="hero-hook">Your second brain, Claude&apos;s long-term memory.</p>
           <p className="hero-sub">
-            memex gives Claude persistent memory across conversations, saving insights
-            automatically and surfacing them semantically when you need them.
-            All data stays on your machine. No cloud, no API keys.
+            memex gives Claude persistent memory across conversations, saving insights automatically
+            and surfacing them semantically when you need them. All data stays on your machine. No
+            cloud, no API keys.
           </p>
           <div className="hero-actions">
             <code className="install">npm install -g @evan-moon/memex</code>
@@ -28,35 +29,40 @@ export default function Home() {
           </div>
 
           {/* ── Claude Desktop mockup ─────────────────────────── */}
-          <div className="claude-ui" style={{ marginTop: "2.5rem" }}>
+          <div className="claude-ui" style={{ marginTop: '2.5rem' }}>
             <div className="claude-chrome">
-              <span className="claude-dot" style={{ background: "#ff5f57" }} />
-              <span className="claude-dot" style={{ background: "#ffbd2e" }} />
-              <span className="claude-dot" style={{ background: "#28ca41" }} />
+              <span className="claude-dot" style={{ background: '#ff5f57' }} />
+              <span className="claude-dot" style={{ background: '#ffbd2e' }} />
+              <span className="claude-dot" style={{ background: '#28ca41' }} />
               <span className="claude-chrome-title">Claude</span>
             </div>
 
             <div className="claude-body">
-
               {/* Exchange 1, Search */}
-              <div className="claude-user-row" style={{ animation: "card-in 0.3s ease 0.1s both" }}>
+              <div className="claude-user-row" style={{ animation: 'card-in 0.3s ease 0.1s both' }}>
                 <div className="claude-user-bubble">
                   What did we decide about the auth approach for the new API? I can&apos;t remember.
                 </div>
               </div>
 
-              <div className="claude-tool-indicator" style={{ animation: "card-in 0.3s ease 0.4s both" }}>
+              <div
+                className="claude-tool-indicator"
+                style={{ animation: 'card-in 0.3s ease 0.4s both' }}
+              >
                 <span className="claude-tool-dot" />
                 memex · search_notes · &ldquo;auth approach API decision&rdquo; ›
               </div>
 
-              <div className="claude-artifact" style={{ animation: "card-in 0.35s ease 0.6s both" }}>
+              <div
+                className="claude-artifact"
+                style={{ animation: 'card-in 0.35s ease 0.6s both' }}
+              >
                 <div className="artifact-header">
                   <span className="artifact-title">Search results</span>
                   <span className="artifact-count">3 notes found</span>
                 </div>
 
-                <div className="note-card" style={{ animation: "card-in 0.3s ease 0.75s both" }}>
+                <div className="note-card" style={{ animation: 'card-in 0.3s ease 0.75s both' }}>
                   <div className="note-title">Auth Architecture, JWT Decision</div>
                   <div className="note-meta">
                     <span className="note-date">Apr 14</span>
@@ -68,11 +74,12 @@ export default function Home() {
                   </div>
                   <div className="note-snippet">
                     Chose JWT + refresh tokens over session-based auth. Rationale: stateless design
-                    fits horizontal scaling plan. Refresh token rotation every 7d, stored in httpOnly cookie...
+                    fits horizontal scaling plan. Refresh token rotation every 7d, stored in
+                    httpOnly cookie...
                   </div>
                 </div>
 
-                <div className="note-card" style={{ animation: "card-in 0.3s ease 0.9s both" }}>
+                <div className="note-card" style={{ animation: 'card-in 0.3s ease 0.9s both' }}>
                   <div className="note-title">1-on-1 Tom, API Security Review</div>
                   <div className="note-meta">
                     <span className="note-date">Mar 28</span>
@@ -83,12 +90,12 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="note-snippet">
-                    Tom flagged: keep auth module decoupled from payment logic. Agreed to treat
-                    them as separate bounded contexts with no shared DB tables...
+                    Tom flagged: keep auth module decoupled from payment logic. Agreed to treat them
+                    as separate bounded contexts with no shared DB tables...
                   </div>
                 </div>
 
-                <div className="note-card" style={{ animation: "card-in 0.3s ease 1.05s both" }}>
+                <div className="note-card" style={{ animation: 'card-in 0.3s ease 1.05s both' }}>
                   <div className="note-title">Security Audit Findings, Q1</div>
                   <div className="note-meta">
                     <span className="note-date">Mar 10</span>
@@ -104,31 +111,36 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="claude-ai-row" style={{ animation: "card-in 0.3s ease 1.2s both" }}>
+              <div className="claude-ai-row" style={{ animation: 'card-in 0.3s ease 1.2s both' }}>
                 <div className="claude-avatar">C</div>
                 <p className="claude-ai-text">
-                  Based on your notes from April 14th: you chose <strong style={{ color: "#ededed" }}>JWT + refresh tokens</strong> over
-                  session-based auth. The reasoning was that stateless tokens fit your horizontal scaling
-                  plan. Tom also emphasized keeping auth decoupled from payment logic, separate bounded
-                  contexts, no shared tables.
+                  Based on your notes from April 14th: you chose{' '}
+                  <strong style={{ color: '#ededed' }}>JWT + refresh tokens</strong> over
+                  session-based auth. The reasoning was that stateless tokens fit your horizontal
+                  scaling plan. Tom also emphasized keeping auth decoupled from payment logic,
+                  separate bounded contexts, no shared tables.
                 </p>
               </div>
 
               <div className="claude-thread-divider" />
 
               {/* Exchange 2, Save */}
-              <div className="claude-user-row" style={{ animation: "card-in 0.3s ease 1.5s both" }}>
+              <div className="claude-user-row" style={{ animation: 'card-in 0.3s ease 1.5s both' }}>
                 <div className="claude-user-bubble">
-                  Good. Also save this: we&apos;ve decided to drop the legacy PHP auth module entirely by Q3.
+                  Good. Also save this: we&apos;ve decided to drop the legacy PHP auth module
+                  entirely by Q3.
                 </div>
               </div>
 
-              <div className="claude-tool-indicator" style={{ animation: "card-in 0.3s ease 1.75s both" }}>
+              <div
+                className="claude-tool-indicator"
+                style={{ animation: 'card-in 0.3s ease 1.75s both' }}
+              >
                 <span className="claude-tool-dot save" />
                 memex · save_note ›
               </div>
 
-              <div className="claude-artifact" style={{ animation: "card-in 0.3s ease 1.9s both" }}>
+              <div className="claude-artifact" style={{ animation: 'card-in 0.3s ease 1.9s both' }}>
                 <div className="note-saved">
                   <span className="note-saved-icon">✓</span>
                   <div className="note-saved-body">
@@ -145,14 +157,13 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="claude-ai-row" style={{ animation: "card-in 0.3s ease 2.05s both" }}>
+              <div className="claude-ai-row" style={{ animation: 'card-in 0.3s ease 2.05s both' }}>
                 <div className="claude-avatar">C</div>
                 <p className="claude-ai-text">
-                  Saved to your second brain. I&apos;ll surface this whenever you&apos;re working on the
-                  auth migration or discussing Q3 roadmap items.
+                  Saved to your second brain. I&apos;ll surface this whenever you&apos;re working on
+                  the auth migration or discussing Q3 roadmap items.
                 </p>
               </div>
-
             </div>
           </div>
         </section>
@@ -166,8 +177,8 @@ export default function Home() {
               <div>
                 <div className="feature-title">Local-first, always private</div>
                 <div className="feature-desc">
-                  All notes are stored as Markdown files in your vault and indexed in a local
-                  SQLite database at <code>~/.memex/memex.db</code>. Nothing ever leaves your machine.
+                  All notes are stored as Markdown files in your vault and indexed in a local SQLite
+                  database at <code>~/.memex/memex.db</code>. Nothing ever leaves your machine.
                   Obsidian-compatible out of the box.
                 </div>
               </div>
@@ -177,9 +188,9 @@ export default function Home() {
               <div>
                 <div className="feature-title">Semantic search across languages</div>
                 <div className="feature-desc">
-                  Finds notes by meaning, not just keywords. Powered by
-                  multilingual embeddings running fully offline, no API key needed.
-                  Search in English, Korean, or mix both freely.
+                  Finds notes by meaning, not just keywords. Powered by multilingual embeddings
+                  running fully offline, no API key needed. Search in English, Korean, or mix both
+                  freely.
                 </div>
               </div>
             </div>
@@ -188,9 +199,9 @@ export default function Home() {
               <div>
                 <div className="feature-title">MCP server for Claude</div>
                 <div className="feature-desc">
-                  Works as an MCP server for Claude Desktop and Claude Code. Claude
-                  searches your notes before answering and saves insights proactively at
-                  the end of conversations, no extra setup needed.
+                  Works as an MCP server for Claude Desktop and Claude Code. Claude searches your
+                  notes before answering and saves insights proactively at the end of conversations,
+                  no extra setup needed.
                 </div>
               </div>
             </div>
@@ -199,9 +210,9 @@ export default function Home() {
               <div>
                 <div className="feature-title">Standalone CLI</div>
                 <div className="feature-desc">
-                  Add, search, tag, and browse notes from the terminal. Filter by date range
-                  with <code>--from</code> / <code>--to</code>. Index external directories
-                  like existing Obsidian vaults.
+                  Add, search, tag, and browse notes from the terminal. Filter by date range with{' '}
+                  <code>--from</code> / <code>--to</code>. Index external directories like existing
+                  Obsidian vaults.
                 </div>
               </div>
             </div>
@@ -221,8 +232,8 @@ export default function Home() {
               <div>
                 <div className="feature-title">Daily digest</div>
                 <div className="feature-desc">
-                  <code>memex digest</code> prints a summary of everything saved in the last
-                  N days, grouped by folder. A quick way to review what Claude captured this week.
+                  <code>memex digest</code> prints a summary of everything saved in the last N days,
+                  grouped by folder. A quick way to review what Claude captured this week.
                 </div>
               </div>
             </div>
@@ -238,8 +249,20 @@ export default function Home() {
               <div>
                 <div className="step-title">Install</div>
                 <div className="step-desc">
-                  Install the CLI globally. On first run, the embedding model (~450MB) is
-                  downloaded once to <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>~/.memex/models/</code>.
+                  Install the CLI globally. On first run, the embedding model (~450MB) is downloaded
+                  once to{' '}
+                  <code
+                    style={{
+                      fontFamily: 'var(--font-geist-mono)',
+                      fontSize: '0.82em',
+                      background: 'var(--code-bg)',
+                      padding: '0.1em 0.3em',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    ~/.memex/models/
+                  </code>
+                  .
                 </div>
                 <span className="step-code">npm install -g @evan-moon/memex</span>
               </div>
@@ -272,9 +295,9 @@ export default function Home() {
           <p className="section-label">CLI</p>
           <div className="terminal">
             <div className="term-bar">
-              <span className="term-dot" style={{ background: "#ff5f57" }} />
-              <span className="term-dot" style={{ background: "#ffbd2e" }} />
-              <span className="term-dot" style={{ background: "#28ca41" }} />
+              <span className="term-dot" style={{ background: '#ff5f57' }} />
+              <span className="term-dot" style={{ background: '#ffbd2e' }} />
+              <span className="term-dot" style={{ background: '#28ca41' }} />
               <span className="term-title">zsh</span>
             </div>
             <div className="term-body">
@@ -315,7 +338,9 @@ export default function Home() {
             </div>
             <div className="command-row">
               <span className="cmd">memex search &lt;query&gt;</span>
-              <span className="cmd-desc">Semantic search, supports <code>--from</code>, <code>--to</code>, <code>--tag</code></span>
+              <span className="cmd-desc">
+                Semantic search, supports <code>--from</code>, <code>--to</code>, <code>--tag</code>
+              </span>
             </div>
             <div className="command-row">
               <span className="cmd">memex digest</span>
@@ -357,14 +382,37 @@ export default function Home() {
           <p className="section-label">Privacy</p>
           <div className="privacy">
             <p>
-              memex is designed for developers who don&apos;t want their notes in someone else&apos;s
-              database. All data is stored locally, notes as <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>.md</code> files
-              in your vault, embeddings in a local SQLite database. The embedding model runs
-              entirely offline using <code style={{ fontFamily: "var(--font-geist-mono)", fontSize: "0.82em", background: "var(--code-bg)", padding: "0.1em 0.3em", borderRadius: "4px" }}>@huggingface/transformers</code>.
+              memex is designed for developers who don&apos;t want their notes in someone
+              else&apos;s database. All data is stored locally, notes as{' '}
+              <code
+                style={{
+                  fontFamily: 'var(--font-geist-mono)',
+                  fontSize: '0.82em',
+                  background: 'var(--code-bg)',
+                  padding: '0.1em 0.3em',
+                  borderRadius: '4px',
+                }}
+              >
+                .md
+              </code>{' '}
+              files in your vault, embeddings in a local SQLite database. The embedding model runs
+              entirely offline using{' '}
+              <code
+                style={{
+                  fontFamily: 'var(--font-geist-mono)',
+                  fontSize: '0.82em',
+                  background: 'var(--code-bg)',
+                  padding: '0.1em 0.3em',
+                  borderRadius: '4px',
+                }}
+              >
+                @huggingface/transformers
+              </code>
+              .
             </p>
             <p>
-              No telemetry, no accounts, no API keys required. Works without an internet
-              connection once the model is downloaded.
+              No telemetry, no accounts, no API keys required. Works without an internet connection
+              once the model is downloaded.
             </p>
           </div>
           <a
@@ -384,11 +432,14 @@ export default function Home() {
           <a href="https://github.com/evan-moon/memex" target="_blank" rel="noopener noreferrer">
             GitHub ↗
           </a>
-          <a href="https://www.npmjs.com/package/@evan-moon/memex" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://www.npmjs.com/package/@evan-moon/memex"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             npm ↗
           </a>
         </footer>
-
       </main>
     </>
   );

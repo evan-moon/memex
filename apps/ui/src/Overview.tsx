@@ -48,11 +48,7 @@ export const Overview = ({ data }: { data: Data }) => {
           value={(data.links.wiki + data.links.amends).toLocaleString()}
           hint={t.overview.linkBreakdown(data.links.wiki, data.links.amends)}
         />
-        <Stat
-          label={t.overview.topics}
-          value={String(data.topics)}
-          hint={t.overview.topicsHint}
-        />
+        <Stat label={t.overview.topics} value={String(data.topics)} hint={t.overview.topicsHint} />
         <Stat
           label={t.overview.mayNotHold}
           value={(data.changed + data.review).toLocaleString()}

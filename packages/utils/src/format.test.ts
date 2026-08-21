@@ -88,11 +88,11 @@ describe('stripFrontmatter', () => {
 });
 
 describe('authorOfPath', () => {
-  it('calls a note in a memory directory the agent\'s own', () => {
+  it("calls a note in a memory directory the agent's own", () => {
     expect(authorOfPath('/vault/projects/opula/memory/drivers.md')).toBe('agent');
   });
 
-  it('calls everything else the person\'s, however it was typed', () => {
+  it("calls everything else the person's, however it was typed", () => {
     expect(authorOfPath('/vault/projects/opula/opula.md')).toBe('person');
     expect(authorOfPath('/vault/work/people/jaedo.md')).toBe('person');
   });

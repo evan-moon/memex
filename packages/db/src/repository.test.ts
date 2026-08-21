@@ -277,10 +277,12 @@ describe('resolveLinkTargets', () => {
     const slashed = addNote('Round-2/3 25/25 통과');
     const asked = addNote('앵커란 무엇인가요?');
 
-    expect(resolveLinkTargets(client, ['Round-2／3 25／25 통과']).get('Round-2／3 25／25 통과')).toBe(
-      slashed.id,
+    expect(
+      resolveLinkTargets(client, ['Round-2／3 25／25 통과']).get('Round-2／3 25／25 통과'),
+    ).toBe(slashed.id);
+    expect(resolveLinkTargets(client, ['앵커란 무엇인가요']).get('앵커란 무엇인가요')).toBe(
+      asked.id,
     );
-    expect(resolveLinkTargets(client, ['앵커란 무엇인가요']).get('앵커란 무엇인가요')).toBe(asked.id);
   });
 
   it('prefers a note that actually carries the title over one whose filename matches', () => {
@@ -588,7 +590,7 @@ describe('searchNotes — substring and link-expansion arms', () => {
     expect(found).not.toContain(recorded.id);
   });
 
-  it('can look at one person\'s memories without an agent\'s working notes', () => {
+  it("can look at one person's memories without an agent's working notes", () => {
     const mine = insertNote(client, {
       title: 'opula pricing',
       content: 'we picked two tiers',

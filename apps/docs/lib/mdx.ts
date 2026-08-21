@@ -23,16 +23,13 @@ export type DocSource = {
   Content: (props: { components?: MDXComponents }) => ReactElement;
 };
 
-const fileFor = (slug: string, locale: Locale) =>
-  join(CONTENT_ROOT, `${slug}.${locale}.mdx`);
+const fileFor = (slug: string, locale: Locale) => join(CONTENT_ROOT, `${slug}.${locale}.mdx`);
 
 export async function loadDoc(slug: string, locale: Locale): Promise<DocSource | null> {
   const targetPath = fileFor(slug, locale);
   const fallbackPath = fileFor(slug, 'en');
 
-  const path = existsSync(targetPath) ? targetPath
-             : existsSync(fallbackPath) ? fallbackPath
-             : null;
+  const path = existsSync(targetPath) ? targetPath : existsSync(fallbackPath) ? fallbackPath : null;
   if (!path) return null;
 
   const raw = await readFile(path, 'utf-8');

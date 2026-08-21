@@ -83,11 +83,7 @@ export const NoteEditor = ({
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
         </Field>
         <Field label={t.edit.layer}>
-          <select
-            value={layer}
-            onChange={(e) => setLayer(e.target.value)}
-            className={inputClass}
-          >
+          <select value={layer} onChange={(e) => setLayer(e.target.value)} className={inputClass}>
             {LAYERS.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -170,11 +166,7 @@ export const Composer = ({
         </Field>
         {draft.fixedLayer ? null : (
           <Field label={t.edit.layer}>
-            <select
-              value={layer}
-              onChange={(e) => setLayer(e.target.value)}
-              className={inputClass}
-            >
+            <select value={layer} onChange={(e) => setLayer(e.target.value)} className={inputClass}>
               {LAYERS.map((option) => (
                 <option key={option} value={option}>
                   {option}

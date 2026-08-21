@@ -31,7 +31,7 @@ export const Agent = () => {
 export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string }) => {
   const t = useT();
   return (
-      <Link
+    <Link
       to={`/note/${note.id}`}
       className="-mx-2 block rounded-lg px-2 py-2 hover:bg-surface-muted"
     >

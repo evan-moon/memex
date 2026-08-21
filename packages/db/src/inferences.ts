@@ -351,7 +351,9 @@ export const rewriteInference = (
   next: { title: string; summary: string; modelId?: string },
 ): Inference | undefined => {
   client.sqlite
-    .prepare('UPDATE inferences SET title = ?, summary = ?, model_id = ?, updated_at = ? WHERE id = ?')
+    .prepare(
+      'UPDATE inferences SET title = ?, summary = ?, model_id = ?, updated_at = ? WHERE id = ?',
+    )
     .run(next.title, next.summary, next.modelId ?? null, Date.now(), id);
   return restampInference(client, id);
 };

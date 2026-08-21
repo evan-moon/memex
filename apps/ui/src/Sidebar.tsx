@@ -6,7 +6,9 @@ import { useT } from './i18n.ts';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-1.5 truncate rounded-md py-1.5 pl-7 pr-2 text-xs ${
-    isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'
+    isActive
+      ? 'bg-surface-muted text-foreground'
+      : 'text-muted hover:bg-surface hover:text-foreground'
   }`;
 
 const Section = ({

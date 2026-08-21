@@ -1,7 +1,12 @@
 import { Languages, LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, type Overview as OverviewData, type Sidebar as SidebarData, type Topic } from './api.ts';
+import {
+  api,
+  type Overview as OverviewData,
+  type Sidebar as SidebarData,
+  type Topic,
+} from './api.ts';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { useLocale } from './i18n.ts';
 import { HypothesisScreen } from './Hypothesis.tsx';
@@ -118,17 +123,17 @@ export const App = () => {
 
         <main className="min-h-0 flex-1 overflow-y-auto">
           <ErrorBoundary key={location.pathname} t={t}>
-          <Routes>
-            <Route path="/" element={<Overview data={overview} />} />
-            <Route path="/topics" element={<TopicsScreen topics={topics} />} />
-            <Route path="/topic/:tag" element={<TopicScreen />} />
-            <Route path="/note/:id" element={<NoteScreen />} />
-            <Route path="/search" element={<SearchScreen />} />
-            <Route path="/repair/evidence" element={<RepairScreen />} />
-            <Route path="/tags" element={<TagsScreen />} />
-            <Route path="/inference/:id" element={<HypothesisScreen />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            <Routes>
+              <Route path="/" element={<Overview data={overview} />} />
+              <Route path="/topics" element={<TopicsScreen topics={topics} />} />
+              <Route path="/topic/:tag" element={<TopicScreen />} />
+              <Route path="/note/:id" element={<NoteScreen />} />
+              <Route path="/search" element={<SearchScreen />} />
+              <Route path="/repair/evidence" element={<RepairScreen />} />
+              <Route path="/tags" element={<TagsScreen />} />
+              <Route path="/inference/:id" element={<HypothesisScreen />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </ErrorBoundary>
         </main>
       </div>

@@ -370,14 +370,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       layer: 'state',
     });
 
-    await editNote(
-      client,
-      stubEmbedder,
-      vaultDir,
-      note.id,
-      { layer: 'rule' },
-      { actor: 'user' },
-    );
+    await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' }, { actor: 'user' });
 
     expect(getNote(client, note.id)?.layer).toBe('rule');
     expect(readFileSync(note.filePath, 'utf8')).toContain('layer: rule');

@@ -120,7 +120,9 @@ export const ChoresList = ({ data }: { data: Data }) => {
               <Link to={`/note/${note.id}`} className="text-primary hover:underline">
                 {note.title}
               </Link>
-              <span className="ml-2 text-muted">{note.targets.map((x) => `[[${x}]]`).join(' ')}</span>
+              <span className="ml-2 text-muted">
+                {note.targets.map((x) => `[[${x}]]`).join(' ')}
+              </span>
             </li>
           ))}
         </Rows>

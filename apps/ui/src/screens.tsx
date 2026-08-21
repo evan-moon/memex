@@ -393,9 +393,7 @@ export const SearchScreen = () => {
   return (
     <Page>
       <h1 className="text-xl font-semibold tracking-tight">{t.search.title}</h1>
-      <p className="mt-1 text-sm text-muted">
-        {t.search.summary(q, data?.results.length ?? 0)}
-      </p>
+      <p className="mt-1 text-sm text-muted">{t.search.summary(q, data?.results.length ?? 0)}</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Choice value={params.get('layer') ?? ''} onChange={(v) => setFilter('layer', v)}>
@@ -438,7 +436,13 @@ export const SearchScreen = () => {
         {filtered ? (
           <button
             type="button"
-            onClick={() => replace((next) => ['layer', 'author', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) => next.delete(key)))}
+            onClick={() =>
+              replace((next) =>
+                ['layer', 'author', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) =>
+                  next.delete(key),
+                ),
+              )
+            }
             className="rounded-md px-2 py-1.5 text-xs text-muted hover:bg-surface"
           >
             {t.search.clear}
@@ -451,9 +455,7 @@ export const SearchScreen = () => {
           {data.results.length === 0 ? (
             <div className="text-sm text-muted">{t.common.none}</div>
           ) : (
-            data.results.map((hit) => (
-              <NoteItem key={hit.id} note={hit} snippet={hit.snippet} />
-            ))
+            data.results.map((hit) => <NoteItem key={hit.id} note={hit} snippet={hit.snippet} />)
           )}
           {data.collapsed.map((series) => (
             <p key={series.key} className="mt-2 text-xs text-muted">
@@ -463,7 +465,9 @@ export const SearchScreen = () => {
           {data.results.length >= data.limit ? (
             <button
               type="button"
-              onClick={() => replace((next) => next.set('limit', String(data.limit + SEARCH_LIMIT)))}
+              onClick={() =>
+                replace((next) => next.set('limit', String(data.limit + SEARCH_LIMIT)))
+              }
               className="mt-4 rounded-md border border-line px-3 py-1.5 text-xs hover:bg-surface-muted"
             >
               {t.search.more}
@@ -471,9 +475,7 @@ export const SearchScreen = () => {
           ) : null}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted">
-          {failure ? t.error(failure) : t.common.loading}
-        </p>
+        <p className="mt-4 text-sm text-muted">{failure ? t.error(failure) : t.common.loading}</p>
       )}
     </Page>
   );

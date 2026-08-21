@@ -34,7 +34,10 @@ export const HypothesisLinks = ({
       <ul className="mt-2 flex flex-col gap-1">
         {refs.map((ref) => (
           <li key={ref.id} className="flex items-baseline gap-2 text-xs">
-            <Link to={`/inference/${ref.id}`} className="min-w-0 truncate text-primary hover:underline">
+            <Link
+              to={`/inference/${ref.id}`}
+              className="min-w-0 truncate text-primary hover:underline"
+            >
               {ref.title}
             </Link>
             {ref.status === 'stale' ? (
@@ -125,9 +128,7 @@ export const HypothesisBody = ({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             tone="primary"
-            onClick={() =>
-              run(api.promoteInference(inference.id), () => navigate('/'))
-            }
+            onClick={() => run(api.promoteInference(inference.id), () => navigate('/'))}
             disabled={busy}
           >
             {t.hypothesis.promote}
@@ -153,7 +154,10 @@ export const HypothesisBody = ({
           >
             {reading ? t.hypothesis.redrafting : t.hypothesis.redraft}
           </Button>
-          <Button onClick={() => run(api.archiveInference(inference.id), () => onChanged(null))} disabled={busy}>
+          <Button
+            onClick={() => run(api.archiveInference(inference.id), () => onChanged(null))}
+            disabled={busy}
+          >
             {t.hypothesis.archive}
           </Button>
         </div>
@@ -220,7 +224,9 @@ export const HypothesisScreen = () => {
   const [discarded, setDiscarded] = useState(false);
 
   if (discarded) {
-    return <div className="mx-auto max-w-3xl px-5 py-16 text-sm text-muted">{t.hypothesis.gone}</div>;
+    return (
+      <div className="mx-auto max-w-3xl px-5 py-16 text-sm text-muted">{t.hypothesis.gone}</div>
+    );
   }
   if (!data) {
     return (

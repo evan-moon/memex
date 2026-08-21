@@ -77,9 +77,7 @@ export const TagRowItem = ({ row, onChanged }: { row: TagRow; onChanged: Change 
         </span>
       )}
 
-      {name !== null ? (
-        <span className="text-[11px] text-muted">{t.tags.renameHint}</span>
-      ) : null}
+      {name !== null ? <span className="text-[11px] text-muted">{t.tags.renameHint}</span> : null}
 
       {editable ? (
         <span className="ml-auto flex items-center gap-2">

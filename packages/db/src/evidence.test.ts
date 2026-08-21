@@ -54,7 +54,10 @@ describe('setNoteEvidence', () => {
 
     const evidence = setNoteEvidence(client, plan.id, [source.id]);
     expect(evidence).toHaveLength(1);
-    expect(evidence[0]).toMatchObject({ sourceId: source.id, sourceHash: bodyHash('we chose JWT') });
+    expect(evidence[0]).toMatchObject({
+      sourceId: source.id,
+      sourceHash: bodyHash('we chose JWT'),
+    });
   });
 
   it('is a set, so declaring again removes what is no longer a source', () => {

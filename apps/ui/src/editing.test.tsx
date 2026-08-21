@@ -137,7 +137,7 @@ describe('the agent marker', () => {
     expect(html).toContain(dictionaries.en.note.agent);
   });
 
-  it('leaves the person\'s own memory unmarked', () => {
+  it("leaves the person's own memory unmarked", () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
         <NoteItem note={{ id: 1, title: 'a plan', layer: 'state', author: 'person', at: 1 }} />

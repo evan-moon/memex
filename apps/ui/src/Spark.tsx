@@ -19,7 +19,9 @@ export const Spark = ({
   const max = Math.max(...values, 1);
   const step = width / Math.max(1, values.length - 1);
   const points = values
-    .map((v, i) => `${(i * step).toFixed(1)},${(height - (v / max) * (height - 3) - 1.5).toFixed(1)}`)
+    .map(
+      (v, i) => `${(i * step).toFixed(1)},${(height - (v / max) * (height - 3) - 1.5).toFixed(1)}`,
+    )
     .join(' ');
 
   return (

@@ -202,9 +202,7 @@ export const RepairScreen = () => {
       ) : null}
 
       {done === null && !batch ? (
-        <p className="mt-4 text-xs text-muted">
-          {failure ? t.error(failure) : t.common.loading}
-        </p>
+        <p className="mt-4 text-xs text-muted">{failure ? t.error(failure) : t.common.loading}</p>
       ) : null}
     </section>
   );
