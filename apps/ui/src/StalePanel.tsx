@@ -8,6 +8,7 @@ import {
   type NoteDetail,
   toFailure,
 } from './api.ts';
+import { Button } from './bits.tsx';
 import { collapseUnchanged, diffLines } from './diff.ts';
 import { useT } from './i18n.ts';
 
@@ -102,31 +103,6 @@ const Rationale = ({
   );
 };
 
-const Button = ({
-  children,
-  onClick,
-  disabled,
-  tone = 'plain',
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  tone?: 'primary' | 'plain';
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-      tone === 'primary'
-        ? 'bg-primary text-background hover:brightness-110'
-        : 'border border-line hover:bg-surface-muted'
-    }`}
-  >
-    {children}
-  </button>
-);
-
 type State =
   | { phase: 'idle' }
   | { phase: 'drafting' }
@@ -176,7 +152,7 @@ export const StalePanel = ({
   const save = (body: string) => {
     setState({ phase: 'saving' });
     guard(async () => {
-      onSaved(await api.saveNote(note.id, body));
+      onSaved(await api.updateNote(note.id, { body }));
       setState({ phase: 'idle' });
     });
   };

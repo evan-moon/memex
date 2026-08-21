@@ -1,7 +1,14 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getAmendments, insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
+import {
+  getAmendments,
+  getNote,
+  insertNote,
+  type MemexClient,
+  openDb,
+  saveEmbedding,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   editNote,
@@ -304,6 +311,76 @@ describe('saveNote / removeNote — rule layer guards', () => {
     expect(rejection).toMatchObject({ error: 'RULE_USER_ONLY' });
     const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
     expect(row).toBeTruthy();
+  });
+
+  it('rejects a rule edit from the agent channel', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'OOP now' });
+    expect(result).toMatchObject({ error: 'RULE_USER_ONLY' });
+  });
+
+  it('allows a rule edit from the user channel, the way creating and deleting one already were', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const result = await editNote(
+      client,
+      stubEmbedder,
+      vaultDir,
+      note.id,
+      { content: 'FP first, always' },
+      { actor: 'user' },
+    );
+    expect(isEditRejection(result)).toBe(false);
+    expect(getNote(client, note.id)?.content).toBe('FP first, always');
+  });
+
+  it('refuses to promote a note into a rule from the agent channel', async () => {
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'do the thing',
+      filePath: join(vaultDir, 'plan.md'),
+      source: 'claude-code',
+      layer: 'state',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' });
+    expect(result).toMatchObject({ error: 'RULE_USER_ONLY' });
+    expect(getNote(client, note.id)?.layer).toBe('state');
+  });
+
+  it('moves a layer in the file as well as the row, so a reindex agrees', async () => {
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'do the thing',
+      filePath: join(vaultDir, 'plan.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+
+    await editNote(
+      client,
+      stubEmbedder,
+      vaultDir,
+      note.id,
+      { layer: 'rule' },
+      { actor: 'user' },
+    );
+
+    expect(getNote(client, note.id)?.layer).toBe('rule');
+    expect(readFileSync(note.filePath, 'utf8')).toContain('layer: rule');
   });
 
   it('allows rule deletion from the user channel (actor: user)', async () => {

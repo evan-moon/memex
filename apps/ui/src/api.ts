@@ -30,6 +30,14 @@ export type Topic = {
 
 export type TopicDetail = Topic & { notes: NoteRef[] };
 
+export type Amendment = {
+  action: 'save_note';
+  title: string;
+  link: string;
+  layer: string;
+  amends: number;
+};
+
 export type NoteDetail = {
   id: number;
   title: string;
@@ -38,6 +46,8 @@ export type NoteDetail = {
   at: number;
   tags: string[];
   obsidianUrl: string | null;
+  folder: string | null;
+  amendment: Amendment | null;
   wikiLinks: { title: string; id: number }[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
@@ -94,6 +104,17 @@ export type SearchPage = {
 };
 
 export type NoteTitle = { id: number; title: string; layer: string };
+
+export type NotePatch = { body?: string; title?: string; tags?: string[]; layer?: string };
+
+export type NewNote = {
+  title: string;
+  content: string;
+  layer: string;
+  folder?: string;
+  tags?: string[];
+  amends?: number;
+};
 
 export type Facets = {
   folders: { name: string; count: number }[];
@@ -180,6 +201,7 @@ export const api = {
       reason: string;
       durationMs: number;
     }>(`/api/draft/${id}`),
-  saveNote: (id: number, body: string) => post<NoteDetail>(`/api/note/${id}`, { body }),
+  updateNote: (id: number, patch: NotePatch) => post<NoteDetail>(`/api/note/${id}`, patch),
+  createNote: (input: NewNote) => post<NoteDetail>('/api/notes', input),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
 };

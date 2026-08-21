@@ -410,7 +410,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
 export const updateNote = (
   client: MemexClient,
   id: number,
-  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt'>>,
+  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer'>>,
 ): Note => {
   const [updated] = client.db
     .update(notes)

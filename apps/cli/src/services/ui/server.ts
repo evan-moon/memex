@@ -1,5 +1,12 @@
 import { createServer, type IncomingMessage } from 'node:http';
-import { editNote, isEditRejection, type SearchOptions, searchPage } from '@memex/core';
+import {
+  editNote,
+  isEditRejection,
+  isSaveRejection,
+  type SearchOptions,
+  saveNote,
+  searchPage,
+} from '@memex/core';
 import {
   getAmendmentsFor,
   getNote,
@@ -31,12 +38,26 @@ const SEARCH_LIMIT = 12;
 const SEARCH_LIMIT_MAX = 60;
 const TITLE_LIMIT = 5000;
 
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+
+const words = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined;
+
+const positiveInt = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+
 const LAYERS = ['past', 'state', 'rule'] as const;
 
 type Layer = (typeof LAYERS)[number];
 
-const isLayer = (value: string | null): value is Layer =>
-  value !== null && LAYERS.some((layer) => layer === value);
+const isLayer = (value: unknown): value is Layer =>
+  typeof value === 'string' && LAYERS.some((layer) => layer === value);
 
 const day = (value: string | null): number | undefined => {
   if (!value) return undefined;
@@ -60,7 +81,7 @@ const filtersFrom = (params: URLSearchParams): SearchOptions => {
   };
 };
 
-type Reply = { status: number; headers: Record<string, string>; body: string };
+export type Reply = { status: number; headers: Record<string, string>; body: string };
 
 const json = (body: unknown): Reply => ({
   status: 200,
@@ -70,6 +91,10 @@ const json = (body: unknown): Reply => ({
 
 export type ApiErrorCode =
   | 'not-found'
+  | 'nothing-to-change'
+  | 'empty-title'
+  | 'invalid-layer'
+  | 'save-rejected'
   | 'draft-state-only'
   | 'draft-no-evidence'
   | 'draft-failed'
@@ -135,7 +160,12 @@ const staleEvidence = (client: MemexClient, id: number) => {
   return { signal, newer };
 };
 
-const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): Promise<Reply> => {
+export const route = async (
+  deps: UiDeps,
+  method: string,
+  url: URL,
+  payload: unknown,
+): Promise<Reply> => {
   const { client, vaultPath } = deps;
 
   // Every non-API path serves the app, so a deep link like /note/1694 survives
@@ -204,25 +234,62 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
       ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
       : json(draft);
   }
-  if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
-    const id = Number(url.pathname.split('/').pop());
-    const body = (payload as { body?: string } | null)?.body;
-    if (typeof body !== 'string' || body.trim().length === 0) return bad(400, 'empty-body');
+  if (method === 'POST' && url.pathname === '/api/notes') {
+    const fields = asRecord(payload);
+    const title = text(fields?.title);
+    const content = text(fields?.content);
+    const layer = fields?.layer;
+    if (!title) return bad(400, 'empty-title');
+    if (!content) return bad(400, 'empty-body');
+    if (!isLayer(layer)) return bad(400, 'invalid-layer');
 
-    const note = getNote(client, id);
+    const result = await saveNote(client, deps.embedder, vaultPath, {
+      title,
+      content,
+      source: 'manual',
+      layer,
+      folder: text(fields?.folder),
+      tags: words(fields?.tags),
+      amends: positiveInt(fields?.amends),
+      actor: 'user',
+    });
+    if (isSaveRejection(result)) return bad(409, 'save-rejected', result.message);
+    return json(noteDetail(client, result.note.id, vaultPath));
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
+    const noteId = Number(url.pathname.split('/').pop());
+    const note = getNote(client, noteId);
     if (!note) return notFound;
 
-    const result = await editNote(deps.client, deps.embedder, vaultPath, id, {
-      content: recompose(note.content, body, note.title),
+    const fields = asRecord(payload);
+    const body = fields && 'body' in fields ? fields.body : undefined;
+    if (body !== undefined && text(body) === undefined) return bad(400, 'empty-body');
+    if (fields && 'title' in fields && text(fields.title) === undefined) {
+      return bad(400, 'empty-title');
+    }
+    if (fields && 'layer' in fields && !isLayer(fields.layer)) return bad(400, 'invalid-layer');
+
+    const patch = {
+      title: text(fields?.title),
+      content: typeof body === 'string' ? recompose(note.content, body, note.title) : undefined,
+      tags: words(fields?.tags),
+      layer: isLayer(fields?.layer) ? fields?.layer : undefined,
+    };
+    if (Object.values(patch).every((value) => value === undefined)) {
+      return bad(400, 'nothing-to-change');
+    }
+
+    const result = await editNote(deps.client, deps.embedder, vaultPath, noteId, patch, {
+      actor: 'user',
     });
     if (result === null) return notFound;
     if (isEditRejection(result)) return bad(409, 'edit-rejected', result.message);
 
     // The reason the signal existed is gone, so it goes with it — leaving it
     // 'new' would put the warning back on a note that was just reconciled.
-    const evidence = staleEvidence(client, id);
+    const evidence = patch.content === undefined ? null : staleEvidence(client, noteId);
     if (evidence) setSignalStatus(client, evidence.signal.id, 'minted');
-    return json(noteDetail(client, id, vaultPath));
+    return json(noteDetail(client, noteId, vaultPath));
   }
   if (method === 'POST' && url.pathname.startsWith('/api/still-true/')) {
     const id = Number(url.pathname.split('/').pop());

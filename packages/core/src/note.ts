@@ -399,12 +399,23 @@ export type EditNoteRejection =
     }
   | { error: 'RULE_USER_ONLY'; message: string };
 
+// The shape of a correction, in one place: the rejection an agent gets and the
+// form a person fills in have to agree on what an amendment looks like.
+export const amendmentSuggestion = (note: { id: number; title: string }) => ({
+  action: 'save_note' as const,
+  title: `[Amendment] ${note.title}`,
+  link: `[[${note.title}]]`,
+  layer: 'past' as const,
+  amends: note.id,
+});
+
 export const editNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
   id: number,
-  patch: { title?: string; content?: string; tags?: string[] },
+  patch: { title?: string; content?: string; tags?: string[]; layer?: NoteLayer },
+  options: { actor?: WriteActor } = {},
 ): Promise<(Note & { signal?: Signal }) | EditNoteRejection | null> => {
   const note = getNote(client, id);
   if (!note) return null;
@@ -415,17 +426,14 @@ export const editNote = async (
       message:
         'past notes are immutable. Save an Amendment note instead, passing amends so ' +
         'search can warn that this note was corrected.',
-      suggestion: {
-        action: 'save_note',
-        title: `[Amendment] ${note.title}`,
-        link: `[[${note.title}]]`,
-        layer: 'past',
-        amends: note.id,
-      },
+      suggestion: amendmentSuggestion(note),
     };
   }
 
-  if (note.layer === 'rule') {
+  // Editing a rule rewrites a constraint on the agent, and promoting a note
+  // into one writes a new constraint from scratch. Both are the same
+  // self-modification surface saveNote and removeNote already close.
+  if ((note.layer === 'rule' || patch.layer === 'rule') && options.actor !== 'user') {
     return {
       error: 'RULE_USER_ONLY',
       message: 'rule notes can only be edited by the user. Surface your proposed change in chat.',
@@ -436,6 +444,7 @@ export const editNote = async (
   const updated = updateNote(client, id, { ...patch, tags });
   const title = patch.title ?? note.title;
   const content = patch.content ?? note.content;
+  const layer = patch.layer ?? note.layer;
   const resolvedTags = patch.tags ?? parseTags(note.tags);
 
   writeFileSync(
@@ -444,7 +453,7 @@ export const editNote = async (
       title,
       content,
       tags: resolvedTags,
-      layer: note.layer,
+      layer,
       date: note.authoredAt ?? note.createdAt,
     }),
     'utf8',

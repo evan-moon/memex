@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, dirname, relative } from 'node:path';
 import {
   findRelatedNotes,
   getAmendments,
@@ -9,6 +9,7 @@ import {
   type NoteLayer,
   parseTags,
 } from '@memex/db';
+import { amendmentSuggestion } from '@memex/core';
 import { type NoteStatus, statusesFor } from './status.ts';
 
 export type NoteRef = {
@@ -28,6 +29,8 @@ export type NoteDetail = {
   tags: string[];
   obsidianUrl: string | null;
   filePath: string;
+  folder: string | null;
+  amendment: ReturnType<typeof amendmentSuggestion> | null;
   wikiLinks: { title: string; id: number }[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
@@ -147,6 +150,13 @@ const withStatus = (client: MemexClient, refs: NoteRef[]): NoteRef[] => {
   return refs.map((ref) => ({ ...ref, status: statuses.get(ref.id) ?? null }));
 };
 
+// Where a correction should land: beside the note it corrects, since the
+// folder convention is by subject rather than by kind of note.
+const folderOf = (filePath: string, vaultPath: string): string | null => {
+  const rel = relative(vaultPath, dirname(filePath));
+  return rel && !rel.startsWith('..') ? rel : null;
+};
+
 export const noteDetail = (
   client: MemexClient,
   id: number,
@@ -174,6 +184,8 @@ export const noteDetail = (
     tags: parseTags(note.tags),
     obsidianUrl: obsidianUrl(note.filePath, vaultPath),
     filePath: note.filePath,
+    folder: folderOf(note.filePath, vaultPath),
+    amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
     wikiLinks: outgoingWikiLinks(client, id),
     stale: staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({

@@ -61,10 +61,14 @@ export const registerEdit = (program: Command) => {
 
       try {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
-        const result = await editNote(client, embedder, vaultPath, Number(id), {
-          title: title || undefined,
-          content: content || undefined,
-        });
+        const result = await editNote(
+          client,
+          embedder,
+          vaultPath,
+          Number(id),
+          { title: title || undefined, content: content || undefined },
+          { actor: 'user' },
+        );
 
         if (isEditRejection(result)) {
           s.stop(pc.yellow(result.message));

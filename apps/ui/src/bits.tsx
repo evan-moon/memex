@@ -74,3 +74,28 @@ export const Card = ({
     {children}
   </div>
 );
+
+export const Button = ({
+  children,
+  onClick,
+  disabled,
+  tone = 'plain',
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'primary' | 'plain';
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+      tone === 'primary'
+        ? 'bg-primary text-background hover:brightness-110'
+        : 'border border-line hover:bg-surface-muted'
+    }`}
+  >
+    {children}
+  </button>
+);

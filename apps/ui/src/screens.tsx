@@ -10,7 +10,8 @@ import {
   type Topic,
   type TopicDetail,
 } from './api.ts';
-import { ago, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { ago, Button, Card, day, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Correction, NoteEditor } from './editing.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';
@@ -181,10 +182,12 @@ export const NoteScreen = () => {
   const { id = '' } = useParams();
   const { data, failure } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
   const [edited, setEdited] = useState<NoteDetail | null>(null);
+  const [mode, setMode] = useState<'read' | 'edit' | 'correct'>('read');
   const note = edited?.id === Number(id) ? edited : data;
 
   useEffect(() => {
     if (data) rememberVisit({ id: data.id, title: data.title });
+    setMode('read');
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
@@ -205,6 +208,15 @@ export const NoteScreen = () => {
             {t.note.openInObsidian}
           </a>
         ) : null}
+        <span className="ml-auto">
+          {mode === 'read' ? (
+            note.layer === 'past' ? (
+              <Button onClick={() => setMode('correct')}>{t.edit.correct}</Button>
+            ) : (
+              <Button onClick={() => setMode('edit')}>{t.edit.start}</Button>
+            )
+          ) : null}
+        </span>
       </div>
       {newest ? (
         <Card className="mt-4">
@@ -224,6 +236,18 @@ export const NoteScreen = () => {
           </Link>
         </Card>
       ) : null}
+      {mode === 'edit' ? (
+        <NoteEditor
+          note={note}
+          onSaved={(next) => {
+            setEdited(next);
+            setMode('read');
+          }}
+          onCancel={() => setMode('read')}
+        />
+      ) : null}
+      {mode === 'correct' ? <Correction note={note} onCancel={() => setMode('read')} /> : null}
+
       <StalePanel
         note={note}
         onSaved={setEdited}
