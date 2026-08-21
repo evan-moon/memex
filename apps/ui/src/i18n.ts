@@ -61,10 +61,11 @@ const en = {
   },
   sidebar: {
     state: 'What I believe now',
-    past: 'Record',
     rule: 'Guidance',
     topics: 'Topics',
     more: (n: number) => `${n} more`,
+    recordsElsewhere: (n: number) =>
+      `${n} records live in the topics above — reach one by searching, not by scrolling.`,
   },
   overview: {
     title: 'Overview',
@@ -124,6 +125,18 @@ const en = {
   search: {
     title: 'Search',
     summary: (query: string, n: number) => `${query} · ${n} results`,
+    filters: 'Filters',
+    anyLayer: 'Any layer',
+    anyFolder: 'Any folder',
+    anyTag: 'Any tag',
+    from: 'From',
+    to: 'To',
+    clear: 'Clear',
+    more: 'Show more',
+    collapsed: (label: string, hidden: number) => `${label} · ${hidden} more from the same series`,
+    ask: (query: string) => `Search everything for “${query}”`,
+    recent: 'Recently opened',
+    noTitleMatch: 'No title matches — press Enter to search the text',
   },
   stale: {
     header: (n: number) => `⚠ ${n} related notes have piled up since you last touched this`,
@@ -204,10 +217,10 @@ const ko: typeof en = {
   },
   sidebar: {
     state: '지금 믿는 것',
-    past: '기록',
     rule: '지침',
     topics: '주제',
     more: (n) => `${n}개 더 보기`,
+    recordsElsewhere: (n) => `기록 ${n}개는 위 주제 안에 있어 — 훑지 말고 검색으로 가.`,
   },
   overview: {
     title: '개요',
@@ -264,6 +277,18 @@ const ko: typeof en = {
   search: {
     title: '검색',
     summary: (query, n) => `${query} · ${n}건`,
+    filters: '필터',
+    anyLayer: '레이어 전체',
+    anyFolder: '폴더 전체',
+    anyTag: '태그 전체',
+    from: '시작',
+    to: '끝',
+    clear: '지우기',
+    more: '더 보기',
+    collapsed: (label, hidden) => `${label} · 같은 시리즈 ${hidden}건 접힘`,
+    ask: (query) => `“${query}” 전체 검색`,
+    recent: '최근 본 것',
+    noTitleMatch: '제목에 없어 — Enter로 본문까지 찾아',
   },
   stale: {
     header: (n) => `⚠ 이 노트를 마지막으로 손본 뒤 관련 노트 ${n}개가 쌓였어`,

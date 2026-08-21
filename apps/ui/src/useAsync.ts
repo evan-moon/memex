@@ -6,6 +6,7 @@ export const useAsync = <T>(load: () => Promise<T>, key: string) => {
     data: null,
     failure: null,
   });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: key identifies the request
   useEffect(() => {
     let alive = true;
     setState({ data: null, failure: null });
@@ -15,7 +16,6 @@ export const useAsync = <T>(load: () => Promise<T>, key: string) => {
     return () => {
       alive = false;
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: key identifies the request
   }, [key]);
   return state;
 };

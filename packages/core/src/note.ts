@@ -245,6 +245,7 @@ export type Reranker = (query: string, passages: string[]) => Promise<number[]>;
 export type SearchOptions = {
   category?: string;
   tag?: string;
+  layer?: NoteLayer;
   dateFrom?: number;
   dateTo?: number;
   reranker?: Reranker;
@@ -303,19 +304,16 @@ export const searchPage = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, category, tag, dateFrom, dateTo } = options;
+  const { reranker, category, tag, layer, dateFrom, dateTo } = options;
   const embedding = await embedder(query, 'query');
-  const candidates = dbSearchNotes(
-    client,
-    query,
-    embedding,
-    limit,
+  const candidates = dbSearchNotes(client, query, embedding, limit, {
     category,
     tag,
+    layer,
     dateFrom,
     dateTo,
-    fetchSize(limit, options),
-  );
+    rows: fetchSize(limit, options),
+  });
   const ranked = reranker
     ? await applyRerank(reranker, query, candidates, candidates.length)
     : candidates;

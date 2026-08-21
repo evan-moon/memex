@@ -74,10 +74,31 @@ export type Sidebar = {
   stale: number[];
   state: NoteRef[];
   rule: NoteRef[];
-  past: NoteRef[];
 };
 
 export type SearchHit = NoteRef & { snippet: string };
+
+export type SearchFilters = {
+  layer?: string;
+  tag?: string;
+  folder?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+};
+
+export type SearchPage = {
+  results: SearchHit[];
+  collapsed: { key: string; label: string; hidden: number }[];
+  limit: number;
+};
+
+export type NoteTitle = { id: number; title: string; layer: string };
+
+export type Facets = {
+  folders: { name: string; count: number }[];
+  tags: { name: string; count: number }[];
+};
 
 export type DigestNote = NoteRef & { tags: string[] };
 
@@ -132,6 +153,14 @@ const post = <T>(path: string, body?: unknown) =>
     body: JSON.stringify(body ?? {}),
   });
 
+export const searchQuery = (query: string, filters: SearchFilters): string => {
+  const params = new URLSearchParams({ q: query });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  return params.toString();
+};
+
 export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
@@ -139,7 +168,10 @@ export const api = {
   topics: () => request<Topic[]>('/api/topics'),
   topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
-  search: (q: string) => request<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (query: string, filters: SearchFilters = {}) =>
+    request<SearchPage>(`/api/search?${searchQuery(query, filters)}`),
+  titles: () => request<NoteTitle[]>('/api/titles'),
+  facets: () => request<Facets>('/api/facets'),
   draft: (id: number) =>
     post<{
       body: string;

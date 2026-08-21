@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   api,
   type ApiFailure,
+  type Facets,
   type NoteDetail,
-  type SearchHit,
+  type SearchFilters,
+  type SearchPage,
   type Topic,
   type TopicDetail,
 } from './api.ts';
@@ -13,6 +15,7 @@ import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { Spark } from './Spark.tsx';
 import { StalePanel } from './StalePanel.tsx';
+import { rememberVisit } from './recent.ts';
 import { useAsync } from './useAsync.ts';
 
 const Page = ({ children }: { children: React.ReactNode }) => (
@@ -179,6 +182,11 @@ export const NoteScreen = () => {
   const { data, failure } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
   const [edited, setEdited] = useState<NoteDetail | null>(null);
   const note = edited?.id === Number(id) ? edited : data;
+
+  useEffect(() => {
+    if (data) rememberVisit({ id: data.id, title: data.title });
+  }, [data]);
+
   if (!note) return <Pending failure={failure} />;
   const newest = note.supersededBy.at(-1);
   return (
@@ -250,23 +258,158 @@ export const NoteScreen = () => {
   );
 };
 
+const SEARCH_LIMIT = 12;
+
+const filtersFrom = (params: URLSearchParams): SearchFilters => ({
+  layer: params.get('layer') ?? undefined,
+  tag: params.get('tag') ?? undefined,
+  folder: params.get('folder') ?? undefined,
+  from: params.get('from') ?? undefined,
+  to: params.get('to') ?? undefined,
+  limit: Number(params.get('limit') ?? SEARCH_LIMIT),
+});
+
+const Choice = ({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  children: React.ReactNode;
+}) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className="rounded-md border border-line bg-surface px-2 py-1.5 text-xs outline-none focus:border-primary"
+  >
+    {children}
+  </select>
+);
+
+const DateField = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) => (
+  <label className="flex items-center gap-1.5 text-xs text-muted">
+    {label}
+    <input
+      type="date"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-md border border-line bg-surface px-2 py-1.5 text-xs outline-none focus:border-primary"
+    />
+  </label>
+);
+
 export const SearchScreen = () => {
   const t = useT();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
-  const { data, failure } = useAsync<SearchHit[]>(() => api.search(q), q);
-  if (!data) return <Pending failure={failure} />;
+  const filters = filtersFrom(params);
+  const { data, failure } = useAsync<SearchPage>(() => api.search(q, filters), params.toString());
+  const facets = useAsync<Facets>(() => api.facets(), 'facets');
+
+  const replace = (mutate: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(params);
+    mutate(next);
+    setParams(next, { replace: true });
+  };
+
+  const setFilter = (key: string, value: string) =>
+    replace((next) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+      next.delete('limit');
+    });
+
+  const filtered = ['layer', 'tag', 'folder', 'from', 'to'].some((key) => params.get(key));
+
   return (
     <Page>
       <h1 className="text-xl font-semibold tracking-tight">{t.search.title}</h1>
-      <p className="mt-1 text-sm text-muted">{t.search.summary(q, data.length)}</p>
-      <div className="mt-4">
-        {data.length === 0 ? (
-          <div className="text-sm text-muted">{t.common.none}</div>
-        ) : (
-          data.map((hit) => <NoteItem key={hit.id} note={hit} snippet={hit.snippet} />)
-        )}
+      <p className="mt-1 text-sm text-muted">
+        {t.search.summary(q, data?.results.length ?? 0)}
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Choice value={params.get('layer') ?? ''} onChange={(v) => setFilter('layer', v)}>
+          <option value="">{t.search.anyLayer}</option>
+          <option value="state">state</option>
+          <option value="past">past</option>
+          <option value="rule">rule</option>
+        </Choice>
+        <Choice value={params.get('folder') ?? ''} onChange={(v) => setFilter('folder', v)}>
+          <option value="">{t.search.anyFolder}</option>
+          {(facets.data?.folders ?? []).map((folder) => (
+            <option key={folder.name} value={folder.name}>
+              {folder.name} ({folder.count})
+            </option>
+          ))}
+        </Choice>
+        <Choice value={params.get('tag') ?? ''} onChange={(v) => setFilter('tag', v)}>
+          <option value="">{t.search.anyTag}</option>
+          {(facets.data?.tags ?? []).map((tag) => (
+            <option key={tag.name} value={tag.name}>
+              {tag.name} ({tag.count})
+            </option>
+          ))}
+        </Choice>
+        <DateField
+          label={t.search.from}
+          value={params.get('from') ?? ''}
+          onChange={(v) => setFilter('from', v)}
+        />
+        <DateField
+          label={t.search.to}
+          value={params.get('to') ?? ''}
+          onChange={(v) => setFilter('to', v)}
+        />
+        {filtered ? (
+          <button
+            type="button"
+            onClick={() => replace((next) => ['layer', 'tag', 'folder', 'from', 'to', 'limit'].forEach((key) => next.delete(key)))}
+            className="rounded-md px-2 py-1.5 text-xs text-muted hover:bg-surface"
+          >
+            {t.search.clear}
+          </button>
+        ) : null}
       </div>
+
+      {data ? (
+        <div className="mt-4">
+          {data.results.length === 0 ? (
+            <div className="text-sm text-muted">{t.common.none}</div>
+          ) : (
+            data.results.map((hit) => (
+              <NoteItem key={hit.id} note={hit} snippet={hit.snippet} />
+            ))
+          )}
+          {data.collapsed.map((series) => (
+            <p key={series.key} className="mt-2 text-xs text-muted">
+              {t.search.collapsed(series.label, series.hidden)}
+            </p>
+          ))}
+          {data.results.length >= data.limit ? (
+            <button
+              type="button"
+              onClick={() => replace((next) => next.set('limit', String(data.limit + SEARCH_LIMIT)))}
+              className="mt-4 rounded-md border border-line px-3 py-1.5 text-xs hover:bg-surface-muted"
+            >
+              {t.search.more}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted">
+          {failure ? t.error(failure) : t.common.loading}
+        </p>
+      )}
     </Page>
   );
 };

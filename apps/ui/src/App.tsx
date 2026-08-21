@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { api, type Overview as OverviewData, type Sidebar as SidebarData, type Topic } from './api.ts';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { useLocale } from './i18n.ts';
+import { Palette } from './Palette.tsx';
 import { Overview } from './Overview.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
@@ -17,7 +18,7 @@ export const App = () => {
   const [sidebar, setSidebar] = useState<SidebarData | null>(null);
   const [topics, setTopics] = useState<Topic[] | null>(null);
   const [overview, setOverview] = useState<OverviewData | null>(null);
-  const [query, setQuery] = useState('');
+  const [palette, setPalette] = useState(false);
   const [drawer, setDrawer] = useState(false);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export const App = () => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        document.getElementById('q')?.focus();
+        setPalette(true);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -65,6 +66,8 @@ export const App = () => {
         </div>
       ) : null}
 
+      <Palette open={palette} onClose={() => setPalette(false)} />
+
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-line px-3 py-2 sm:px-5">
           <button
@@ -83,27 +86,14 @@ export const App = () => {
           >
             <LayoutDashboard size={16} />
           </button>
-          <form
-            className="relative min-w-0 flex-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const v = query.trim();
-              navigate(v.length === 0 ? '/topics' : `/search?q=${encodeURIComponent(v)}`);
-            }}
+          <button
+            type="button"
+            onClick={() => setPalette(true)}
+            className="flex min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-line bg-surface py-2 pl-3 pr-3 text-left text-sm text-muted hover:border-line-strong"
           >
-            <Search
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-            />
-            <input
-              id="q"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t.app.searchPlaceholder}
-              autoComplete="off"
-              className="w-full max-w-lg rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-primary"
-            />
-          </form>
+            <Search size={14} className="shrink-0" />
+            <span className="truncate">{t.app.searchPlaceholder}</span>
+          </button>
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-md p-2 text-xs text-muted hover:bg-surface"

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '@memex/db';
 import { afterAll, describe, expect, it } from 'vitest';
-import { bodyOf, listByLayer, recompose } from './notes.ts';
+import { bodyOf, listByLayer, noteTitles, recompose, searchFacets } from './notes.ts';
 
 describe('bodyOf', () => {
   it('drops the frontmatter block', () => {
@@ -131,5 +131,41 @@ describe('listByLayer', () => {
 
   it('orders past notes by when they happened, not by a later edit', () => {
     expect(listByLayer(client, 'past').map((n) => n.id)).toEqual([3, 4]);
+  });
+});
+
+describe('noteTitles and searchFacets', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'memex-facets-'));
+  const client = openDb(dir);
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  const day = (d: string) => Date.parse(`${d}T00:00:00Z`);
+  const insert = client.sqlite.prepare(
+    `INSERT INTO notes (id, title, content, category, tags, layer, file_path,
+                        created_at, updated_at, authored_at, source)
+     VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?, 'manual')`,
+  );
+
+  insert.run(1, 'older', 'projects', '["memex","mcp"]', 'state', '/a.md', 1, 1, day('2026-01-01'));
+  insert.run(2, 'newer', 'projects', '["memex"]', 'past', '/b.md', 2, 2, day('2026-06-01'));
+  insert.run(3, 'loose', null, '["writing"]', 'past', '/c.md', 3, 3, day('2026-03-01'));
+
+  it('hands the palette newest first, and nothing it will not use', () => {
+    expect(noteTitles(client, 10)).toEqual([
+      { id: 2, title: 'newer', layer: 'past' },
+      { id: 3, title: 'loose', layer: 'past' },
+      { id: 1, title: 'older', layer: 'state' },
+    ]);
+  });
+
+  it('stops at the limit it was given', () => {
+    expect(noteTitles(client, 1).map((n) => n.id)).toEqual([2]);
+  });
+
+  it('offers folders and tags by how much of the vault they cover', () => {
+    const facets = searchFacets(client);
+    expect(facets.folders).toEqual([{ name: 'projects', count: 2 }]);
+    expect(facets.tags[0]).toEqual({ name: 'memex', count: 2 });
+    expect(facets.tags.map((t) => t.name)).toContain('writing');
   });
 });

@@ -236,3 +236,38 @@ export const staleStateIds = (client: MemexClient): number[] => {
     ),
   ];
 };
+
+export type NoteTitle = { id: number; title: string; layer: string };
+
+// The palette matches on titles alone, so it ships titles alone — the sidebar
+// used to hand over every note in full for the same job.
+export const noteTitles = (client: MemexClient, limit: number): NoteTitle[] =>
+  client.sqlite
+    .prepare(
+      `SELECT id, title, layer FROM notes
+       ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
+    )
+    .all(limit) as NoteTitle[];
+
+export type SearchFacets = {
+  folders: { name: string; count: number }[];
+  tags: { name: string; count: number }[];
+};
+
+const FACET_TAGS = 60;
+
+export const searchFacets = (client: MemexClient): SearchFacets => ({
+  folders: client.sqlite
+    .prepare(
+      `SELECT category AS name, COUNT(*) AS count FROM notes
+       WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC`,
+    )
+    .all() as { name: string; count: number }[],
+  tags: client.sqlite
+    .prepare(
+      `SELECT j.value AS name, COUNT(*) AS count
+       FROM notes n, json_each(n.tags) j
+       GROUP BY j.value ORDER BY count DESC LIMIT ?`,
+    )
+    .all(FACET_TAGS) as { name: string; count: number }[],
+});

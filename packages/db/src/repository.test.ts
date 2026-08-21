@@ -501,6 +501,33 @@ describe('searchNotes — substring and link-expansion arms', () => {
 
   const fakeEmbedding = new Array(768).fill(0.1);
 
+  it('narrows to one layer when asked, across every arm', () => {
+    const believed = insertNote(client, {
+      title: 'auth approach',
+      content: 'we use JWT',
+      filePath: join(dbDir, 'state.md'),
+      source: 'manual',
+      layer: 'state',
+      tags: serializeTags(['auth']),
+    });
+    const recorded = insertNote(client, {
+      title: 'auth approach retro',
+      content: 'we use JWT',
+      filePath: join(dbDir, 'past.md'),
+      source: 'manual',
+      layer: 'past',
+      tags: serializeTags(['auth']),
+    });
+    saveEmbedding(client, believed.id, fakeEmbedding);
+    saveEmbedding(client, recorded.id, fakeEmbedding);
+
+    const found = searchNotes(client, 'auth', fakeEmbedding, 10, { layer: 'state' }).map(
+      (r) => r.id,
+    );
+    expect(found).toContain(believed.id);
+    expect(found).not.toContain(recorded.id);
+  });
+
   it('matches inside agglutinated Korean words (substring arm)', () => {
     const note = insertNote(client, {
       title: '어제 한 일',
@@ -619,29 +646,16 @@ describe('searchNotes date filters', () => {
     saveEmbedding(client, importedOld.id, fakeEmbedding);
     saveEmbedding(client, freshNote.id, fakeEmbedding);
 
-    const oldWindow = searchNotes(
-      client,
-      'april retro',
-      fakeEmbedding,
-      10,
-      undefined,
-      undefined,
-      now - 110 * DAY,
-      now - 90 * DAY,
-    );
+    const oldWindow = searchNotes(client, 'april retro', fakeEmbedding, 10, {
+      dateFrom: now - 110 * DAY,
+      dateTo: now - 90 * DAY,
+    });
     expect(oldWindow.map((r) => r.id)).toContain(importedOld.id);
     expect(oldWindow.map((r) => r.id)).not.toContain(freshNote.id);
 
-    const recentWindow = searchNotes(
-      client,
-      'april retro',
-      fakeEmbedding,
-      10,
-      undefined,
-      undefined,
-      now - 1 * DAY,
-      undefined,
-    );
+    const recentWindow = searchNotes(client, 'april retro', fakeEmbedding, 10, {
+      dateFrom: now - 1 * DAY,
+    });
     expect(recentWindow.map((r) => r.id)).toContain(freshNote.id);
     expect(recentWindow.map((r) => r.id)).not.toContain(importedOld.id);
   });

@@ -93,23 +93,29 @@ export const Sidebar = ({
           memex
         </NavLink>
       </div>
+      <Section label={t.sidebar.topics} count={topics.length} defaultOpen>
+        {topics.map((topic) => (
+          <NavLink
+            key={topic.tag}
+            to={`/topic/${encodeURIComponent(topic.tag)}`}
+            className={linkClass}
+          >
+            <span className="truncate">{topic.tag}</span>
+            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted">
+              {topic.count}
+            </span>
+          </NavLink>
+        ))}
+      </Section>
       <Section label={t.sidebar.state} count={data.counts.state ?? 0} defaultOpen>
         <NoteRows list={data.state} stale={stale} />
-      </Section>
-      <Section label={t.sidebar.past} count={data.counts.past ?? 0}>
-        <NoteRows list={data.past} stale={stale} />
       </Section>
       <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
         <NoteRows list={data.rule} stale={stale} />
       </Section>
-      <Section label={t.sidebar.topics} count={topics.length} defaultOpen>
-        {topics.map((t) => (
-          <NavLink key={t.tag} to={`/topic/${encodeURIComponent(t.tag)}`} className={linkClass}>
-            <span className="truncate">{t.tag}</span>
-            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted">{t.count}</span>
-          </NavLink>
-        ))}
-      </Section>
+      <p className="mt-3 px-4 text-[11px] leading-5 text-muted">
+        {t.sidebar.recordsElsewhere(data.counts.past ?? 0)}
+      </p>
     </nav>
   );
 };

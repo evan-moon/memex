@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from 'node:http';
-import { editNote, isEditRejection, semanticSearch } from '@memex/core';
+import { editNote, isEditRejection, type SearchOptions, searchPage } from '@memex/core';
 import {
   getAmendmentsFor,
   getNote,
@@ -9,7 +9,16 @@ import {
 } from '@memex/db';
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
-import { bodyOf, layerCounts, listByLayer, noteDetail, recompose, staleStateIds } from './notes.ts';
+import {
+  bodyOf,
+  layerCounts,
+  listByLayer,
+  noteDetail,
+  noteTitles,
+  recompose,
+  searchFacets,
+  staleStateIds,
+} from './notes.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
 import type { NoteStatus } from './status.ts';
@@ -18,6 +27,38 @@ import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
 const DIGEST_DAYS = 7;
+const SEARCH_LIMIT = 12;
+const SEARCH_LIMIT_MAX = 60;
+const TITLE_LIMIT = 5000;
+
+const LAYERS = ['past', 'state', 'rule'] as const;
+
+type Layer = (typeof LAYERS)[number];
+
+const isLayer = (value: string | null): value is Layer =>
+  value !== null && LAYERS.some((layer) => layer === value);
+
+const day = (value: string | null): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+const clamp = (value: string | null, fallback: number, max: number): number => {
+  const asked = Number(value ?? fallback);
+  return Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), max) : fallback;
+};
+
+const filtersFrom = (params: URLSearchParams): SearchOptions => {
+  const layer = params.get('layer');
+  return {
+    category: params.get('folder') ?? undefined,
+    tag: params.get('tag') ?? undefined,
+    layer: isLayer(layer) ? layer : undefined,
+    dateFrom: day(params.get('from')),
+    dateTo: day(params.get('to')),
+  };
+};
 
 type Reply = { status: number; headers: Record<string, string>; body: string };
 
@@ -53,20 +94,31 @@ export type UiDeps = {
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
   amendment ? { kind: 'amended', by: { id: amendment.id, title: amendment.title } } : null;
 
-const search = async ({ client, embedder }: UiDeps, query: string) => {
-  const hits = await semanticSearch(client, embedder, query, 12);
+const search = async ({ client, embedder }: UiDeps, params: URLSearchParams) => {
+  const limit = clamp(params.get('limit'), SEARCH_LIMIT, SEARCH_LIMIT_MAX);
+  const page = await searchPage(
+    client,
+    embedder,
+    params.get('q') ?? '',
+    limit,
+    filtersFrom(params),
+  );
   const amendments = getAmendmentsFor(
     client,
-    hits.map((h) => h.id),
+    page.results.map((h) => h.id),
   );
-  return hits.map((h) => ({
-    id: h.id,
-    title: h.title,
-    layer: h.layer,
-    at: h.authoredAt ?? h.createdAt,
-    snippet: (h.matchSnippet ?? h.content).replace(/\s+/g, ' ').slice(0, 240),
-    status: statusOf(amendments.get(h.id)?.at(-1)),
-  }));
+  return {
+    results: page.results.map((h) => ({
+      id: h.id,
+      title: h.title,
+      layer: h.layer,
+      at: h.authoredAt ?? h.createdAt,
+      snippet: (h.matchSnippet ?? h.content).replace(/\s+/g, ' ').slice(0, 240),
+      status: statusOf(amendments.get(h.id)?.at(-1)),
+    })),
+    collapsed: page.collapsed,
+    limit,
+  };
 };
 
 // The notes a stale_state signal says have piled up since this one was last
@@ -97,7 +149,6 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
       stale: staleStateIds(client),
       state: listByLayer(client, 'state'),
       rule: listByLayer(client, 'rule'),
-      past: listByLayer(client, 'past'),
     });
   }
   if (method === 'GET' && url.pathname === '/api/digest') {
@@ -124,7 +175,15 @@ const route = async (deps: UiDeps, method: string, url: URL, payload: unknown): 
   }
   if (method === 'GET' && url.pathname === '/api/search') {
     const q = url.searchParams.get('q') ?? '';
-    return q.trim().length === 0 ? json([]) : json(await search(deps, q));
+    return q.trim().length === 0
+      ? json({ results: [], collapsed: [], limit: SEARCH_LIMIT })
+      : json(await search(deps, url.searchParams));
+  }
+  if (method === 'GET' && url.pathname === '/api/titles') {
+    return json(noteTitles(client, TITLE_LIMIT));
+  }
+  if (method === 'GET' && url.pathname === '/api/facets') {
+    return json(searchFacets(client));
   }
   if (method === 'POST' && url.pathname.startsWith('/api/draft/')) {
     const id = Number(url.pathname.split('/').pop());
