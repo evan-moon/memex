@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb } from '@memex/db';
 import { afterAll, describe, expect, it } from 'vitest';
-import { bodyOf, listByLayer, noteTitles, recompose, searchFacets } from './notes.ts';
+import {
+  bodyOf,
+  listByLayer,
+  noteTitles,
+  plainSnippet,
+  recompose,
+  searchFacets,
+} from './notes.ts';
 
 describe('bodyOf', () => {
   it('drops the frontmatter block', () => {
@@ -167,5 +174,27 @@ describe('noteTitles and searchFacets', () => {
     expect(facets.folders).toEqual([{ name: 'projects', count: 2 }]);
     expect(facets.tags[0]).toEqual({ name: 'memex', count: 2 });
     expect(facets.tags.map((t) => t.name)).toContain('writing');
+  });
+});
+
+describe('plainSnippet', () => {
+  it('drops a frontmatter block the search window opened inside', () => {
+    const raw =
+      '--- title: Opula 유료화 전략 date: 2026-06-25 tags: [opula, monetization] --- 본문이 여기서 시작해';
+    expect(plainSnippet(raw)).toBe('본문이 여기서 시작해');
+  });
+
+  it('keeps the sentence and drops the list marker in front of it', () => {
+    expect(plainSnippet('- cosmetic: DB 로그인 역할 `firma_runtime`')).toBe(
+      'cosmetic: DB 로그인 역할 firma_runtime',
+    );
+  });
+
+  it('leaves ordinary prose alone apart from its whitespace', () => {
+    expect(plainSnippet('  두 문장이   있다. 그리고 또 하나.  ')).toBe('두 문장이 있다. 그리고 또 하나.');
+  });
+
+  it('does not eat a colon that belongs to the sentence', () => {
+    expect(plainSnippet('결론: 이렇게 하기로 했다')).toBe('결론: 이렇게 하기로 했다');
   });
 });

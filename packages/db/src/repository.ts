@@ -539,6 +539,26 @@ export const findUnresolvedLinks = (client: MemexClient, content: string): strin
   return targets.filter((target) => !resolved.has(target));
 };
 
+// Counted rather than remembered: a signal row records that a link was dead
+// when detection last ran, and detection is skipped while nothing changes. The
+// index is built once here and every note checked against it, so the number a
+// screen shows always matches what opening the note would show.
+export const unresolvedLinksByNote = (client: MemexClient): Map<number, string[]> => {
+  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
+    id: number;
+    content: string;
+  }[];
+  const resolved = resolveLinkTargets(
+    client,
+    notes.flatMap((note) => linkTargets(note.content)),
+  );
+
+  return notes.reduce((acc, note) => {
+    const dead = linkTargets(note.content).filter((target) => !resolved.has(target));
+    return dead.length === 0 ? acc : acc.set(note.id, dead);
+  }, new Map<number, string[]>());
+};
+
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
   client.sqlite
     .prepare(

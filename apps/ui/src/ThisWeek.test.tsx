@@ -33,7 +33,6 @@ describe('ThisWeekBlocks', () => {
   it('says a quiet week is quiet instead of showing an empty frame', () => {
     const html = render();
     expect(html).toContain(t.thisWeek.arrivedNone);
-    expect(html).toContain(t.thisWeek.allClear);
     expect(html).toContain(t.thisWeek.connectionNone);
   });
 
@@ -53,13 +52,6 @@ describe('ThisWeekBlocks', () => {
     expect(html).toContain(t.thisWeek.spread(2, 1));
     expect(html.indexOf('newer note')).toBeLessThan(html.indexOf('older note'));
     expect(html).toContain('/note/2');
-  });
-
-  it('names what to fix and how much piled up behind it', () => {
-    const html = render({ attention: [{ id: 9, title: 'the plan', count: 4 }] });
-    expect(html).toContain('the plan');
-    expect(html).toContain(t.thisWeek.piledUp(4));
-    expect(html).not.toContain(t.thisWeek.allClear);
   });
 
   it('shows both ends of a connection and the gap between them', () => {

@@ -159,6 +159,29 @@ const folderOf = (filePath: string, vaultPath: string): string | null => {
   return rel && !rel.startsWith('..') ? rel : null;
 };
 
+const FRONTMATTER_KEYS = /^(---|(?:title|date|tags|layer|aliases|categories|source)\s*:)/i;
+
+// An FTS snippet is a window of a dozen tokens wherever the match landed, and
+// the index holds the file as written — so a match near the top comes back as
+// `--- title: ... tags: [...] --- the actual sentence`. Only a window that
+// opens inside the frontmatter is cut, so a `---` rule in the middle of a note
+// keeps the prose in front of it.
+const dropFrontmatter = (text: string): string => {
+  const trimmed = text.trimStart();
+  if (!FRONTMATTER_KEYS.test(trimmed)) return text;
+  const close = trimmed.indexOf('---', trimmed.startsWith('---') ? 3 : 0);
+  return close === -1 ? trimmed : trimmed.slice(close + 3);
+};
+
+export const plainSnippet = (text: string): string =>
+  dropFrontmatter(text)
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s*/gm, '')
+    .replace(/[`*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export const noteDetail = (
   client: MemexClient,
   id: number,

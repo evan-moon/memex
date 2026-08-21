@@ -23,10 +23,12 @@ import {
   listByLayer,
   noteDetail,
   noteTitles,
+  plainSnippet,
   recompose,
   searchFacets,
   staleStateIds,
 } from './notes.ts';
+import { buildChores } from './chores.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
 import type { NoteStatus } from './status.ts';
@@ -140,7 +142,7 @@ const search = async ({ client, embedder }: UiDeps, params: URLSearchParams) => 
       title: h.title,
       layer: h.layer,
       at: h.authoredAt ?? h.createdAt,
-      snippet: (h.matchSnippet ?? h.content).replace(/\s+/g, ' ').slice(0, 240),
+      snippet: plainSnippet(h.matchSnippet ?? bodyOf(h.content, h.title)).slice(0, 240),
       status: statusOf(amendments.get(h.id)?.at(-1)),
     })),
     collapsed: page.collapsed,
@@ -189,6 +191,9 @@ export const route = async (
       ? Math.min(Math.max(Math.trunc(asked), 1), 365)
       : DIGEST_DAYS;
     return json(buildDigest(client, { days }));
+  }
+  if (method === 'GET' && url.pathname === '/api/chores') {
+    return json(buildChores(client, vaultPath));
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
     return json(buildOverview(client));

@@ -18,6 +18,7 @@ export type Overview = {
     share: number;
     spark: number[];
     lastAt: number;
+    dormant: boolean;
   }[];
 };
 
@@ -63,6 +64,9 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
     changed: topics.reduce((acc, t) => acc + t.changedCount, 0),
     review: topics.reduce((acc, t) => acc + t.reviewCount, 0),
     activity: activity(client, 90, now),
+    // A topic nobody has touched in a season is not rotting, it is finished.
+    // Sorting by share alone put those at the top and buried the subjects that
+    // are still moving while going out of date underneath them.
     staleness: topics
       .map((t) => ({
         tag: t.tag,
@@ -74,8 +78,14 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
             : (t.changedCount + t.reviewCount) / (t.currentCount + t.changedCount + t.reviewCount),
         spark: t.spark,
         lastAt: t.lastAt,
+        dormant: t.dormant,
       }))
-      .sort((a, b) => b.share - a.share || b.outdated - a.outdated)
+      .sort(
+        (a, b) =>
+          Number(a.dormant) - Number(b.dormant) ||
+          b.outdated - a.outdated ||
+          b.share - a.share,
+      )
       .slice(0, 12),
   };
 };

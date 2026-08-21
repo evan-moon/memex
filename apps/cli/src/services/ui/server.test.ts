@@ -105,6 +105,39 @@ describe('GET /api/note/:id', () => {
   });
 });
 
+describe('GET /api/chores', () => {
+  const chores = async () =>
+    JSON.parse(
+      (await route(deps, 'GET', new URL('/api/chores', 'http://localhost'), null)).body,
+    );
+
+  it('reports nothing waiting on an empty vault', async () => {
+    const c = await chores();
+    expect(c.staleNotes.total).toBe(0);
+    expect(c.deadLinks.total).toBe(0);
+    expect(c.looseTags.total).toBe(0);
+  });
+
+  it('counts dead links as they are now, not as detection last remembered them', async () => {
+    addNote('Round-2/3 통과', 'past');
+    addNote('a', 'past', 'see [[Round-2／3 통과]] and [[nobody wrote this]]\n');
+
+    const c = await chores();
+    expect(c.deadLinks).toMatchObject({ total: 1, notes: 1 });
+    expect(c.deadLinks.top[0].targets).toEqual(['nobody wrote this']);
+  });
+
+  it('counts a tag used once, and says how many it may not touch', async () => {
+    const note = addNote('a', 'past');
+    client.sqlite
+      .prepare('UPDATE notes SET tags = ? WHERE id = ?')
+      .run(JSON.stringify(['once']), note.id);
+
+    const c = await chores();
+    expect(c.looseTags).toMatchObject({ total: 1, all: 1 });
+  });
+});
+
 describe('POST /api/tags/rename', () => {
   const tagsOf = (id: number) =>
     JSON.parse(

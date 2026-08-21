@@ -44,6 +44,7 @@ export {
   findRelatedNotes,
   findSimilarByEmbedding,
   findUnresolvedLinks,
+  unresolvedLinksByNote,
   getAmendments,
   getAmendmentsFor,
   getBacklinks,

@@ -133,6 +133,17 @@ export type RenameResult = {
 
 export type TagRow = { tag: string; notes: number; mine: number };
 
+export type Chores = {
+  staleNotes: { total: number; top: { id: number; title: string; count: number }[] };
+  deadLinks: {
+    total: number;
+    notes: number;
+    top: { id: number; title: string; targets: string[] }[];
+  };
+  tagMerges: { total: number; top: { keep: string; drop: string[] }[] };
+  looseTags: { total: number; all: number; top: string[] };
+};
+
 export type Facets = {
   folders: { name: string; count: number }[];
   tags: { name: string; count: number }[];
@@ -212,6 +223,7 @@ export const api = {
   facets: () => request<Facets>('/api/facets'),
   tagMerges: () => request<MergeCandidate[]>('/api/tag-merges'),
   tags: () => request<TagRow[]>('/api/tags'),
+  chores: () => request<Chores>('/api/chores'),
   deleteTags: (tags: string[]) => post<RenameResult>('/api/tags/delete', { tags }),
   renameTags: (from: string[], to: string) => post<RenameResult>('/api/tags/rename', { from, to }),
   draft: (id: number) =>

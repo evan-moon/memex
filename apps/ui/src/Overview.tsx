@@ -11,6 +11,7 @@ import {
 import type { Overview as Data } from './api.ts';
 import { ago } from './bits.tsx';
 import { useT } from './i18n.ts';
+import { Chores } from './Chores.tsx';
 import { Spark } from './Spark.tsx';
 import { ThisWeek } from './ThisWeek.tsx';
 
@@ -31,6 +32,8 @@ export const Overview = ({ data }: { data: Data }) => {
     <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
       <h1 className="text-xl font-semibold tracking-tight">{t.overview.title}</h1>
       <p className="mt-1 text-sm text-muted">{t.overview.subtitle}</p>
+
+      <Chores />
 
       <ThisWeek />
 

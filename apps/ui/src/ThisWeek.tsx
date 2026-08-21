@@ -1,4 +1,3 @@
-import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Digest } from './api.ts';
@@ -45,35 +44,6 @@ const Arrived = ({ digest }: { digest: Digest }) => {
   );
 };
 
-const ToFix = ({ digest }: { digest: Digest }) => {
-  const t = useT();
-  if (digest.attention.length === 0) {
-    return (
-      <p className="flex items-start gap-1.5 text-xs leading-6 text-muted">
-        <CircleCheck size={13} className="mt-1 shrink-0" style={{ color: 'var(--positive)' }} />
-        {t.thisWeek.allClear}
-      </p>
-    );
-  }
-  return (
-    <ul className="flex flex-col gap-1.5">
-      {digest.attention.map((note) => (
-        <li key={note.id} className="text-xs">
-          <span className="flex items-start gap-1.5">
-            <TriangleAlert size={13} className="mt-0.5 shrink-0" style={{ color: 'var(--caution)' }} />
-            <Link to={`/note/${note.id}`} className="min-w-0 truncate text-primary hover:underline">
-              {note.title}
-            </Link>
-          </span>
-          <span className="ml-[19px] block text-[11px] text-muted">
-            {t.thisWeek.piledUp(note.count)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-};
-
 const Connection = ({ digest }: { digest: Digest }) => {
   const t = useT();
   const { connection } = digest;
@@ -95,12 +65,9 @@ const Connection = ({ digest }: { digest: Digest }) => {
 export const ThisWeekBlocks = ({ digest }: { digest: Digest }) => {
   const t = useT();
   return (
-    <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mt-4 grid gap-5 sm:grid-cols-2">
       <Block title={t.thisWeek.arrived}>
         <Arrived digest={digest} />
-      </Block>
-      <Block title={t.thisWeek.toFix}>
-        <ToFix digest={digest} />
       </Block>
       <Block title={t.thisWeek.connection}>
         <Connection digest={digest} />
