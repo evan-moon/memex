@@ -403,10 +403,10 @@ export const detectHiddenArcs = (
   for (const { id } of embedded) parent.set(id, id);
   const find = (x: number): number => {
     let root = x;
-    while (parent.get(root) !== root) root = parent.get(root)!;
+    while (parent.get(root) !== root) root = parent.get(root) ?? root;
     let cur = x;
     while (parent.get(cur) !== root) {
-      const next = parent.get(cur)!;
+      const next = parent.get(cur) ?? cur;
       parent.set(cur, root);
       cur = next;
     }

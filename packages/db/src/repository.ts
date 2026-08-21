@@ -164,13 +164,16 @@ const buildRrf = () => {
 
   const topK = (k: number, now: number = Date.now()): SearchResult[] =>
     [...scores.entries()]
-      .map(([id, score]) => [id, score * stateRecencyFactor(cache.get(id)!, now)] as const)
-      .sort((a, b) => b[1] - a[1])
+      .flatMap(([id, score]) => {
+        const candidate = cache.get(id);
+        return candidate ? [{ candidate, ranked: score * stateRecencyFactor(candidate, now) }] : [];
+      })
+      .sort((a, b) => b.ranked - a.ranked)
       .slice(0, k)
-      .map(([id]) => {
-        const candidate = cache.get(id)!;
-        return { ...candidate, distance: candidate.distance ?? Number.POSITIVE_INFINITY };
-      });
+      .map(({ candidate }) => ({
+        ...candidate,
+        distance: candidate.distance ?? Number.POSITIVE_INFINITY,
+      }));
 
   // Seeds for link-expansion use the un-adjusted RRF order (relevance-pure).
   const topIds = (k: number): number[] =>

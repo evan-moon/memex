@@ -171,7 +171,9 @@ export const mintInference = (client: MemexClient, input: MintInferenceInput): I
   });
 
   const id = tx();
-  return getInference(client, id)!.inference;
+  const minted = getInference(client, id);
+  if (!minted) throw new Error(`inference #${id} vanished between its write and its read-back`);
+  return minted.inference;
 };
 
 export const getInference = (
