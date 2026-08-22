@@ -161,10 +161,6 @@ export const HypothesisBody = ({
             {t.hypothesis.archive}
           </Button>
         </div>
-        <p className="mt-2 text-xs text-muted">
-          {reading ? t.hypothesis.redraftHint : t.hypothesis.promoteHint}
-        </p>
-
         {proposal ? (
           <div className="mt-4 rounded-card border border-line bg-background p-3">
             <div className="text-xs font-semibold text-muted">{t.hypothesis.proposed}</div>

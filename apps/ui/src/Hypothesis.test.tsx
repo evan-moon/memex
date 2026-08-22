@@ -103,7 +103,7 @@ describe('HypothesisBody', () => {
   it('always offers to make it a note, and says what that means', () => {
     const html = render(<HypothesisBody detail={detail()} onChanged={() => undefined} />);
     expect(html).toContain(t.hypothesis.promote);
-    expect(html).toContain(t.hypothesis.promoteHint);
+    expect(html).toContain(t.hypothesis.archive);
   });
 
   it('keeps what the model was given behind a click', () => {
