@@ -10,47 +10,58 @@ const Page = ({ children }: { children: React.ReactNode }) => (
   <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
 );
 
+const RAIL = 20;
+const DOT = 10;
+
 const Dot = ({ muted }: { muted?: boolean }) => (
   <span
-    className="absolute -left-[5px] top-[7px] h-[9px] w-[9px] rounded-full border-2"
+    className="absolute rounded-full border-2"
     style={{
+      left: -(RAIL + DOT / 2),
+      top: 6,
+      width: DOT,
+      height: DOT,
       background: muted ? 'var(--background)' : 'var(--primary)',
       borderColor: muted ? 'var(--border-accent)' : 'var(--primary)',
     }}
   />
 );
 
-const Line = ({ line, muted = false }: { line: ThreadLine; muted?: boolean }) => {
+export const ThreadTimeline = ({ line, muted = false }: { line: ThreadLine; muted?: boolean }) => {
   const t = useT();
   return (
-    <ol className="ml-[5px] border-l border-line pl-5">
+    <ol className="border-l border-line" style={{ paddingLeft: RAIL }}>
       {line.steps.map((step, i) => (
-        <li key={step.id} className="relative pb-5 last:pb-0">
+        <li key={step.id} className="relative pb-6 last:pb-0">
           <Dot muted={muted} />
-          <Link
-            to={`/note/${step.id}`}
-            className={`block text-sm leading-snug hover:underline ${muted ? 'text-muted' : 'text-foreground'}`}
-          >
-            {step.title}
-          </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
-            <span className="tabular-nums">{day(step.at)}</span>
-            {!muted && i === line.steps.length - 1 && line.branches.length === 0 ? (
-              <span>{t.threads.latest}</span>
-            ) : null}
+          <div className="flex items-baseline gap-2">
+            <Link
+              to={`/note/${step.id}`}
+              className="shrink-0 text-[11px] tabular-nums text-muted hover:underline"
+            >
+              #{step.id}
+            </Link>
+            <Link
+              to={`/note/${step.id}`}
+              className={`min-w-0 flex-1 text-sm leading-snug hover:underline ${muted ? 'text-muted' : 'text-foreground'}`}
+            >
+              {step.title}
+            </Link>
+            <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(step.at)}</span>
           </div>
+          {!muted && i === line.steps.length - 1 ? (
+            <div className="mt-1 text-[11px] text-muted">{t.threads.latest}</div>
+          ) : null}
           {line.branches
             .filter((branch) => branch.after === i)
             .map((branch) => (
               <div key={branch.line.steps[0]?.id} className="mt-4">
-                <div className="text-[11px] text-muted">
-                  {t.threads.alsoWent}
-                  <span className="ml-2 tabular-nums">
-                    {t.threads.steps(lengthOf(branch.line))}
-                  </span>
+                <div className="flex items-baseline gap-2 text-[11px] text-muted">
+                  <span>{t.threads.alsoWent}</span>
+                  <span className="tabular-nums">{t.threads.steps(lengthOf(branch.line))}</span>
                 </div>
-                <div className="mt-2">
-                  <Line line={branch.line} muted />
+                <div className="mt-3">
+                  <ThreadTimeline line={branch.line} muted />
                 </div>
               </div>
             ))}
@@ -131,12 +142,17 @@ export const ThreadsScreen = () => {
               <div className="flex gap-4">
                 <ThreadShape root={thread.root} />
                 <div className="min-w-0 flex-1">
-                  <Link
-                    to={`/thread/${thread.rootId}`}
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    {thread.title}
-                  </Link>
+                  <div className="flex items-baseline gap-2">
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted">
+                      #{thread.rootId}
+                    </span>
+                    <Link
+                      to={`/thread/${thread.rootId}`}
+                      className="min-w-0 flex-1 text-sm font-medium text-primary hover:underline"
+                    >
+                      {thread.title}
+                    </Link>
+                  </div>
                   <div className="mt-2">
                     <Facts thread={thread} />
                   </div>
@@ -189,7 +205,7 @@ export const ThreadScreen = () => {
       </div>
       <Card className="mt-6">
         <div className="mb-3 text-[11px] text-muted">{t.threads.startsHere}</div>
-        <Line line={straighten(data.root)} />
+        <ThreadTimeline line={straighten(data.root)} />
       </Card>
     </Page>
   );
