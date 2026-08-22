@@ -6,6 +6,7 @@ import type { Command } from 'commander';
 import pc from 'picocolors';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 import { startUiServer } from '../services/ui/server.ts';
+import { createShapeFiller } from '../services/ui/shapes.ts';
 
 export const registerUi = (program: Command) => {
   program
@@ -23,7 +24,11 @@ export const registerUi = (program: Command) => {
       const embedder = createLazyEmbedder(MODEL_CACHE_DIR);
 
       try {
-        const url = await startUiServer({ client, embedder, vaultPath }, Number(opts.port));
+        const shapes = createShapeFiller({ client });
+        const url = await startUiServer(
+          { client, embedder, vaultPath, fillShapes: shapes.fill },
+          Number(opts.port),
+        );
         console.log(`${pc.green('✓')} memex at ${pc.bold(url)}  ${pc.dim('(ctrl-c to stop)')}`);
         if (opts.open) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
       } catch (err) {

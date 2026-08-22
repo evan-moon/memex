@@ -6,6 +6,7 @@ export {
   type NoteShapeKind,
   overClaimCeiling,
   setNoteShape,
+  shapedNoteIds,
 } from './claims.ts';
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';

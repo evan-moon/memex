@@ -94,17 +94,26 @@ export const getNoteShape = (client: MemexClient, noteId: number): NoteShape | n
   };
 };
 
+type FreshRow = { noteId: number; kind: NoteShapeKind };
+
 // A stale classification is not a verdict, so a note whose body moved since it
-// was read goes back in the queue rather than staying silently excluded.
-export const indexTypeNoteIds = (client: MemexClient): number[] =>
+// was read is treated as unread rather than kept on an old answer.
+const freshShapes = (client: MemexClient): FreshRow[] =>
   (
     client.sqlite
       .prepare(
-        `SELECT s.note_id AS noteId, s.source_hash AS sourceHash, n.content
-         FROM note_shape s JOIN notes n ON n.id = s.note_id
-         WHERE s.kind = 'index'`,
+        `SELECT s.note_id AS noteId, s.kind, s.source_hash AS sourceHash, n.content
+         FROM note_shape s JOIN notes n ON n.id = s.note_id`,
       )
-      .all() as { noteId: number; sourceHash: string; content: string }[]
+      .all() as { noteId: number; kind: NoteShapeKind; sourceHash: string; content: string }[]
   )
     .filter((r) => bodyHash(r.content) === r.sourceHash)
+    .map(({ noteId, kind }) => ({ noteId, kind }));
+
+export const indexTypeNoteIds = (client: MemexClient): number[] =>
+  freshShapes(client)
+    .filter((r) => r.kind === 'index')
     .map((r) => r.noteId);
+
+export const shapedNoteIds = (client: MemexClient): number[] =>
+  freshShapes(client).map((r) => r.noteId);

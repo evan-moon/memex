@@ -144,6 +144,7 @@ export type UiDeps = {
   client: MemexClient;
   embedder: Embedder;
   vaultPath: string;
+  fillShapes?: () => Promise<void>;
 };
 
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
@@ -221,7 +222,11 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/repair/evidence') {
     const limit = clamp(url.searchParams.get('limit'), REPAIR_BATCH, REPAIR_BATCH_MAX);
-    return json(evidenceBatch(client, limit));
+    const batch = evidenceBatch(client, limit);
+    // Reading the next few notes costs a model call each, so the stack goes out
+    // now and the reading catches up behind it.
+    deps.fillShapes?.().catch(() => {});
+    return json(batch);
   }
   if (method === 'GET' && url.pathname === '/api/overview') {
     return json(buildOverview(client));

@@ -429,3 +429,40 @@ describe('GET /api/source/:id', () => {
     expect((await getSource(9999)).status).toBe(404);
   });
 });
+
+describe('the repair batch and the reading behind it', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), undefined);
+
+  it('hands the stack over without waiting for any note to be read', async () => {
+    const pending = new Promise<void>(() => {});
+    deps = { ...deps, fillShapes: () => pending };
+
+    const reply = await get('/api/repair/evidence?limit=5');
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toHaveProperty('cards');
+  });
+
+  it('asks for the next reading each time the stack is served', async () => {
+    let asked = 0;
+    deps = {
+      ...deps,
+      fillShapes: async () => {
+        asked += 1;
+      },
+    };
+
+    await get('/api/repair/evidence?limit=5');
+    await get('/api/repair/evidence?limit=5');
+
+    expect(asked).toBe(2);
+  });
+
+  it('still serves the stack when the reading cannot even start', async () => {
+    deps = { ...deps, fillShapes: () => Promise.reject(new Error('no claude')) };
+
+    const reply = await get('/api/repair/evidence?limit=5');
+
+    expect(reply.status).toBe(200);
+  });
+});
