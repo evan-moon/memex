@@ -103,20 +103,54 @@ export const ThreadShape = ({ root }: { root: ThreadStep }) => {
   );
 };
 
-const Facts = ({ thread }: { thread: Thread }) => {
+const Shape = ({ thread }: { thread: Thread }) => {
   const t = useT();
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-      <span className="tabular-nums">
-        {t.threads.span(day(thread.startedAt), day(thread.lastAt))}
-      </span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
       <span className="tabular-nums">{t.threads.steps(thread.steps)}</span>
       {thread.branches > 0 ? (
-        <span className="tabular-nums">{t.threads.branches(thread.branches)}</span>
+        <>
+          <span className="text-muted">·</span>
+          <span className="tabular-nums">{t.threads.branches(thread.branches)}</span>
+        </>
       ) : null}
     </div>
   );
 };
+
+const Span = ({ thread }: { thread: Thread }) => {
+  const t = useT();
+  return (
+    <div className="text-[11px] tabular-nums text-muted">
+      {t.threads.span(day(thread.startedAt), day(thread.lastAt))}
+    </div>
+  );
+};
+
+export const ThreadRow = ({ thread }: { thread: Thread }) => (
+  <Card>
+    <div className="flex gap-4">
+      <ThreadShape root={thread.root} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="shrink-0 text-[11px] tabular-nums text-muted">#{thread.rootId}</span>
+          <Link
+            to={`/thread/${thread.rootId}`}
+            className="min-w-0 flex-1 text-sm font-medium text-primary hover:underline"
+          >
+            {thread.title}
+          </Link>
+        </div>
+        <div className="mt-1">
+          <Shape thread={thread} />
+        </div>
+        <div className="mt-1">
+          <Span thread={thread} />
+        </div>
+      </div>
+    </div>
+  </Card>
+);
 
 export const ThreadsScreen = () => {
   const t = useT();
@@ -138,38 +172,7 @@ export const ThreadsScreen = () => {
       ) : (
         <div className="mt-5 flex flex-col gap-3">
           {data.map((thread) => (
-            <Card key={thread.rootId}>
-              <div className="flex gap-4">
-                <ThreadShape root={thread.root} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="shrink-0 text-[11px] tabular-nums text-muted">
-                      #{thread.rootId}
-                    </span>
-                    <Link
-                      to={`/thread/${thread.rootId}`}
-                      className="min-w-0 flex-1 text-sm font-medium text-primary hover:underline"
-                    >
-                      {thread.title}
-                    </Link>
-                  </div>
-                  <div className="mt-2">
-                    <Facts thread={thread} />
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted">
-                    {thread.tags.slice(0, 8).map((tag) => (
-                      <Link
-                        key={tag}
-                        to={`/topic/${encodeURIComponent(tag)}`}
-                        className="text-primary"
-                      >
-                        {tag}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
+            <ThreadRow key={thread.rootId} thread={thread} />
           ))}
         </div>
       )}
@@ -201,7 +204,10 @@ export const ThreadScreen = () => {
       </div>
       <h1 className="mt-2 text-xl font-semibold leading-snug tracking-tight">{data.title}</h1>
       <div className="mt-2">
-        <Facts thread={data} />
+        <Shape thread={data} />
+      </div>
+      <div className="mt-1">
+        <Span thread={data} />
       </div>
       <Card className="mt-6">
         <div className="mb-3 text-[11px] text-muted">{t.threads.startsHere}</div>

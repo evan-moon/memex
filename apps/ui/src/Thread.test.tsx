@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import type { ThreadStep } from './api.ts';
+import type { Thread, ThreadStep } from './api.ts';
 import { dictionaries, setLocale } from './i18n.ts';
 import { straighten } from './thread-layout.ts';
-import { ThreadTimeline } from './Thread.tsx';
+import { ThreadRow, ThreadTimeline } from './Thread.tsx';
 
 const t = dictionaries.en;
 
@@ -57,5 +57,48 @@ describe('a thread on screen', () => {
 
     expect(html.split(t.threads.latest)).toHaveLength(2);
     expect(html.indexOf(t.threads.latest)).toBeGreaterThan(html.indexOf('#4'));
+  });
+});
+
+describe('a thread in the list', () => {
+  const thread = (over: Partial<Thread> = {}): Thread => ({
+    rootId: 2094,
+    title: 'Obsidian 정합성 재편',
+    root: step(2094, 1, [step(2095, 2)]),
+    startedAt: Date.parse('2026-08-02T00:00:00Z'),
+    lastAt: Date.parse('2026-08-22T00:00:00Z'),
+    steps: 2,
+    branches: 1,
+    tags: ['memex', 'obsidian', 'vault', 'frontmatter'],
+    ...over,
+  });
+
+  const row = (over: Partial<Thread> = {}) => {
+    setLocale('en');
+    return renderToStaticMarkup(
+      <MemoryRouter>
+        <ThreadRow thread={thread(over)} />
+      </MemoryRouter>,
+    );
+  };
+
+  it('leads with how far the line went and where it split', () => {
+    const html = row();
+
+    expect(html).toContain(t.threads.steps(2));
+    expect(html).toContain(t.threads.branches(1));
+  });
+
+  it('does not spend the row on tags, which say least about a thread', () => {
+    const html = row();
+
+    for (const tag of ['memex', 'obsidian', 'vault', 'frontmatter']) {
+      expect(html).not.toContain(`>${tag}<`);
+    }
+    expect(html).not.toContain('/topic/');
+  });
+
+  it('says nothing about branching when the line never split', () => {
+    expect(row({ branches: 0 })).not.toContain(t.threads.branches(0));
   });
 });
