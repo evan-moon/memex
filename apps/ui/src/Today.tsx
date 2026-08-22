@@ -32,6 +32,7 @@ const hintOf = (item: TodayItem, t: Strings) =>
 const Row = ({ item }: { item: TodayItem }) => {
   const t = useT();
   const when = WHEN[item.kind];
+  const hint = hintOf(item, t);
   return (
     <li>
       <Link
@@ -45,12 +46,12 @@ const Row = ({ item }: { item: TodayItem }) => {
         >
           {when === 'now' ? t.today.now : t.today.soon}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="text-sm">{labelOf(item, t)}</span>
-          <span className="ml-2 text-xs text-muted">{item.title}</span>
-        </span>
-        {hintOf(item, t) ? (
-          <span className="shrink-0 text-[11px] text-muted">{hintOf(item, t)}</span>
+        <span className="shrink-0 whitespace-nowrap text-sm">{labelOf(item, t)}</span>
+        <span className="min-w-0 flex-1 truncate text-xs text-muted">{item.title}</span>
+        {hint ? (
+          <span className="hidden max-w-[14rem] shrink truncate text-[11px] text-muted sm:inline">
+            {hint}
+          </span>
         ) : null}
       </Link>
     </li>

@@ -46,6 +46,21 @@ describe('the home screen', () => {
     expect(html).toContain('href="/note/1767"');
   });
 
+  it('does not let a long hint squeeze the label out of its own row', () => {
+    const long = '은퇴지출 확정(월 450만) → 진짜 FIRE ≈15억, 2031~33년(40~42세) 90%+ 도달';
+    const html = render({
+      items: [{ kind: 'typo-link', id: 1, title: 'a plan', target: long, nearest: `${long}.` }],
+      buried,
+    });
+
+    // The label has to keep its line, and the two long strings have to be the
+    // ones that give way -- reversed, the label wraps one character per line.
+    expect(html).toContain('shrink-0 whitespace-nowrap text-sm');
+    const hint = html.slice(html.indexOf(long) - 200, html.indexOf(long));
+    expect(hint).toContain('truncate');
+    expect(hint).not.toContain('shrink-0');
+  });
+
   it('keeps what is waiting behind a click rather than on the page', () => {
     const t = dictionaries.en;
     const html = render({ items, buried });
