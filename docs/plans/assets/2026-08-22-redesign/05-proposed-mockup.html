@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>memex UI 제안 — 판정 부하를 52분에서 1분으로</title>
+<style>
+  :root{
+    --bg:#0d0d0f; --panel:#161619; --panel2:#1d1d21; --line:#2a2a30;
+    --fg:#e8e8ea; --muted:#8b8b93; --dim:#6a6a72;
+    --primary:#8fa9f5; --warn:#e0b155; --bad:#e07a7a; --good:#7ec99a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:56px 28px 96px}
+  h1{font-size:30px;letter-spacing:-.02em;margin:0 0 6px}
+  h2{font-size:20px;letter-spacing:-.01em;margin:56px 0 6px;padding-top:28px;border-top:1px solid var(--line)}
+  h3{font-size:15px;margin:26px 0 10px;color:var(--muted);font-weight:600}
+  .sub{color:var(--muted);margin:0 0 8px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;
+    background:#000;padding:1px 5px;border-radius:4px;color:#c4c4cc}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:14px 0}
+  .card.bad{border-color:#4a2c2c}
+  .card.good{border-color:#2c4a38}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
+    border:1px solid var(--line);color:var(--muted);vertical-align:middle}
+  .tag.state{border-color:#3d4a7a;color:#9db0ee}
+  .tag.past{border-color:var(--line)}
+  .tag.rule{border-color:#5a4a2a;color:#d8b878}
+  .badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
+  .badge.now{background:#4a2c2c;color:#f0a0a0}
+  .badge.soon{background:#4a3f2c;color:#e8c88a}
+  .flag{color:var(--bad);font-size:12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  ul.cand{list-style:none;padding:0;margin:12px 0 0}
+  ul.cand li{padding:9px 0;border-top:1px solid #232329;display:flex;gap:10px;align-items:flex-start}
+  ul.cand li:first-child{border-top:0}
+  .chk{flex:0 0 auto;margin-top:3px;font-size:13px;color:var(--primary)}
+  .why{color:var(--muted);font-size:13px;margin-top:3px;padding-left:2px;border-left:2px solid #2f3a5c;padding-left:9px}
+  .num{flex:0 0 14px;color:var(--dim);font-size:12px;margin-top:2px}
+  .ttl{font-size:13.5px;line-height:1.5}
+  .meta{color:var(--dim);font-size:11.5px}
+  .btn{display:inline-block;font-size:13px;padding:7px 14px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--fg);margin:14px 6px 0 0}
+  .btn.pri{background:#3a4a86;border-color:#4a5c9e;color:#fff}
+  .btn.ghost{background:transparent;color:var(--muted)}
+  .keys{color:var(--dim);font-size:11.5px;margin-top:12px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:14px 0}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .note{background:#141418;border-left:3px solid var(--warn);padding:12px 16px;margin:16px 0;
+    border-radius:0 8px 8px 0;font-size:13.5px;color:#d8d8dc}
+  .note.ok{border-left-color:var(--good)}
+  .note.no{border-left-color:var(--bad)}
+  .strike{color:var(--dim);text-decoration:line-through}
+  .lead{font-size:16.5px;color:#cfcfd5;margin:18px 0 0}
+  .kpi{display:flex;gap:28px;flex-wrap:wrap;margin:18px 0}
+  .kpi div{min-width:120px}
+  .kpi b{display:block;font-size:26px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .kpi span{font-size:12px;color:var(--dim)}
+  .queue{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-top:1px solid #232329}
+  .queue:first-of-type{border-top:0}
+  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>memex UI 제안</h1>
+<p class="sub">판정 카드 1장을 52분에서 1분으로. 실측 데이터 기반 목업.</p>
+
+<div class="kpi">
+  <div><b>36,559자</b><span>현재 카드 1장이 읽어야 하는 분량</span></div>
+  <div><b>52분</b><span>정독 700자/분 기준</span></div>
+  <div><b>10.8시간</b><span>20장 세션 1판</span></div>
+  <div><b>58시간</b><span>미근거 107개 전부</span></div>
+</div>
+
+<h2>1. 판정 카드 — 지금 vs 제안</h2>
+<p class="sub">실제 <code>/api/repair/evidence</code> 첫 카드(노트 #1642)의 데이터를 그대로 씀.</p>
+
+<div class="grid">
+
+  <div>
+    <div class="label">지금</div>
+    <div class="card bad">
+      <div style="font-weight:600;font-size:15px">Opula 제품·전략 인덱스 (2026-06-28)</div>
+      <div class="meta" style="margin-top:4px">이 판단은 무엇을 딛고 서 있어?</div>
+      <ul class="cand">
+        <li><span class="chk">☑</span><span class="num">1</span><span class="ttl"><span class="tag state">state</span> firma private 단일화 확정 + firma-cloud(→Opula) 웹 대시보드 추가 (2026-06-22, 06-28 현재화)</span></li>
+        <li><span class="chk">☑</span><span class="num">2</span><span class="ttl"><span class="tag past">past</span> Opula 대시보드 전문성 확장 + 문서 전면 가치화 (2026-06-24)</span></li>
+        <li><span class="chk">☑</span><span class="num">3</span><span class="ttl"><span class="tag past">past</span> Opula 홍보 전략 재진단 — 채널↔제품 미스매치 + 새 골격 (2026-06-27)</span></li>
+        <li><span class="chk">☑</span><span class="num">4</span><span class="ttl"><span class="tag past">past</span> Throne(throneinvest.ai) 경쟁사 정찰 — AI 주식 리서치 챗봇, pre-launch (2026-07-11)</span></li>
+        <li><span class="chk">☑</span><span class="num">5</span><span class="ttl"><span class="tag past">past</span> Opula Amplitude 상태 진단 — 트래픽이 병목, HN 유입 발견 (2026-07-13)</span></li>
+        <li><span class="chk">☑</span><span class="num">…</span><span class="ttl" style="color:var(--dim)">외 4개</span></li>
+      </ul>
+      <div>
+        <span class="btn pri">근거로 선언하고 계속</span>
+        <span class="btn">근거 없음</span>
+        <span class="btn">건너뛰기</span>
+      </div>
+      <div class="keys">1-9 선택 · enter 선언 · n 근거없음 · s 건너뛰기 · esc 나가기</div>
+      <div class="note no" style="margin-top:18px">
+        <b>문제.</b> 후보에 제목·레이어·날짜만 있음. 이게 정말 근거인지 알려면 대상 9,419자 + 후보 27,140자를
+        전부 열어야 함 = <b>36,559자 / 52분</b>. 실제로는 아무도 안 읽고 Enter를 치게 됨.
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">제안</div>
+    <div class="card good">
+      <div style="font-weight:600;font-size:15px">Opula 제품·전략 인덱스</div>
+      <div class="meta" style="margin-top:4px">
+        <span class="tag state">state</span>
+        작성 2026-06-28 · <b style="color:var(--warn)">마지막 수정 2026-08-01</b> · 인덱스형 · 9,419자
+      </div>
+      <div style="margin-top:14px;font-size:13.5px;color:#c8c8d0">
+        이 노트가 하는 주장 <b>1 / 4</b>:
+        <div style="margin-top:6px;padding:10px 13px;background:#000;border-radius:8px;border:1px solid #26262c">
+          “Opula의 유료 경계는 <b>장부 무료 / 두뇌 유료</b>이고, 결제는 Lemon Squeezy MoR을 쓴다.”
+        </div>
+      </div>
+      <div class="meta" style="margin-top:14px">이 주장을 딛고 있는 것은?</div>
+      <ul class="cand">
+        <li><span class="chk">☑</span><span class="num">1</span><div>
+          <div class="ttl"><span class="tag state">state</span> firma private 단일화 확정 + firma-cloud(→Opula) 웹 대시보드 추가</div>
+          <div class="why">“firma를 Opula로 리브랜딩” 결정이 여기서 나왔고, 이 주장이 그 이름을 전제함</div>
+        </div></li>
+        <li><span class="chk">☑</span><span class="num">2</span><div>
+          <div class="ttl"><span class="tag past">past</span> Opula 유료화 전략 확정 — 장부무료/두뇌유료 + Lemon Squeezy MoR</div>
+          <div class="why">주장 문장과 <b>거의 그대로 일치</b>. 2026-06-25, 이 노트보다 3일 앞섬</div>
+        </div></li>
+        <li><span class="chk">☐</span><span class="num">3</span><div>
+          <div class="ttl" style="color:var(--muted)"><span class="tag past">past</span> Throne(throneinvest.ai) 경쟁사 정찰 — AI 주식 리서치 챗봇</div>
+          <div class="why" style="border-left-color:#4a3030">경쟁사 기록. 유료 경계 주장과 무관 — <span class="flag">근거 아님으로 추정</span></div>
+        </div></li>
+        <li><span class="chk">☐</span><span class="num">4</span><div>
+          <div class="ttl" style="color:var(--muted)"><span class="tag past">past</span> Opula Amplitude 상태 진단 — 트래픽이 병목</div>
+          <div class="why" style="border-left-color:#4a3030">계측 기록. 가격 결정의 근거로 인용된 문장 없음 — <span class="flag">근거 아님으로 추정</span></div>
+        </div></li>
+      </ul>
+      <div>
+        <span class="btn pri">선언 ⏎</span>
+        <span class="btn">근거 필요 없는 주장 · N</span>
+        <span class="btn ghost">이 노트는 인덱스라 전부 제외 · X</span>
+      </div>
+      <div class="keys">1-4 토글 · ⏎ 선언 · N 근거 불필요(영구) · X 노트 전체 제외 · S 나중에 · esc</div>
+      <div class="note ok" style="margin-top:18px">
+        <b>바뀐 것 4개.</b> ① 후보마다 <b>왜 근거인지 한 줄</b> — 노트를 안 열어도 판정 가능.
+        ② 판정 단위가 <b>문서 → 주장</b>. ③ 확신 낮은 후보는 <b>기본 해제</b>(도장 찍기 방지).
+        ④ <b>“근거 불필요”와 “노트 전체 제외”</b> — 큐에서 영구히 빠지는 출구.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  <b>덤으로 잡힌 버그.</b> 이 노트는 제목과 배지가 <code>2026-06-28</code>인데 실제 <code>updated_at</code>은
+  <code>2026-08-01</code>이야. 후보 9개 중 5개가 07월에 쓰였는데, 현재 카드만 보면 사람은
+  “대상보다 나중이니 근거일 리 없다”고 <b>정당하게 오판</b>해. <code>updated_at</code>이 화면에 아예 없거든.
+  판정에 필요한 필드가 UI에서 빠져 있는 거야. (전체 212쌍 검사 결과 <code>updated_at</code> 기준으로
+  시간상 불가능한 쌍은 0개 — 즉 오탐은 없고, <b>표시가 없어서 사람이 틀리게 되는</b> 구조)
+</div>
+
+<h2>2. 홈 — 대시보드가 아니라 큐</h2>
+
+<div class="grid">
+  <div>
+    <div class="label">지금 (부채 명세서)</div>
+    <div class="card bad">
+      <div style="font-weight:600">손볼 것</div>
+      <table style="margin-top:10px">
+        <tr><td>근거가 움직인 가설</td><td class="n">2</td></tr>
+        <tr><td>무엇에서 나왔는지 말하지 않는 판단</td><td class="n">107</td></tr>
+        <tr><td>낡았을 수 있는 노트</td><td class="n">61</td></tr>
+        <tr><td>아무것도 안 열리는 링크</td><td class="n">132</td></tr>
+        <tr><td>같은 태그일지도 모르는 것</td><td class="n">10</td></tr>
+        <tr><td>한 번만 쓴 태그</td><td class="n">421</td></tr>
+        <tr><td style="color:var(--bad)"><b>합계</b></td><td class="n" style="color:var(--bad)"><b>733</b></td></tr>
+      </table>
+      <div class="note no">숫자가 크고, 안 줄고, 6줄 중 3줄은 목적지도 없음. 421이 제일 큰데 제일 안 급함.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">제안 (오늘의 큐)</div>
+    <div class="card good">
+      <div style="font-weight:600">오늘 <span style="color:var(--primary)">9장</span></div>
+      <div class="meta" style="margin-top:2px">다 하면 끝. 나머지는 오늘 볼 필요 없어.</div>
+      <div style="margin-top:14px">
+        <div class="queue"><div><span class="badge now">지금</span> &nbsp;근거가 무너진 판단 <span class="meta">· #1642가 딛던 기록이 정정됨</span></div><div class="meta">2장</div></div>
+        <div class="queue"><div><span class="badge now">지금</span> &nbsp;확인 필요한 판단 <span class="meta">· 반박 기록이 3개 이상 쌓임</span></div><div class="meta">4장</div></div>
+        <div class="queue"><div><span class="badge soon">곧</span> &nbsp;근거 미선언 <span class="meta">· 자주 인용되는 것부터</span></div><div class="meta">3장</div></div>
+      </div>
+      <div><span class="btn pri">시작 · ⏎</span></div>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid #232329">
+        <div class="meta">묻어둔 것 — 눌러야 보임</div>
+        <div class="meta" style="margin-top:5px;color:var(--dim)">
+          아마 아직 맞음 30 · 근거 불필요로 선언됨 92 · 플레이스홀더로 무시 118 · 나중에 볼 태그 421
+        </div>
+      </div>
+      <div class="note ok">
+        733이 <b>9</b>가 됨. 사라진 게 아니라 <b>등급·우선순위·영구기각</b>으로 갈라진 것.
+        큐는 비워지고, 대시보드는 안 비워져.
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>733 → 9로 가는 4단계</h3>
+<table>
+  <tr><th>단계</th><th>무엇</th><th>근거</th><th class="n">잔여</th></tr>
+  <tr><td>0</td><td>원본</td><td>—</td><td class="n">733</td></tr>
+  <tr><td>1</td><td>클래스 단위 기각 (문서 안 <code>[[Title]]</code> 플레이스홀더, 한 번만 쓴 태그 유예)</td><td>Vault Inspector <code>--ignore-unresolved-note-links</code></td><td class="n">194</td></tr>
+  <tr><td>2</td><td>근거 불필요 유형 분리 (개인 취향·1차 기록·자기 관찰)</td><td>Redi et al. WWW 2019, citation-reason 택소노미</td><td class="n">~102</td></tr>
+  <tr><td>3</td><td>우선순위 = 검색빈도 × 미근거도 × 중심성</td><td>Settles 2009, density-weighted active learning</td><td class="n">~30</td></tr>
+  <tr><td>4</td><td>warn / error 2단 임계값 → 오늘 것만</td><td>dbt <code>source freshness</code></td><td class="n"><b>9</b></td></tr>
+</table>
+
+<h2>3. 이 문제를 가장 잘 푸는 앱들</h2>
+<table>
+  <tr><th>앱 / 분야</th><th>훔칠 것</th><th>측정된 효과</th></tr>
+  <tr>
+    <td><b>ASReview</b><br><span class="meta">체계적 문헌고찰 스크리닝 · Nature MI 2021</span></td>
+    <td>능동학습 우선순위 큐. 사람은 oracle, 기계는 순위만. “충분히 봤다”고 판단되면 중단</td>
+    <td>스크리닝 부하 <b>최대 95% 감소</b><br><span class="meta">독립 검증 연구에선 평균 60.2%</span></td>
+  </tr>
+  <tr>
+    <td><b>TAR / CAL</b><br><span class="meta">법률 e-Discovery · Cormack &amp; Grossman SIGIR 2014</span></td>
+    <td>백만 건을 다 안 읽고 높은 recall에 도달. <b>전수 검토를 포기하는 것이 정답</b>이라는 증명</td>
+    <td>이 분야 표준 방법론으로 정착</td>
+  </tr>
+  <tr>
+    <td><b>Prodigy</b><br><span class="meta">주석 도구 (Explosion)</span></td>
+    <td>가능한 가장 작은 질문으로 쪼개기. 이진 결정 + 키보드 + 모델 인더루프</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><b>Snorkel</b><br><span class="meta">약한 지도학습 · arXiv 1711.10160</span></td>
+    <td>한 건씩 라벨링 대신 <b>규칙(labeling function)</b>을 써서 한 번에 수천 건 처리</td>
+    <td>전문가 모델 구축 <b>2.8배 빠름</b>, 예측성능 평균 <b>+45.5%</b></td>
+  </tr>
+  <tr>
+    <td><b>Dependabot</b><br><span class="meta">GitHub</span></td>
+    <td><b>사유를 붙여 기각</b>(오탐 / 테스트에서만 씀 / 안 고침). 기각도 데이터로 남음</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><b>Renovate</b><br><span class="meta">Dependency Dashboard</span></td>
+    <td>연관 항목을 <b>그룹으로 묶어 한 PR</b>로. 승인 워크플로 내장</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><b>Sentry</b><br><span class="meta">이슈 트리아지</span></td>
+    <td>이벤트 그룹핑 + <b>suspect commit</b>(원인 후보를 기계가 지목) + 실행가능성 기준 우선순위</td>
+    <td>새 그룹핑 모델로 중복 이슈 <b>20% 추가 차단</b>, 오병합 <b>절반</b></td>
+  </tr>
+  <tr>
+    <td><b>Anki / FSRS</b></td>
+    <td>항목별 <b>다음 검토일</b>. 카운터가 아니라 오늘 치 큐</td>
+    <td>동일 유지율에서 일일 복습량 <b>약 25% 감소</b></td>
+  </tr>
+</table>
+
+<div class="note ok">
+  <b>공통점 하나.</b> 이 중 어느 것도 사람에게 원문 전체를 읽히지 않아.
+  ASReview는 초록만, Sentry는 의심 커밋 한 줄, Dependabot은 CVE 한 줄, Anki는 카드 앞면 한 줄.
+  <b>기계가 읽고, 사람은 판정만 한다.</b> memex는 지금 그 반대야.
+</div>
+
+<h2>4. 남길 것 / 버릴 것</h2>
+<table>
+  <tr><th>지금 UI</th><th>판정</th></tr>
+  <tr><td>정비 세션 카드스택 + 키보드 규약 (1-9/⏎/N/S/Esc)</td><td style="color:var(--good)">유지. 나머지 5종에도 확대</td></tr>
+  <tr><td>노트 상세의 근거 선언 + 낡음 패널 + <code>이건 아직 맞아</code></td><td style="color:var(--good)">유지. 이 앱에서 제일 잘 만든 화면</td></tr>
+  <tr><td>줄기(/threads) 개념</td><td style="color:var(--warn)">유지하되 태그 칩 제거, 단계·분기를 주인공으로</td></tr>
+  <tr><td>홈 “손볼 것” 6줄 카운터</td><td style="color:var(--bad)">폐기 → 오늘의 큐</td></tr>
+  <tr><td>사이드바 “지금 믿는 것 242” 전체 나열</td><td style="color:var(--bad)">폐기 → 최근 N개 + ⌘K</td></tr>
+  <tr><td>후보를 전부 pre-check</td><td style="color:var(--bad)">폐기 → 확신도별 선택적 체크</td></tr>
+  <tr><td><code>/topics</code> (인바운드 링크 0)</td><td style="color:var(--bad)">삭제</td></tr>
+  <tr><td>없는 라우트 → 홈 리다이렉트</td><td style="color:var(--bad)">404로</td></tr>
+</table>
+
+<footer>
+  숫자 출처: <code>~/.memex/memex.db</code> 직접 측정 (노트 1,373 / 청크 16,803 / amends 74 / note_evidence 0행),
+  <code>/api/repair/evidence?limit=20</code> 실 응답, 한국어 정독 700자/분 가정.
+  ASReview·Snorkel·Cormack&amp;Grossman·Redi et al.·Settles·dbt 수치는 각 논문/공식문서 기준.
+  2026-08-22 작성.
+</footer>
+
+</div>
+</body>
+</html>
