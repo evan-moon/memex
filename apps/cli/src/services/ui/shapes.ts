@@ -10,10 +10,12 @@ export type ShapeFillerDeps = {
 
 const PER_RUN = 8;
 
+// Only notes a stack can actually hand over. A judgement with nothing to offer
+// is filtered out of every batch, so reading it buys a model call and nothing.
 export const notesNeedingShape = (client: MemexClient, limit: number): ClaimSource[] => {
   const shaped = new Set(shapedNoteIds(client));
   return undeclaredProjections(client)
-    .filter((row) => !shaped.has(row.id))
+    .filter((row) => row.candidates > 0 && !shaped.has(row.id))
     .slice(0, limit)
     .flatMap((row) => {
       const note = client.sqlite.prepare('SELECT content FROM notes WHERE id = ?').get(row.id) as

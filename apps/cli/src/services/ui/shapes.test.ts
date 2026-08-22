@@ -77,6 +77,13 @@ describe('notesNeedingShape', () => {
     expect(notesNeedingShape(client, 10).map((n) => n.id)).toEqual([a.id]);
   });
 
+  it('leaves out a judgement no stack can ever hand over', () => {
+    const servable = judgement('a');
+    addNote('nothing to offer', 'state');
+
+    expect(notesNeedingShape(client, 10).map((n) => n.id)).toEqual([servable.id]);
+  });
+
   it('hands over no more than the run is allowed to read', () => {
     judgement('a');
     judgement('b');
