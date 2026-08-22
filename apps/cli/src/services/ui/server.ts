@@ -26,7 +26,6 @@ import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { buildChores } from './chores.ts';
-import { evidenceBatch } from './repair.ts';
 import {
   bodyOf,
   layerCounts,
@@ -41,6 +40,7 @@ import {
 } from './notes.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
+import { evidenceBatch } from './repair.ts';
 import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
@@ -151,13 +151,10 @@ const statusOf = (amendment: { id: number; title: string } | undefined): NoteSta
 
 const search = async ({ client, embedder }: UiDeps, params: URLSearchParams) => {
   const limit = clamp(params.get('limit'), SEARCH_LIMIT, SEARCH_LIMIT_MAX);
-  const page = await searchPage(
-    client,
-    embedder,
-    params.get('q') ?? '',
-    limit,
-    filtersFrom(params),
-  );
+  const page = await searchPage(client, embedder, params.get('q') ?? '', limit, {
+    ...filtersFrom(params),
+    surface: 'ui',
+  });
   const amendments = getAmendmentsFor(
     client,
     page.results.map((h) => h.id),

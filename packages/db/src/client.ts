@@ -285,6 +285,19 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       PRIMARY KEY (inference_id, note_id)
     );
   `);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS retrieval_log (
+      id      INTEGER PRIMARY KEY AUTOINCREMENT,
+      query   TEXT    NOT NULL,
+      note_id INTEGER NOT NULL,
+      rank    INTEGER NOT NULL,
+      surface TEXT    NOT NULL,
+      at      INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS retrieval_log_note ON retrieval_log (note_id);
+    CREATE INDEX IF NOT EXISTS retrieval_log_at ON retrieval_log (at);
+  `);
+
   const evCols = sqlite.prepare('PRAGMA table_info(inference_evidence)').all() as {
     name: string;
   }[];

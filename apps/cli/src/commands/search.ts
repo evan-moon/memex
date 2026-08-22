@@ -56,6 +56,7 @@ export const registerSearch = (program: Command) => {
             dateFrom,
             dateTo,
             reranker,
+            surface: 'cli',
           },
         );
         s.stop(`Found ${results.length} result(s)`);

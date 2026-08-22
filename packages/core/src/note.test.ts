@@ -2,11 +2,13 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  countRetrievals,
   getAmendments,
   getNote,
   insertNote,
   type MemexClient,
   openDb,
+  retrievalCounts,
   saveEmbedding,
 } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -17,6 +19,7 @@ import {
   removeNote,
   renderNoteFile,
   saveNote,
+  searchPage,
   semanticSearchMulti,
 } from './note.ts';
 
@@ -517,6 +520,33 @@ describe('semanticSearchMulti', () => {
       source: 'manual',
       layer: 'past',
     });
+
+  it('records the fused page once, not once per query phrasing', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    insert('beta protocol', 'about beta', 'b.md');
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 5, {
+      surface: 'mcp',
+    });
+    expect(countRetrievals(client)).toBe(results.length);
+    expect(retrievalCounts(client).every((c) => c.hits === 1)).toBe(true);
+  });
+
+  it('records nothing when no surface asked to be recorded', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    await semanticSearchMulti(client, stubEmbedder, ['alpha'], 5);
+    await searchPage(client, stubEmbedder, 'alpha', 5);
+    expect(countRetrievals(client)).toBe(0);
+  });
+
+  it('records a single-query page under the surface that asked for it', async () => {
+    const alpha = insert('alpha protocol', 'about alpha', 'a.md');
+    await searchPage(client, stubEmbedder, 'alpha', 5, { surface: 'ui' });
+    const rows = client.sqlite
+      .prepare('SELECT note_id AS noteId, surface, query FROM retrieval_log')
+      .all();
+    expect(rows).toContainEqual({ noteId: alpha.id, surface: 'ui', query: 'alpha' });
+  });
 
   it('fuses results across query phrasings', async () => {
     const alpha = insert('alpha protocol', 'about alpha', 'a.md');

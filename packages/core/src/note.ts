@@ -11,6 +11,7 @@ import {
   getNote,
   insertNote,
   linkAmendment,
+  logRetrieval,
   type MemexClient,
   type Note,
   type NoteAuthor,
@@ -18,6 +19,7 @@ import {
   type NoteSource,
   parseAuthoredAt,
   parseTags,
+  type RetrievalSurface,
   RRF_K,
   refreshSignals,
   type SearchResult,
@@ -242,6 +244,8 @@ export type SearchOptions = {
   seriesCap?: number;
   /** Rows to fetch before re-ordering. Widens the page without retuning the arms. */
   rows?: number;
+  /** Where the query came from. Set it to record the page in `retrieval_log`. */
+  surface?: RetrievalSurface;
 };
 
 export type RankedResult = SearchResult & { rerankScore?: number };
@@ -286,6 +290,16 @@ const applyRerank = async (
     .slice(0, limit);
 };
 
+const recordPage = (
+  client: MemexClient,
+  query: string,
+  surface: RetrievalSurface | undefined,
+  page: SearchPage,
+): SearchPage => {
+  if (surface) logRetrieval(client, { query, surface, noteIds: page.results.map((r) => r.id) });
+  return page;
+};
+
 export const searchPage = async (
   client: MemexClient,
   embedder: Embedder,
@@ -293,7 +307,7 @@ export const searchPage = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, category, tag, layer, author, dateFrom, dateTo } = options;
+  const { reranker, category, tag, layer, author, dateFrom, dateTo, surface } = options;
   const embedding = await embedder(query, 'query');
   const candidates = dbSearchNotes(client, query, embedding, limit, {
     category,
@@ -308,8 +322,11 @@ export const searchPage = async (
     ? await applyRerank(reranker, query, candidates, candidates.length)
     : candidates;
   const cap = capOf(options);
-  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
-  return collapseSeries(ranked, limit, cap);
+  const page =
+    cap <= 0
+      ? { results: ranked.slice(0, limit), collapsed: [] }
+      : collapseSeries(ranked, limit, cap);
+  return recordPage(client, query, surface, page);
 };
 
 export const semanticSearch = async (
@@ -327,7 +344,7 @@ export const searchPageMulti = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, ...filters } = options;
+  const { reranker, surface, ...filters } = options;
   const cap = capOf(options);
   const wide = fetchSize(limit, options);
   const perQuery = { ...filters, seriesCap: 0, rows: wide };
@@ -362,8 +379,11 @@ export const searchPageMulti = async (
 
   const ranked = reranker ? await applyRerank(reranker, queries[0], pooled, pooled.length) : pooled;
 
-  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
-  return collapseSeries(ranked, limit, cap);
+  const page =
+    cap <= 0
+      ? { results: ranked.slice(0, limit), collapsed: [] }
+      : collapseSeries(ranked, limit, cap);
+  return recordPage(client, queries.join(' | '), surface, page);
 };
 
 export const semanticSearchMulti = async (

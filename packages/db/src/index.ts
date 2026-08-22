@@ -1,6 +1,17 @@
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
 export { parseAuthoredAt } from './dates.ts';
+export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
+export {
+  bodyHash,
+  evidenceFor,
+  evidenceStaleness,
+  getNoteEvidence,
+  isStale,
+  notesDeclaringEvidence,
+  setNoteEvidence,
+  syncNoteEvidence,
+} from './evidence.ts';
 export {
   type EmbeddingModelStatus,
   ensureEmbeddingModel,
@@ -24,10 +35,10 @@ export {
   inferencesOverNotes,
   listInferences,
   mintInference,
-  restampInference,
-  rewriteInference,
   noteContentHash,
   refreshInferenceStaleness,
+  restampInference,
+  rewriteInference,
   setInferenceStatus,
 } from './inferences.ts';
 export type {
@@ -49,7 +60,6 @@ export {
   findRelatedNotes,
   findSimilarByEmbedding,
   findUnresolvedLinks,
-  unresolvedLinksByNote,
   getAmendments,
   getAmendmentsFor,
   getBacklinks,
@@ -70,19 +80,17 @@ export {
   searchNotes,
   serializeTags,
   syncLinks,
+  unresolvedLinksByNote,
   updateNote,
 } from './repository.ts';
-export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
 export {
-  bodyHash,
-  evidenceFor,
-  evidenceStaleness,
-  getNoteEvidence,
-  isStale,
-  notesDeclaringEvidence,
-  setNoteEvidence,
-  syncNoteEvidence,
-} from './evidence.ts';
+  countRetrievals,
+  logRetrieval,
+  type RetrievalCount,
+  type RetrievalEntry,
+  type RetrievalSurface,
+  retrievalCounts,
+} from './retrieval-log.ts';
 export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource } from './schema.ts';
 export type {
   HiddenArcOptions,

@@ -101,6 +101,7 @@ export const registerSearchNotes = (
         dateFrom,
         dateTo,
         reranker,
+        surface: 'mcp',
       });
       const reembedWarning = needsReembed(client)
         ? '\n\n⚠️ The embedding model changed and vectors have not been rebuilt — these results are keyword-only. Tell the user to run `memex reembed` to restore semantic search.'
