@@ -47,7 +47,7 @@ Layer rules:
       const unresolved = content ? findUnresolvedLinks(client, content) : [];
       const linkSection =
         unresolved.length > 0
-          ? `\n\n🔗 These wiki links point at no note and render as dead links in Obsidian — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
+          ? `\n\n🔗 These wiki links point at no note, so they render as plain text and join nothing to the link graph — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
               .map((t) => `- [[${t}]]`)
               .join('\n')}`
           : '';
