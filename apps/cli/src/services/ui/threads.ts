@@ -120,7 +120,7 @@ export const buildThread = (client: MemexClient, noteId: number): Thread | null 
 
 // Most recently moved first: a thread someone corrected this week is the one
 // still being argued, whatever its size.
-export const listThreads = (client: MemexClient): ThreadRef[] => {
+export const listThreads = (client: MemexClient): Thread[] => {
   const { children, parent } = amendEdges(client);
   const notes = notesById(client);
   const roots = [...new Set([...children.keys(), ...parent.keys()])].filter(
@@ -130,7 +130,7 @@ export const listThreads = (client: MemexClient): ThreadRef[] => {
   return roots
     .flatMap((id) => {
       const root = growFrom(notes, children, id, new Set());
-      return root ? [refOf(root, tagsAcross(notes, root))] : [];
+      return root ? [{ ...refOf(root, tagsAcross(notes, root)), root }] : [];
     })
     .sort((a, b) => b.lastAt - a.lastAt);
 };

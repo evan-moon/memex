@@ -284,7 +284,7 @@ export const api = {
   overview: () => request<Overview>('/api/overview'),
   digest: (days: number) => request<Digest>(`/api/digest?days=${days}`),
   topics: () => request<Topic[]>('/api/topics'),
-  threads: () => request<ThreadRef[]>('/api/threads'),
+  threads: () => request<Thread[]>('/api/threads'),
   thread: (id: number) => request<Thread>(`/api/thread/${id}`),
   topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
