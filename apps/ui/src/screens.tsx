@@ -162,6 +162,7 @@ export const NoteScreen = () => {
   const t = useT();
   const { id = '' } = useParams();
   const { data, failure } = useAsync<NoteDetail>(() => api.note(Number(id)), id);
+  const [dismissed, setDismissed] = useState(false);
   const [edited, setEdited] = useState<NoteDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -173,6 +174,7 @@ export const NoteScreen = () => {
     setEditing(false);
     setDraft(null);
     setShowSource(false);
+    setDismissed(false);
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
@@ -258,7 +260,10 @@ export const NoteScreen = () => {
         refs={note.hypotheses}
       />
 
-      {note.deadLinks.length > 0 ? (
+      {note.deadLinks.length > 0 && dismissed ? (
+        <p className="mt-8 text-xs text-muted">{t.today.dismissed}</p>
+      ) : null}
+      {note.deadLinks.length > 0 && !dismissed ? (
         <Card className="mt-8">
           <h2 className="text-sm font-semibold">{t.edit.deadLinks(note.deadLinks.length)}</h2>
           <p className="mt-1 text-xs text-muted">{t.edit.deadLinksWhy}</p>
@@ -270,6 +275,13 @@ export const NoteScreen = () => {
               </li>
             ))}
           </ul>
+          <button
+            type="button"
+            onClick={() => api.dismissDangling(note.id).then(() => setDismissed(true))}
+            className="mt-3 text-xs text-muted underline-offset-2 hover:underline"
+          >
+            {t.today.dismiss}
+          </button>
         </Card>
       ) : null}
       {note.backlinks.length > 0 ? (

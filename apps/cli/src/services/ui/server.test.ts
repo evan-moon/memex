@@ -407,7 +407,17 @@ describe('GET /api/source/:id', () => {
     route(deps, 'GET', new URL(`/api/source/${id}`, 'http://localhost'), null);
 
   it('hands back the file as it sits on disk, frontmatter and all', async () => {
-    const raw = ['---', 'title: a plan', 'layer: state', '---', '', '# a plan', '', 'the body', ''].join('\n');
+    const raw = [
+      '---',
+      'title: a plan',
+      'layer: state',
+      '---',
+      '',
+      '# a plan',
+      '',
+      'the body',
+      '',
+    ].join('\n');
     const note = addNote('a plan', 'state', raw);
     writeFileSync(note.filePath, raw);
 
@@ -464,5 +474,34 @@ describe('the repair batch and the reading behind it', () => {
     const reply = await get('/api/repair/evidence?limit=5');
 
     expect(reply.status).toBe(200);
+  });
+});
+
+describe('POST /api/dangling/dismiss', () => {
+  it('stops a note\u2019s unresolved links being counted at all', async () => {
+    const note = addNote('a plan', 'past', 'points at [[nobody wrote this]]\n');
+
+    const before = JSON.parse(
+      (await route(deps, 'GET', new URL('/api/today', 'http://localhost'), null)).body,
+    );
+    expect(before.buried.forwardLinks).toBe(1);
+
+    const reply = await route(deps, 'POST', new URL('/api/dangling/dismiss', 'http://localhost'), {
+      noteId: note.id,
+    });
+    expect(reply.status).toBe(200);
+
+    const after = JSON.parse(
+      (await route(deps, 'GET', new URL('/api/today', 'http://localhost'), null)).body,
+    );
+    expect(after.buried.forwardLinks).toBe(0);
+  });
+
+  it('refuses a body with no note in it', async () => {
+    const reply = await route(deps, 'POST', new URL('/api/dangling/dismiss', 'http://localhost'), {
+      noteId: 'not a number',
+    });
+
+    expect(reply.status).toBe(400);
   });
 });
