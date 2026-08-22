@@ -1,4 +1,12 @@
-export type MdNode = { type: string; value?: string; url?: string; children?: MdNode[] };
+export type MdNode = {
+  type: string;
+  value?: string;
+  url?: string;
+  data?: { hProperties?: Record<string, string> };
+  children?: MdNode[];
+};
+
+export const WIKI_TITLE_PROP = 'data-wiki-title';
 
 const WIKI = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g;
 
@@ -12,6 +20,7 @@ export const splitWikiLinks = (value: string): MdNode[] => {
         {
           type: 'link',
           url: `wiki:${m[1].trim()}`,
+          data: { hProperties: { [WIKI_TITLE_PROP]: m[1].trim() } },
           children: [{ type: 'text', value: (m[2] ?? m[1]).trim() }],
         },
       ],

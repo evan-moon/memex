@@ -2,7 +2,7 @@ import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markd
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import { type Strings, useT } from './i18n.ts';
-import { remarkWikiLinks } from './wiki-links.ts';
+import { remarkWikiLinks, WIKI_TITLE_PROP } from './wiki-links.ts';
 
 const componentsFor = (targets: Map<string, number>, t: Strings): Components => ({
   h1: ({ children }) => <h2 className="doc-h2">{children}</h2>,
@@ -33,15 +33,16 @@ const componentsFor = (targets: Map<string, number>, t: Strings): Components => 
   ),
   th: ({ children }) => <th className="doc-th">{children}</th>,
   td: ({ children }) => <td className="doc-td">{children}</td>,
-  a: ({ href, children }) => {
-    if (!href?.startsWith('wiki:')) {
+  a: ({ href, children, node }) => {
+    const title = node?.properties?.[WIKI_TITLE_PROP];
+    if (typeof title !== 'string') {
       return (
         <a className="doc-link" href={href} target="_blank" rel="noreferrer">
           {children}
         </a>
       );
     }
-    const id = targets.get(href.slice('wiki:'.length).toLowerCase());
+    const id = targets.get(title.toLowerCase());
     if (id === undefined) {
       return (
         <span className="doc-wiki-dead" title={t.note.deadLink}>
