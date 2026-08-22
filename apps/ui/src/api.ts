@@ -282,6 +282,7 @@ export type RepairCard = {
   layer: string;
   at: number;
   updatedAt: number;
+  claims: string[];
   candidates: NoteRef[];
 };
 

@@ -116,6 +116,22 @@ const Deck = ({ batch, onFinished }: { batch: RepairBatch; onFinished: (n: numbe
           <Dates at={card.at} updatedAt={card.updatedAt} />
         </div>
 
+        {card.claims.length > 0 ? (
+          <>
+            <p className="mt-4 text-xs text-muted">{t.repair.claims(card.claims.length)}</p>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {card.claims.map((claim, index) => (
+                <li key={claim} className="flex gap-2 text-sm leading-snug">
+                  <span className="w-4 shrink-0 text-[11px] tabular-nums text-muted">
+                    {index + 1}
+                  </span>
+                  <span>{claim}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+
         <p className="mt-4 text-xs text-muted">{t.repair.sources}</p>
         <ul className="mt-2 flex flex-col gap-1">
           {card.candidates.map((source, index) => (

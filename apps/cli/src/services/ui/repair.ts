@@ -1,4 +1,9 @@
-import { indexTypeNoteIds, type MemexClient, notesDeclaringEvidence } from '@memex/db';
+import {
+  getNoteShape,
+  indexTypeNoteIds,
+  type MemexClient,
+  notesDeclaringEvidence,
+} from '@memex/db';
 import { candidateSources, type NoteRef } from './notes.ts';
 
 export type Undeclared = {
@@ -16,6 +21,7 @@ export type RepairCard = {
   layer: string;
   at: number;
   updatedAt: number;
+  claims: string[];
   candidates: NoteRef[];
 };
 
@@ -52,6 +58,7 @@ export const evidenceBatch = (client: MemexClient, limit: number): RepairBatch =
     layer: row.layer,
     at: row.at,
     updatedAt: row.updatedAt,
+    claims: getNoteShape(client, row.id)?.claims ?? [],
     candidates: candidateSources(client, { id: row.id, layer: 'state' }),
   }));
   return { remaining: servable.length - cards.length, cards };

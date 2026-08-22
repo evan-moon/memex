@@ -119,6 +119,26 @@ describe('evidenceBatch', () => {
     expect(evidenceBatch(client, 20).remaining).toBe(0);
   });
 
+  it('carries what the note asserts, once someone has read it', () => {
+    const source = addNote('what happened');
+    const projection = addNote('my judgement', 'state');
+    link(projection.id, source.id);
+    setNoteShape(client, { noteId: projection.id, kind: 'position', claims: ['하나', '둘'] });
+
+    expect(evidenceBatch(client, 20).cards[0].claims).toEqual(['하나', '둘']);
+  });
+
+  it('offers a card with no claims rather than none at all while it is unread', () => {
+    const source = addNote('what happened');
+    const projection = addNote('my judgement', 'state');
+    link(projection.id, source.id);
+
+    const [card] = evidenceBatch(client, 20).cards;
+
+    expect(card.id).toBe(projection.id);
+    expect(card.claims).toEqual([]);
+  });
+
   it('carries both dates so a later edit does not read as a later note', () => {
     const source = addNote('what happened');
     const projection = addNote('my judgement', 'state');
