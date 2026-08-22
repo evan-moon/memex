@@ -20,6 +20,17 @@ export const toSnippet = (content: string): string => {
   return flat.length > SNIPPET_MAX_CHARS ? `${flat.slice(0, SNIPPET_MAX_CHARS)}…` : flat;
 };
 
+// Without this the two look identical, and a summary an agent wrote in an
+// earlier session reads as if the user had written it. That is the loop where
+// a machine's paraphrase becomes the source for the next machine's paraphrase.
+export const stamp = (note: { layer: string; author?: string | null }): string =>
+  note.author === 'agent' ? `${note.layer} · agent` : note.layer;
+
+export const ownWorkHint =
+  '\n\n---\n\u26a0\ufe0f Results marked `agent` are notes an agent wrote in an earlier session, not the ' +
+  "user's own words. They are a prior summary and can be stale or wrong. When one " +
+  "disagrees with a note the user wrote, the user's note wins.";
+
 export const supersededLine = (corrections: { id: number; title: string }[]): string => {
   const newest = corrections.at(-1);
   if (!newest) return '';
@@ -120,6 +131,8 @@ export const registerSearchNotes = (
         results.map((r) => r.id),
       );
 
+      const mirrorHint = results.some((r) => r.author === 'agent') ? ownWorkHint : '';
+
       const text =
         `Compact index — call get_note(id) for full content of relevant results.\n\n${results
           .map((r, i) => {
@@ -135,9 +148,10 @@ export const registerSearchNotes = (
               .join(' | ');
             const snippet = r.matchSnippet ? toSnippet(r.matchSnippet) : toSnippet(r.content);
             const correctionLine = supersededLine(amendments.get(r.id) ?? []);
-            return `${i + 1}. #${r.id} [${r.layer}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
+            return `${i + 1}. #${r.id} [${stamp(r)}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +
+        mirrorHint +
         seriesHint +
         flashbackHint +
         reembedWarning;

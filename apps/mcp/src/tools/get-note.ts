@@ -1,5 +1,6 @@
 import type { MemexClient } from '@memex/db';
 import { getAmendments, getBacklinks, getNote } from '@memex/db';
+import { ownWorkHint, stamp } from './search-notes.ts';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -28,7 +29,9 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
           ? `\n\n---\n**Referenced by:**\n${backlinks.map((b) => `- #${b.id} [[${b.title}]]`).join('\n')}`
           : '';
 
-      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${backlinkSection}\n\n---\nid: ${note.id} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
+      const mirrorSection = note.author === 'agent' ? ownWorkHint : '';
+
+      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${backlinkSection}${mirrorSection}\n\n---\nid: ${note.id} | ${stamp(note)} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
       return { content: [{ type: 'text', text }] };
     },
   );
