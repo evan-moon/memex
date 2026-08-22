@@ -286,6 +286,13 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS dangling_dismissed (
+      note_id INTEGER PRIMARY KEY,
+      at      INTEGER NOT NULL
+    );
+  `);
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS note_shape (
       note_id     INTEGER PRIMARY KEY,
       kind        TEXT    NOT NULL,

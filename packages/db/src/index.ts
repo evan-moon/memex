@@ -10,6 +10,15 @@ export {
 } from './claims.ts';
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
+export {
+  classifyDangling,
+  type DanglingKind,
+  type DanglingLink,
+  danglingLinks,
+  dismissDanglingFor,
+  dismissedDanglingNoteIds,
+  restoreDanglingFor,
+} from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
 export {

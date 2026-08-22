@@ -9,6 +9,7 @@ export {
   MODEL_CACHE_DIR,
   saveConfig,
 } from './config.ts';
+export { withinEditDistance } from './distance.ts';
 export { EMBEDDING_DIM } from './embedding.ts';
 export { parseDerivesFrom, writeDerivesFrom } from './evidence.ts';
 export { filenameKey, sanitizeFilename, titleKey } from './filename.ts';

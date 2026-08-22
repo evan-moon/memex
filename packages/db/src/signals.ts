@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
+import { dismissedDanglingNoteIds } from './dangling.ts';
 import { notesDeclaringEvidence } from './evidence.ts';
 import { linkTargets, parseTags, resolveLinkTargets } from './repository.ts';
 
@@ -178,10 +179,12 @@ export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
     client,
     notes.flatMap((n) => linkTargets(n.content)),
   );
+  const dismissed = new Set(dismissedDanglingNoteIds(client));
   const candidates: SignalCandidate[] = [];
   const seen = new Set<string>();
 
   for (const note of notes) {
+    if (dismissed.has(note.id)) continue;
     const titles = linkTargets(note.content);
     for (const title of titles) {
       const key = title.toLowerCase();
