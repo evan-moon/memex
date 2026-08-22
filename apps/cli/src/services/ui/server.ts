@@ -32,6 +32,7 @@ import {
   layerCounts,
   listByLayer,
   noteDetail,
+  noteSource,
   noteTitles,
   plainSnippet,
   recompose,
@@ -238,6 +239,10 @@ export const route = async (
   if (method === 'GET' && url.pathname.startsWith('/api/note/')) {
     const detail = noteDetail(client, Number(url.pathname.split('/').pop()), vaultPath);
     return detail ? json(detail) : notFound;
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/source/')) {
+    const source = noteSource(client, Number(url.pathname.split('/').pop()));
+    return source ? json(source) : notFound;
   }
   if (method === 'GET' && url.pathname === '/api/search') {
     const q = url.searchParams.get('q') ?? '';

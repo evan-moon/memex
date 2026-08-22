@@ -17,7 +17,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   author: 'person',
   at: Date.now(),
   tags: ['one', 'two'],
-  obsidianUrl: null,
+  filePath: '/vault/note.md',
   deadLinks: [],
   evidence: [],
   candidateSources: [],

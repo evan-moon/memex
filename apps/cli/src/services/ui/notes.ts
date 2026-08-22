@@ -1,4 +1,5 @@
-import { basename, dirname, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, relative } from 'node:path';
 import { amendmentSuggestion } from '@memex/core';
 import {
   evidenceFor,
@@ -33,7 +34,6 @@ export type NoteDetail = {
   at: number;
   tags: string[];
   author: string;
-  obsidianUrl: string | null;
   filePath: string;
   folder: string | null;
   amendment: ReturnType<typeof amendmentSuggestion> | null;
@@ -84,14 +84,6 @@ const toStateRef = (n: RawNote): NoteRef => ({
   ...toRef(n),
   at: n.updatedAt ?? n.updated_at ?? toRef(n).at,
 });
-
-// Obsidian can only open what is inside the vault it has open; notes indexed
-// from other roots get their path shown instead of a link that would fail.
-const obsidianUrl = (filePath: string, vaultPath: string): string | null => {
-  if (!filePath.startsWith(`${vaultPath}/`)) return null;
-  const rel = filePath.slice(vaultPath.length + 1);
-  return `obsidian://open?vault=${encodeURIComponent(basename(vaultPath))}&file=${encodeURIComponent(rel.replace(/\.md$/, ''))}`;
-};
 
 // A note's stored content is the file as it sits on disk, so most of it opens
 // with YAML frontmatter and then repeats the title as an H1. Rendered as text
@@ -266,7 +258,6 @@ export const noteDetail = (
     author: note.author,
     at: note.authoredAt ?? note.createdAt,
     tags: parseTags(note.tags),
-    obsidianUrl: obsidianUrl(note.filePath, vaultPath),
     filePath: note.filePath,
     folder: folderOf(note.filePath, vaultPath),
     amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
@@ -293,6 +284,22 @@ export const noteDetail = (
     backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
     related: withStatus(client, findRelatedNotes(client, id, 5).map(toRef)),
   };
+};
+
+export type NoteSource = { path: string; text: string | null };
+
+const readOrNull = (path: string) => {
+  try {
+    return readFileSync(path, 'utf-8');
+  } catch {
+    return null;
+  }
+};
+
+export const noteSource = (client: MemexClient, id: number): NoteSource | null => {
+  const note = getNote(client, id);
+  if (!note) return null;
+  return { path: note.filePath, text: readOrNull(note.filePath) };
 };
 
 // `state` is what is believed now, so its recency is the last time it was

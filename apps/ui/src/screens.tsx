@@ -5,6 +5,7 @@ import {
   type ApiFailure,
   type Facets,
   type NoteDetail,
+  type NoteSource,
   type SearchFilters,
   type SearchPage,
   type Topic,
@@ -187,6 +188,33 @@ export const TopicScreen = () => {
   );
 };
 
+const SourcePanel = ({ id }: { id: number }) => {
+  const t = useT();
+  const { data, failure } = useAsync<NoteSource>(() => api.source(id), String(id));
+
+  if (!data) {
+    return (
+      <Card className="mt-4">
+        <div className="text-xs text-muted">{failure ? t.error(failure) : t.common.loading}</div>
+      </Card>
+    );
+  }
+  return (
+    <Card className="mt-4">
+      <div className="break-all font-mono text-xs text-muted">{data.path}</div>
+      {data.text === null ? (
+        <p className="mt-2 text-sm" style={{ color: 'var(--negative)' }}>
+          {t.note.sourceMissing}
+        </p>
+      ) : (
+        <pre className="mt-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+          {data.text}
+        </pre>
+      )}
+    </Card>
+  );
+};
+
 export const NoteScreen = () => {
   const t = useT();
   const { id = '' } = useParams();
@@ -194,12 +222,14 @@ export const NoteScreen = () => {
   const [edited, setEdited] = useState<NoteDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [showSource, setShowSource] = useState(false);
   const note = edited?.id === Number(id) ? edited : data;
 
   useEffect(() => {
     if (data) rememberVisit({ id: data.id, title: data.title });
     setEditing(false);
     setDraft(null);
+    setShowSource(false);
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
@@ -216,11 +246,9 @@ export const NoteScreen = () => {
             {tag}
           </Link>
         ))}
-        {note.obsidianUrl ? (
-          <a href={note.obsidianUrl} className="text-primary">
-            {t.note.openInObsidian}
-          </a>
-        ) : null}
+        <button type="button" onClick={() => setShowSource(!showSource)} className="text-primary">
+          {showSource ? t.note.hideSource : t.note.viewSource}
+        </button>
         <span className="ml-auto">
           {editing || draft ? null : note.layer === 'past' ? (
             <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
@@ -229,6 +257,7 @@ export const NoteScreen = () => {
           )}
         </span>
       </div>
+      {showSource ? <SourcePanel id={note.id} /> : null}
       {newest ? (
         <Card className="mt-4">
           <div className="text-sm" style={{ color: 'var(--negative)' }}>

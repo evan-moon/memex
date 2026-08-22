@@ -48,7 +48,7 @@ export type NoteDetail = {
   author: string;
   at: number;
   tags: string[];
-  obsidianUrl: string | null;
+  filePath: string;
   folder: string | null;
   amendment: Amendment | null;
   wikiLinks: { title: string; id: number }[];
@@ -68,6 +68,8 @@ export type NoteDetail = {
   backlinks: NoteRef[];
   related: NoteRef[];
 };
+
+export type NoteSource = { path: string; text: string | null };
 
 export type DraftChange = { text: string; from: number[] };
 
@@ -264,6 +266,7 @@ export const api = {
   topics: () => request<Topic[]>('/api/topics'),
   topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
+  source: (id: number) => request<NoteSource>(`/api/source/${id}`),
   search: (query: string, filters: SearchFilters = {}) =>
     request<SearchPage>(`/api/search?${searchQuery(query, filters)}`),
   titles: () => request<NoteTitle[]>('/api/titles'),

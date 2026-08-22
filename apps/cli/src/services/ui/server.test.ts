@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -399,5 +399,33 @@ describe('POST /api/notes', () => {
     expect(body(await post('/api/notes', { title: 'x', layer: 'past' })).error).toMatchObject({
       code: 'empty-body',
     });
+  });
+});
+
+describe('GET /api/source/:id', () => {
+  const getSource = (id: number) =>
+    route(deps, 'GET', new URL(`/api/source/${id}`, 'http://localhost'), null);
+
+  it('hands back the file as it sits on disk, frontmatter and all', async () => {
+    const raw = ['---', 'title: a plan', 'layer: state', '---', '', '# a plan', '', 'the body', ''].join('\n');
+    const note = addNote('a plan', 'state', raw);
+    writeFileSync(note.filePath, raw);
+
+    const reply = await getSource(note.id);
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toEqual({ path: note.filePath, text: raw });
+  });
+
+  it('says the file is gone rather than pretending the index is the note', async () => {
+    const note = addNote('a plan', 'state');
+    writeFileSync(note.filePath, 'the body\n');
+    unlinkSync(note.filePath);
+
+    expect(body(await getSource(note.id))).toEqual({ path: note.filePath, text: null });
+  });
+
+  it('404s for an id no note carries', async () => {
+    expect((await getSource(9999)).status).toBe(404);
   });
 });
