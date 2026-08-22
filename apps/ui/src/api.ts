@@ -121,6 +121,22 @@ export type Sidebar = {
   rule: NoteRef[];
 };
 
+export type TodayItem =
+  | { kind: 'evidence-moved'; id: number; title: string }
+  | { kind: 'typo-link'; id: number; title: string; target: string; nearest: string }
+  | { kind: 'undeclared'; id: number; title: string; candidates: number };
+
+export type Buried = {
+  undeclared: number;
+  staleNotes: number;
+  forwardLinks: number;
+  placeholders: number;
+  tagMerges: number;
+  looseTags: number;
+};
+
+export type Today = { items: TodayItem[]; buried: Buried };
+
 export type SearchHit = NoteRef & { snippet: string };
 
 export type SearchFilters = {
@@ -196,19 +212,6 @@ export type RenameResult = {
 };
 
 export type TagRow = { tag: string; notes: number; mine: number };
-
-export type Chores = {
-  hypotheses: { total: number; top: { id: number; title: string; status: string }[] };
-  undeclared: { total: number; top: { id: number; title: string; candidates: number }[] };
-  staleNotes: { total: number; top: { id: number; title: string; count: number }[] };
-  deadLinks: {
-    total: number;
-    notes: number;
-    top: { id: number; title: string; targets: string[] }[];
-  };
-  tagMerges: { total: number; top: { keep: string; drop: string[] }[] };
-  looseTags: { total: number; all: number; top: string[] };
-};
 
 export type Facets = {
   folders: { name: string; count: number }[];
@@ -291,6 +294,8 @@ export type RepairBatch = { remaining: number; cards: RepairCard[] };
 export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
+  today: () => request<Today>('/api/today'),
+  dismissDangling: (noteId: number) => post<{ ok: true }>('/api/dangling/dismiss', { noteId }),
   digest: (days: number) => request<Digest>(`/api/digest?days=${days}`),
   topics: () => request<Topic[]>('/api/topics'),
   threads: () => request<Thread[]>('/api/threads'),
@@ -304,7 +309,6 @@ export const api = {
   facets: () => request<Facets>('/api/facets'),
   tagMerges: () => request<MergeCandidate[]>('/api/tag-merges'),
   tags: () => request<TagRow[]>('/api/tags'),
-  chores: () => request<Chores>('/api/chores'),
   repairEvidence: (limit: number) => request<RepairBatch>(`/api/repair/evidence?limit=${limit}`),
   inference: (id: number) => request<InferenceDetail>(`/api/inference/${id}`),
   archiveInference: (id: number) => post<{ ok: true }>(`/api/inference/${id}/archive`),

@@ -8,6 +8,7 @@ import {
   searchPage,
 } from '@memex/core';
 import {
+  dismissDanglingFor,
   getAmendmentsFor,
   getInference,
   getNote,
@@ -43,6 +44,7 @@ import { PAGE } from './page.ts';
 import { evidenceBatch } from './repair.ts';
 import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
+import { buildToday } from './today.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -130,7 +132,8 @@ export type ApiErrorCode =
   | 'draft-failed'
   | 'draft-no-claude'
   | 'empty-body'
-  | 'edit-rejected';
+  | 'edit-rejected'
+  | 'invalid-note-id';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
@@ -219,6 +222,15 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));
+  }
+  if (method === 'GET' && url.pathname === '/api/today') {
+    return json(buildToday(client, vaultPath));
+  }
+  if (method === 'POST' && url.pathname === '/api/dangling/dismiss') {
+    const noteId = Number(asRecord(payload)?.noteId);
+    if (!Number.isInteger(noteId)) return bad(400, 'invalid-note-id');
+    dismissDanglingFor(client, noteId);
+    return json({ ok: true });
   }
   if (method === 'GET' && url.pathname === '/api/repair/evidence') {
     const limit = clamp(url.searchParams.get('limit'), REPAIR_BATCH, REPAIR_BATCH_MAX);
