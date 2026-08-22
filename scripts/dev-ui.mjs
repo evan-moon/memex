@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,6 +56,27 @@ const stop = (code) => {
 
 process.on('SIGINT', () => stop(0));
 process.on('SIGTERM', () => stop(0));
+
+// tsx watch is a file watcher, so it outlives the server it starts. If the
+// port is already taken the API exits, the watcher does not, and Vite keeps
+// proxying to whatever else is on that port — usually an older `memex ui`
+// serving routes this checkout has since changed. That reads as a 404 in the
+// browser and as nothing at all here, so refuse to start instead.
+const portIsFree = (port) =>
+  new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => resolve(false));
+    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.listen(Number(port), '127.0.0.1');
+  });
+
+if (!(await portIsFree(apiPort))) {
+  console.error(
+    `Port ${apiPort} is already serving something — probably a \`memex ui\` you left running.\n` +
+      `Stop it, or pass --port to move this pair somewhere else.`,
+  );
+  process.exit(1);
+}
 
 run(
   'api ',
