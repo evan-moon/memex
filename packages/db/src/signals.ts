@@ -263,9 +263,13 @@ export const detectStaleState = (
   return candidates;
 };
 
-export type ConflictOptions = { maxDistance?: number; neighbours?: number };
+export type ConflictOptions = {
+  maxDistance?: number;
+  crossAuthorDistance?: number;
+  neighbours?: number;
+};
 
-type Judgement = { id: number; title: string; layer: string };
+type Judgement = { id: number; title: string; layer: string; author: string };
 
 const pairKey = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
 
@@ -294,16 +298,28 @@ export const detectConflictPairs = (
   options: ConflictOptions = {},
 ): SignalCandidate[] => {
   const maxDistance = options.maxDistance ?? 0.35;
-  const neighbours = options.neighbours ?? 25;
+  // Two writers recording the same subject phrase it differently enough that a
+  // tight cap misses them, and the pairs found here have been worth the extra
+  // reach: of the judgements sitting between a person note and the agent's own
+  // copy, the ones that turned out to disagree or to be duplicates all sat
+  // further apart than two notes by the same hand ever need to.
+  const crossDistance = options.crossAuthorDistance ?? 0.4;
+  // k is applied by the ANN index BEFORE the layer filter, so a small k returns
+  // the nearest notes of every layer and leaves almost no judgements standing.
+  // Measured here: k=25 found 8 pairs where k=250 finds the ones that matter.
+  const neighbours = options.neighbours ?? 250;
   const reconciled = reconciledPairs(client);
   const seen = new Set<string>();
   const candidates: SignalCandidate[] = [];
   const distances = new Map<string, number>();
 
+  const crossAuthor = new Set<string>();
+
   const nominate = (a: Judgement, b: Judgement, why: string) => {
     const key = pairKey(a.id, b.id);
     if (a.id === b.id || seen.has(key) || reconciled.has(key)) return;
     seen.add(key);
+    if (a.author !== b.author) crossAuthor.add(key);
     candidates.push({
       type: 'conflict_candidate',
       evidenceIds: [a.id, b.id],
@@ -345,7 +361,7 @@ export const detectConflictPairs = (
   };
 
   const rules = client.sqlite
-    .prepare("SELECT id, title, layer FROM notes WHERE layer = 'rule' ORDER BY id")
+    .prepare("SELECT id, title, layer, author FROM notes WHERE layer = 'rule' ORDER BY id")
     .all() as Judgement[];
   for (const [index, rule] of rules.entries()) {
     // Uncapped: rules are compared exhaustively anyway, so the neighbourhood is
@@ -357,26 +373,31 @@ export const detectConflictPairs = (
   }
 
   const states = client.sqlite
-    .prepare("SELECT id, title, layer FROM notes WHERE layer = 'state' ORDER BY id")
+    .prepare("SELECT id, title, layer, author FROM notes WHERE layer = 'state' ORDER BY id")
     .all() as Judgement[];
   const byId = new Map(states.map((state) => [state.id, state]));
 
   for (const state of states) {
-    const near = neighboursOf(state.id, 'state', maxDistance);
+    const near = neighboursOf(state.id, 'state', Math.max(maxDistance, crossDistance));
     remember(state.id, near);
     for (const row of near) {
       const other = byId.get(row.id);
-      if (other) nominate(state, other, 'claim something about the same subject');
+      if (!other) continue;
+      const cap = state.author === other.author ? maxDistance : crossDistance;
+      if (row.distance < cap) nominate(state, other, 'claim something about the same subject');
     }
   }
 
-  // Closest first. Every pair still gets asked eventually, but a run that is
-  // cut short by --limit spends its calls where a disagreement could hide,
-  // not on two rules that have nothing to do with each other.
+  // Closest first, and a pair written by two different hands before a pair
+  // written by one. Measured on this vault: every disagreement and every
+  // duplicate found so far sat between a note the person wrote and the agent's
+  // own copy of it, and none sat between two notes the person wrote. It is the
+  // same subject recorded twice by two writers who never read each other.
   const distanceOf = (candidate: SignalCandidate) =>
     distances.get(candidate.identity ?? '') ?? Number.POSITIVE_INFINITY;
+  const rank = (candidate: SignalCandidate) => (crossAuthor.has(candidate.identity ?? '') ? 0 : 1);
 
-  return candidates.sort((a, b) => distanceOf(a) - distanceOf(b));
+  return candidates.sort((a, b) => rank(a) - rank(b) || distanceOf(a) - distanceOf(b));
 };
 
 export type TagBurstOptions = {

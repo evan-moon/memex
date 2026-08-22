@@ -87,3 +87,37 @@ describe('detectConflictPairs', () => {
     expect(pairsOf()).toEqual([]);
   });
 });
+
+describe('ordering', () => {
+  it('asks about two different hands before two notes by the same one', () => {
+    const mine = insertNote(client, {
+      title: 'rule mine',
+      content: 'body',
+      filePath: join(dbDir, 'mine.md'),
+      source: 'manual',
+      layer: 'rule',
+      author: 'person',
+    });
+    const alsoMine = insertNote(client, {
+      title: 'rule also mine',
+      content: 'body',
+      filePath: join(dbDir, 'also.md'),
+      source: 'manual',
+      layer: 'rule',
+      author: 'person',
+    });
+    const theirs = insertNote(client, {
+      title: 'rule theirs',
+      content: 'body',
+      filePath: join(dbDir, 'theirs.md'),
+      source: 'index',
+      layer: 'rule',
+      author: 'agent',
+    });
+
+    const [first] = detectConflictPairs(client);
+
+    expect(first.evidenceIds).toContain(theirs.id);
+    expect([mine.id, alsoMine.id].filter((id) => first.evidenceIds.includes(id))).toHaveLength(1);
+  });
+});
