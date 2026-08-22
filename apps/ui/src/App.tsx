@@ -1,6 +1,6 @@
 import { Languages, LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   api,
   type Overview as OverviewData,
@@ -8,14 +8,14 @@ import {
   type Topic,
 } from './api.ts';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
-import { useLocale } from './i18n.ts';
 import { HypothesisScreen } from './Hypothesis.tsx';
-import { Palette } from './Palette.tsx';
-import { TagsScreen } from './Tags.tsx';
+import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
+import { Palette } from './Palette.tsx';
 import { RepairScreen } from './Repair.tsx';
-import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
+import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
+import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
 import { useTheme } from './theme.ts';
 
@@ -131,7 +131,6 @@ export const App = () => {
           <ErrorBoundary key={location.pathname} t={t}>
             <Routes>
               <Route path="/" element={<Overview data={overview} />} />
-              <Route path="/topics" element={<TopicsScreen topics={topics} />} />
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />
@@ -140,7 +139,7 @@ export const App = () => {
               <Route path="/repair/evidence" element={<RepairScreen />} />
               <Route path="/tags" element={<TagsScreen />} />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFoundScreen />} />
             </Routes>
           </ErrorBoundary>
         </main>

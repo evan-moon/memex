@@ -8,7 +8,6 @@ import {
   type NoteSource,
   type SearchFilters,
   type SearchPage,
-  type Topic,
   type TopicDetail,
 } from './api.ts';
 import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList } from './bits.tsx';
@@ -19,7 +18,6 @@ import { HypothesisLinks } from './Hypothesis.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { rememberVisit } from './recent.ts';
-import { Spark } from './Spark.tsx';
 import { StalePanel } from './StalePanel.tsx';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
@@ -39,70 +37,15 @@ const Pending = ({ failure }: { failure: ApiFailure | null }) => {
   );
 };
 
-export const TopicsScreen = ({ topics }: { topics: Topic[] }) => {
+export const NotFoundScreen = () => {
   const t = useT();
   return (
     <Page>
-      <h1 className="text-xl font-semibold tracking-tight">{t.topics.title}</h1>
-      <p className="mt-1 text-sm text-muted">{t.topics.subtitle(topics.length)}</p>
-      <div className="mt-4 divide-y divide-line border-y border-line">
-        {topics.map((topic) => {
-          const stale = topic.changedCount + topic.reviewCount;
-          const total = Math.max(1, topic.currentCount + stale);
-          return (
-            <Link
-              key={topic.tag}
-              to={`/topic/${encodeURIComponent(topic.tag)}`}
-              className={`flex items-center gap-4 py-4 hover:bg-surface ${topic.dormant ? 'opacity-60' : ''}`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="truncate font-semibold text-primary">{topic.tag}</span>
-                  <span className="shrink-0 text-[11px] text-muted">
-                    {t.common.notes(topic.count)}
-                  </span>
-                  {topic.dormant ? (
-                    <span className="shrink-0 rounded-full border border-line px-2 text-[10px] text-muted">
-                      {t.topics.dormant}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex h-1.5 max-w-sm overflow-hidden rounded-full bg-surface-muted">
-                  <i
-                    className="block h-full"
-                    style={{
-                      width: `${(topic.currentCount / total) * 100}%`,
-                      background: 'var(--positive)',
-                    }}
-                  />
-                  <i
-                    className="block h-full"
-                    style={{ width: `${(stale / total) * 100}%`, background: 'var(--caution)' }}
-                  />
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-muted">
-                  <span>
-                    {t.topics.stillHolds}{' '}
-                    <b className="tabular-nums" style={{ color: 'var(--positive)' }}>
-                      {topic.currentCount}
-                    </b>
-                  </span>
-                  <span>
-                    {t.topics.oldNews}{' '}
-                    <b className="tabular-nums" style={{ color: 'var(--caution)' }}>
-                      {stale}
-                    </b>
-                  </span>
-                  <span>{ago(t, topic.lastAt)}</span>
-                </div>
-              </div>
-              <div className="hidden shrink-0 sm:block">
-                <Spark values={topic.spark} />
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight">{t.notFound.title}</h1>
+      <p className="mt-2 text-sm text-muted">{t.notFound.lead}</p>
+      <Link to="/" className="mt-6 inline-block text-sm text-primary">
+        {t.notFound.home}
+      </Link>
     </Page>
   );
 };

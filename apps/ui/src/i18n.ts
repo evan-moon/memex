@@ -70,6 +70,11 @@ const en = {
     latest: 'where it stands now',
     open: 'See the whole thread',
   },
+  notFound: {
+    title: 'No such page',
+    lead: 'This address does not point at anything in the vault.',
+    home: 'Back to the overview',
+  },
   sidebar: {
     state: 'What I believe now',
     agentShare: (n: number) => `${n} of them an agent's`,
@@ -135,14 +140,6 @@ const en = {
     stalenessHint:
       'The line is weekly activity over the past year — every tag shares one axis, so a flat right edge means the subject went quiet',
     stalenessShare: (pct: number) => `${pct}% old news`,
-  },
-  topics: {
-    title: 'Topics',
-    subtitle: (n: number) =>
-      `${n} · most stale first · the line is weekly activity over the past year`,
-    dormant: 'dormant',
-    stillHolds: 'Still holds',
-    oldNews: 'Old news',
   },
   topic: {
     subtitle: (count: number, last: string) => `${count} notes · last ${last}`,
@@ -376,6 +373,11 @@ const ko: typeof en = {
     latest: '지금 여기까지 왔어',
     open: '이 줄기 전체 보기',
   },
+  notFound: {
+    title: '없는 페이지',
+    lead: '이 주소는 볼트의 무엇도 가리키지 않아.',
+    home: '전체 보기로 돌아가기',
+  },
   sidebar: {
     state: '지금 믿는 것',
     agentShare: (n) => `그중 ${n}개는 에이전트 것`,
@@ -438,13 +440,6 @@ const ko: typeof en = {
     stalenessHint:
       '선은 최근 1년 주간 활동 — 모든 태그가 같은 축이라 오른쪽이 평평하면 손을 뗀 지 오래됐다는 뜻',
     stalenessShare: (pct) => `${pct}% 지난 얘기`,
-  },
-  topics: {
-    title: '주제',
-    subtitle: (n) => `${n}개 · 낡은 정보가 많은 순 · 선은 최근 1년 주간 활동`,
-    dormant: '잠듦',
-    stillHolds: '아직 맞는 얘기',
-    oldNews: '지난 얘기',
   },
   topic: {
     subtitle: (count, last) => `${count}개 · 마지막 ${last}`,

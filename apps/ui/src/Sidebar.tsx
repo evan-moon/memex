@@ -40,13 +40,28 @@ const Section = ({
   );
 };
 
-const PAGE = 300;
+// The sidebar's own closing line tells the reader to search rather than skim,
+// so it opens with a glance -- the most recent few -- and keeps the rest one
+// click away. Paging also kept 1104 past notes from mounting at once.
+const PAGE = 10;
 
-// The vault outgrew a single render: 1104 past notes mounted at once is a
-// stall, and cutting the list at a fixed limit made the sidebar look like the
-// vault ended there. Show a page at a time and say how many are left.
-const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
+const More = ({ rest, onMore }: { rest: number; onMore: () => void }) => {
   const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onMore();
+      }}
+      className="mt-1 w-full rounded-md py-1.5 pl-7 pr-2 text-left text-xs text-muted hover:bg-surface hover:text-foreground"
+    >
+      {t.sidebar.more(rest)}
+    </button>
+  );
+};
+
+const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
   const [shown, setShown] = useState(PAGE);
   const rest = list.length - shown;
 
@@ -60,18 +75,30 @@ const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
           <span className="truncate">{n.title}</span>
         </NavLink>
       ))}
-      {rest > 0 ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShown(shown + PAGE);
-          }}
-          className="mt-1 w-full rounded-md py-1.5 pl-7 pr-2 text-left text-xs text-muted hover:bg-surface hover:text-foreground"
+      {rest > 0 ? <More rest={rest} onMore={() => setShown(shown + PAGE)} /> : null}
+    </>
+  );
+};
+
+const TopicRows = ({ topics }: { topics: Topic[] }) => {
+  const [shown, setShown] = useState(PAGE);
+  const rest = topics.length - shown;
+
+  return (
+    <>
+      {topics.slice(0, shown).map((topic) => (
+        <NavLink
+          key={topic.tag}
+          to={`/topic/${encodeURIComponent(topic.tag)}`}
+          className={linkClass}
         >
-          {t.sidebar.more(rest)}
-        </button>
-      ) : null}
+          <span className="truncate">{topic.tag}</span>
+          <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted">
+            {topic.count}
+          </span>
+        </NavLink>
+      ))}
+      {rest > 0 ? <More rest={rest} onMore={() => setShown(shown + PAGE)} /> : null}
     </>
   );
 };
@@ -95,21 +122,10 @@ export const Sidebar = ({
           memex
         </NavLink>
       </div>
-      <Section label={t.sidebar.topics} count={topics.length} defaultOpen>
-        {topics.map((topic) => (
-          <NavLink
-            key={topic.tag}
-            to={`/topic/${encodeURIComponent(topic.tag)}`}
-            className={linkClass}
-          >
-            <span className="truncate">{topic.tag}</span>
-            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted">
-              {topic.count}
-            </span>
-          </NavLink>
-        ))}
+      <Section label={t.sidebar.topics} count={topics.length}>
+        <TopicRows topics={topics} />
       </Section>
-      <Section label={t.sidebar.state} count={data.counts.state ?? 0} defaultOpen>
+      <Section label={t.sidebar.state} count={data.counts.state ?? 0}>
         <NoteRows list={data.state} stale={stale} />
       </Section>
       <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
