@@ -695,6 +695,45 @@ describe('searchNotes — substring and link-expansion arms', () => {
   });
 });
 
+describe('searchNotes — inflected Korean', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-prefix-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const far = new Array(768).fill(0);
+
+  const add = (title: string, content: string, file: string) => {
+    const note = insertNote(client, {
+      title,
+      content,
+      filePath: join(dbDir, file),
+      source: 'manual',
+      layer: 'past',
+    });
+    saveEmbedding(client, note.id, far);
+    return note;
+  };
+
+  it('finds a note whose query token only ever appears with a particle attached', () => {
+    const inflected = add('조사가 붙은 노트', '이것이 근거는 아니다', 'k.md');
+    expect(searchNotes(client, '근거', far, 5).map((r) => r.id)).toContain(inflected.id);
+  });
+
+  it('finds an English match that only appears in a longer inflected form', () => {
+    const inflected = add('plural only', 'the protocols themselves', 'p.md');
+    expect(searchNotes(client, 'protocol', far, 5).map((r) => r.id)).toContain(inflected.id);
+  });
+});
+
 describe('searchNotes date filters', () => {
   let dbDir: string;
   let client: MemexClient;

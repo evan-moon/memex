@@ -98,6 +98,8 @@ export const countChunks = (client: MemexClient): number =>
 
 export const RRF_K = 60;
 
+export const FTS_PREFIX_WEIGHT = 0.3;
+
 const CHUNK_POOL = 6;
 
 // Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
@@ -291,9 +293,8 @@ export const searchNotes = (
       .map((t) => t.replace(/["'*^()[\]{}\\]/g, '').trim())
       .filter((t) => t.length >= 2);
     if (ftsTokens.length > 0) {
-      try {
-        const ftsQuery = ftsTokens.map((t) => `"${t}"`).join(' OR ');
-        const ftsResults = client.sqlite
+      const ftsArm = (match: string) =>
+        client.sqlite
           .prepare(
             `SELECT n.*, snippet(notes_fts, 1, '', '', '…', 12) AS matchSnippet
              FROM notes_fts
@@ -306,8 +307,10 @@ export const searchNotes = (
              ORDER BY bm25(notes_fts)
              LIMIT ?`,
           )
-          .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Candidate[];
-        rrf.add(ftsResults);
+          .all(match, ...filterArgs, ...dateArgs, limit * 3) as Candidate[];
+      try {
+        rrf.add(ftsArm(ftsTokens.map((t) => `"${t}"`).join(' OR ')));
+        rrf.add(ftsArm(ftsTokens.map((t) => `"${t}"*`).join(' OR ')), FTS_PREFIX_WEIGHT);
       } catch {}
     }
 
