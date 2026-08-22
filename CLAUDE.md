@@ -38,7 +38,7 @@ Users interact with memex through the MCP server (Claude Desktop / Claude Code /
 - **Verify** (inspect what landed in the DB; `tags tidy` is the one write, and it proposes before it applies): `search`, `list`, `show`, `related`, `tags` (+ `tags tidy`)
 - **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
 - **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`, `stats flashback`), `schedule`
-- **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, never as a queue to work through
+- **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, and in a finite daily session that empties. Never as a standing backlog counter
 
 Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`). The MCP tool surface is deliberately small (13 tools) — duplicate read paths give the model more ways to pick wrong; consolidate before enumerating.
 
