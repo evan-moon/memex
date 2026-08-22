@@ -1,152 +1,104 @@
-import { GitBranch } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { api, type Thread, type ThreadRef, type ThreadStep } from './api.ts';
+import { api, type Thread, type ThreadStep } from './api.ts';
 import { Card, Layer } from './bits.tsx';
 import { useT } from './i18n.ts';
-import { layoutThread, type PlacedStep, type ThreadEdge } from './thread-layout.ts';
+import { lengthOf, straighten, type ThreadLine } from './thread-layout.ts';
 import { day } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
-const ROW = 46;
-const LANE = 20;
-const TOP = 23;
-const CURVE = 14;
-
-const x = (lane: number) => lane * LANE + 10;
-const y = (row: number) => row * ROW + TOP;
-
-// A correction that stays on its line is a straight run; one that leaves it
-// drops down its parent's lane first and then turns, so the eye reads "this
-// came off that" rather than "these two are diagonal neighbours".
-const edgePath = ({ from, to }: ThreadEdge) =>
-  from.lane === to.lane
-    ? `M${x(from.lane)} ${y(from.row)} V${y(to.row)}`
-    : `M${x(from.lane)} ${y(from.row)} V${y(to.row) - CURVE} Q${x(from.lane)} ${y(to.row)} ${x(from.lane) + CURVE} ${y(to.row)} H${x(to.lane)}`;
-
-const Spine = ({ steps, edges, lanes }: ReturnType<typeof layoutThread>) => (
-  <svg
-    aria-hidden="true"
-    width={lanes * LANE + 10}
-    height={steps.length * ROW}
-    className="shrink-0"
-  >
-    <title>thread</title>
-    {edges.map((edge) => (
-      <path
-        key={`${edge.from.id}-${edge.to.id}`}
-        d={edgePath(edge)}
-        fill="none"
-        strokeWidth={edge.to.trunk ? 2 : 1.5}
-        stroke={edge.to.trunk ? 'var(--primary)' : 'var(--border-accent)'}
-      />
-    ))}
-    {steps.map((step) => (
-      <circle
-        key={step.id}
-        cx={x(step.lane)}
-        cy={y(step.row)}
-        r={step.trunk ? 4.5 : 3.5}
-        fill={step.trunk ? 'var(--primary)' : 'var(--background)'}
-        stroke={step.trunk ? 'var(--primary)' : 'var(--border-accent)'}
-        strokeWidth={1.5}
-      />
-    ))}
-  </svg>
+const Page = ({ children }: { children: React.ReactNode }) => (
+  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
 );
 
-const Rows = ({ steps }: { steps: PlacedStep[] }) => {
+const Dot = ({ muted }: { muted?: boolean }) => (
+  <span
+    className="absolute -left-[5px] top-[7px] h-[9px] w-[9px] rounded-full border-2"
+    style={{
+      background: muted ? 'var(--background)' : 'var(--primary)',
+      borderColor: muted ? 'var(--border-accent)' : 'var(--primary)',
+    }}
+  />
+);
+
+const Line = ({ line, muted = false }: { line: ThreadLine; muted?: boolean }) => {
   const t = useT();
   return (
-    <div className="min-w-0 flex-1">
-      {steps.map((step, i) => (
-        <div
-          key={step.id}
-          className="flex min-w-0 flex-wrap items-baseline gap-x-2"
-          style={{ height: ROW, paddingTop: TOP - 9 }}
-        >
+    <ol className="ml-[5px] border-l border-line pl-5">
+      {line.steps.map((step, i) => (
+        <li key={step.id} className="relative pb-5 last:pb-0">
+          <Dot muted={muted} />
           <Link
             to={`/note/${step.id}`}
-            className={`min-w-0 truncate text-sm hover:underline ${step.trunk ? 'text-foreground' : 'text-muted'}`}
+            className={`block text-sm leading-snug hover:underline ${muted ? 'text-muted' : 'text-foreground'}`}
           >
             {step.title}
           </Link>
-          <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(step.at)}</span>
-          {step.forks ? (
-            <span className="flex shrink-0 items-center gap-1 text-[11px]" style={{ color: 'var(--caution)' }}>
-              <GitBranch size={11} />
-              {t.threads.forksHere}
-            </span>
-          ) : null}
-          {i === steps.length - 1 ? (
-            <span className="shrink-0 text-[11px] text-muted">{t.threads.latest}</span>
-          ) : null}
-        </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
+            <span className="tabular-nums">{day(step.at)}</span>
+            {!muted && i === line.steps.length - 1 && line.branches.length === 0 ? (
+              <span>{t.threads.latest}</span>
+            ) : null}
+          </div>
+          {line.branches
+            .filter((branch) => branch.after === i)
+            .map((branch) => (
+              <div key={branch.line.steps[0]?.id} className="mt-4">
+                <div className="text-[11px] text-muted">
+                  {t.threads.alsoWent}
+                  <span className="ml-2 tabular-nums">
+                    {t.threads.steps(lengthOf(branch.line))}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <Line line={branch.line} muted />
+                </div>
+              </div>
+            ))}
+        </li>
       ))}
-    </div>
+    </ol>
   );
 };
 
-// The list is a set of shapes before it is a set of titles: a straight run of
-// two reads differently from twelve steps that fork, and that is the thing
-// worth scanning for.
+// A thread's shape is worth scanning before its title is read: a straight run
+// of two looks nothing like twelve steps that split twice.
 export const ThreadShape = ({ root }: { root: ThreadStep }) => {
-  const { steps, edges, lanes } = layoutThread(root);
-  const unit = 9;
-  const at = (lane: number) => lane * unit + 3;
-  const down = (row: number) => row * unit + 3;
+  const line = straighten(root);
+  const unit = 8;
+  const height = line.steps.length * unit + 4;
   return (
-    <svg
-      aria-hidden="true"
-      width={lanes * unit + 6}
-      height={steps.length * unit + 6}
-      className="shrink-0 opacity-80"
-    >
+    <svg aria-hidden="true" width={14} height={height} className="mt-1 shrink-0">
       <title>shape</title>
-      {edges.map((edge) => (
-        <path
-          key={`${edge.from.id}-${edge.to.id}`}
-          d={
-            edge.from.lane === edge.to.lane
-              ? `M${at(edge.from.lane)} ${down(edge.from.row)} V${down(edge.to.row)}`
-              : `M${at(edge.from.lane)} ${down(edge.from.row)} V${down(edge.to.row) - 4} Q${at(edge.from.lane)} ${down(edge.to.row)} ${at(edge.from.lane) + 4} ${down(edge.to.row)} H${at(edge.to.lane)}`
-          }
-          fill="none"
-          strokeWidth={1.25}
-          stroke={edge.to.trunk ? 'var(--primary)' : 'var(--border-accent)'}
-        />
+      <path
+        d={`M3 3 V${height - 3}`}
+        stroke="var(--primary)"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      {line.steps.map((step, i) => (
+        <circle key={step.id} cx={3} cy={i * unit + 3} r={1.75} fill="var(--primary)" />
       ))}
-      {steps.map((step) => (
-        <circle
-          key={step.id}
-          cx={at(step.lane)}
-          cy={down(step.row)}
-          r={1.75}
-          fill={step.trunk ? 'var(--primary)' : 'var(--border-accent)'}
+      {line.branches.map((branch) => (
+        <path
+          key={branch.line.steps[0]?.id}
+          d={`M3 ${branch.after * unit + 3} q0 ${unit} ${unit} ${unit}`}
+          fill="none"
+          stroke="var(--border-accent)"
+          strokeWidth={1.5}
+          strokeLinecap="round"
         />
       ))}
     </svg>
   );
 };
 
-export const ThreadGraph = ({ root }: { root: ThreadStep }) => {
-  const layout = layoutThread(root);
-  return (
-    <div className="flex gap-3 overflow-x-auto">
-      <Spine {...layout} />
-      <Rows steps={layout.steps} />
-    </div>
-  );
-};
-
-const Page = ({ children }: { children: React.ReactNode }) => (
-  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
-);
-
-const Facts = ({ thread }: { thread: ThreadRef }) => {
+const Facts = ({ thread }: { thread: Thread }) => {
   const t = useT();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-      <span className="tabular-nums">{t.threads.span(day(thread.startedAt), day(thread.lastAt))}</span>
+      <span className="tabular-nums">
+        {t.threads.span(day(thread.startedAt), day(thread.lastAt))}
+      </span>
       <span className="tabular-nums">{t.threads.steps(thread.steps)}</span>
       {thread.branches > 0 ? (
         <span className="tabular-nums">{t.threads.branches(thread.branches)}</span>
@@ -159,7 +111,13 @@ export const ThreadsScreen = () => {
   const t = useT();
   const { data } = useAsync<Thread[]>(() => api.threads(), 'threads');
 
-  if (!data) return <Page><div className="py-16 text-sm text-muted">{t.common.loading}</div></Page>;
+  if (!data) {
+    return (
+      <Page>
+        <div className="py-16 text-sm text-muted">{t.common.loading}</div>
+      </Page>
+    );
+  }
   return (
     <Page>
       <h1 className="text-xl font-semibold tracking-tight">{t.threads.title}</h1>
@@ -230,10 +188,8 @@ export const ThreadScreen = () => {
         <Facts thread={data} />
       </div>
       <Card className="mt-6">
-        <div className="text-[11px] text-muted">{t.threads.startsHere}</div>
-        <div className="mt-1">
-          <ThreadGraph root={data.root} />
-        </div>
+        <div className="mb-3 text-[11px] text-muted">{t.threads.startsHere}</div>
+        <Line line={straighten(data.root)} />
       </Card>
     </Page>
   );

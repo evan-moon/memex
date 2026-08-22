@@ -96,3 +96,21 @@ describe('listThreads', () => {
     expect(listThreads(client)[0].rootId).toBe(first.id);
   });
 });
+
+describe('stepTitle', () => {
+  it('drops the date the row shows in its own column', () => {
+    const first = addNote('a plan', DAY);
+    const second = addNote('[Amendment] a better plan (2026-07-06)', 2 * DAY);
+    linkAmendment(client, second.id, first.id);
+
+    expect(buildThread(client, first.id)?.root.children[0].title).toBe('a better plan');
+  });
+
+  it('keeps a title that is nothing but its date', () => {
+    const first = addNote('a plan', DAY);
+    const second = addNote('(2026-07-06)', 2 * DAY);
+    linkAmendment(client, second.id, first.id);
+
+    expect(buildThread(client, first.id)?.root.children[0].title).toBe('(2026-07-06)');
+  });
+});

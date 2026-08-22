@@ -23,10 +23,14 @@ export type Thread = ThreadRef & { root: ThreadStep };
 type Row = { id: number; title: string; layer: string; at: number; tags: string };
 
 const AMENDMENT_PREFIX = /^\[Amendment(?:\s+\d+)?\]\s*/;
+const TRAILING_DATE = /[\s(]*\(\d{4}-\d{2}-\d{2}\)\s*$/;
 
-// The tree already says a step is the third correction, so the prefix the
-// title carries for search results is noise once it is in place.
-const stepTitle = (title: string) => title.replace(AMENDMENT_PREFIX, '').trim() || title;
+// A step is read next to its own date and under the corrections before it, so
+// the two things titles carry for search results — the amendment number and
+// the date in brackets — are said twice here. Neither is dropped from the
+// note; they are dropped from this reading of it.
+const stepTitle = (title: string) =>
+  title.replace(AMENDMENT_PREFIX, '').replace(TRAILING_DATE, '').trim() || title;
 
 const notesById = (client: MemexClient) =>
   new Map(

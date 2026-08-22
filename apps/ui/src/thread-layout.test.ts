@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ThreadStep } from './api.ts';
-import { layoutThread } from './thread-layout.ts';
+import { lengthOf, straighten } from './thread-layout.ts';
 
 const step = (id: number, at: number, children: ThreadStep[] = []): ThreadStep => ({
   id,
@@ -10,58 +10,46 @@ const step = (id: number, at: number, children: ThreadStep[] = []): ThreadStep =
   children,
 });
 
-describe('layoutThread', () => {
-  it('keeps an unbroken chain in one lane', () => {
-    const { steps, lanes } = layoutThread(step(1, 1, [step(2, 2, [step(3, 3)])]));
+describe('straighten', () => {
+  it('reads an unbroken chain as one line', () => {
+    const line = straighten(step(1, 1, [step(2, 2, [step(3, 3)])]));
 
-    expect(lanes).toBe(1);
-    expect(steps.map((s) => [s.id, s.row, s.lane])).toEqual([
-      [1, 0, 0],
-      [2, 1, 0],
-      [3, 2, 0],
-    ]);
+    expect(line.steps.map((s) => s.id)).toEqual([1, 2, 3]);
+    expect(line.branches).toEqual([]);
   });
 
-  it('runs the trunk through whichever branch is still being written', () => {
-    const short = step(2, 2);
-    const long = step(3, 3, [step(4, 9)]);
-    const { steps } = layoutThread(step(1, 1, [short, long]));
+  it('keeps the line on whichever direction is still being written', () => {
+    const stopped = step(2, 2);
+    const living = step(3, 3, [step(4, 9)]);
+    const line = straighten(step(1, 1, [stopped, living]));
 
-    const trunk = steps.filter((s) => s.trunk).map((s) => s.id);
-    expect(trunk).toEqual([1, 3, 4]);
-    expect(steps.find((s) => s.id === 2)?.lane).toBe(1);
-    expect(steps.find((s) => s.id === 3)?.lane).toBe(0);
+    expect(line.steps.map((s) => s.id)).toEqual([1, 3, 4]);
+    expect(line.branches.map((b) => b.line.steps.map((s) => s.id))).toEqual([[2]]);
   });
 
-  it('gives the branch that leaves the trunk its own lane and keeps it there', () => {
-    const branch = step(2, 2, [step(5, 5)]);
-    const { steps, lanes } = layoutThread(step(1, 1, [branch, step(3, 3, [step(4, 9)])]));
+  it('hangs a branch off the step it left', () => {
+    const line = straighten(
+      step(1, 1, [step(2, 2, [step(5, 5), step(6, 6, [step(7, 20)])])]),
+    );
 
-    expect(lanes).toBe(2);
-    expect(steps.find((s) => s.id === 2)?.lane).toBe(1);
-    expect(steps.find((s) => s.id === 5)?.lane).toBe(1);
+    expect(line.steps.map((s) => s.id)).toEqual([1, 2, 6, 7]);
+    expect(line.branches).toHaveLength(1);
+    expect(line.branches[0].after).toBe(1);
+    expect(line.branches[0].line.steps.map((s) => s.id)).toEqual([5]);
   });
 
-  it('marks the step two corrections came off', () => {
-    const { steps } = layoutThread(step(1, 1, [step(2, 2), step(3, 3)]));
+  it('carries a branch that branched again', () => {
+    const line = straighten(
+      step(1, 1, [step(2, 2, [step(3, 3), step(4, 4)]), step(5, 30)]),
+    );
 
-    expect(steps.find((s) => s.id === 1)?.forks).toBe(true);
-    expect(steps.find((s) => s.id === 2)?.forks).toBe(false);
+    expect(line.steps.map((s) => s.id)).toEqual([1, 5]);
+    const aside = line.branches[0].line;
+    expect(aside.steps.map((s) => s.id)).toEqual([2, 4]);
+    expect(aside.branches[0].line.steps.map((s) => s.id)).toEqual([3]);
   });
 
-  it('never puts a correction above what it corrects', () => {
-    const { steps } = layoutThread(step(1, 5, [step(2, 1)]));
-
-    const rows = new Map(steps.map((s) => [s.id, s.row]));
-    expect(rows.get(2)).toBeGreaterThan(rows.get(1) ?? 0);
-  });
-
-  it('draws one edge per correction', () => {
-    const { edges } = layoutThread(step(1, 1, [step(2, 2), step(3, 3)]));
-
-    expect(edges.map((e) => [e.from.id, e.to.id])).toEqual([
-      [1, 2],
-      [1, 3],
-    ]);
+  it('counts every step once, however it branched', () => {
+    expect(lengthOf(straighten(step(1, 1, [step(2, 2), step(3, 3, [step(4, 4)])])))).toBe(4);
   });
 });
