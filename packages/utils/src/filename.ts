@@ -1,8 +1,8 @@
 const FILENAME_MAX_BYTES = 200;
 
 // Renaming a file breaks every wiki link pointing at the note, so the title is
-// preserved and only the characters Obsidian and the filesystem reject are
-// replaced. `/` becomes a fullwidth solidus rather than disappearing, which is
+// preserved and only the characters a filesystem or a wiki link cannot carry
+// are replaced. `/` becomes a fullwidth solidus rather than disappearing, which is
 // why a link written against the filename does not match the title.
 export const sanitizeFilename = (title: string): string => {
   const cleaned = title
@@ -21,6 +21,6 @@ export const sanitizeFilename = (title: string): string => {
 
 export const titleKey = (title: string): string => title.trim().normalize('NFC').toLowerCase();
 
-// What a wiki link can name and still open in Obsidian: the note's title, or
-// the file it was written to.
+// What a wiki link can name and still resolve: the note's title, or the file
+// it was written to.
 export const filenameKey = (title: string): string => titleKey(sanitizeFilename(title));

@@ -42,8 +42,8 @@ const unquote = (value: string): string =>
     .replace(/^["']|["']$/g, '')
     .replace(/^#/, '');
 
-// Obsidian writes tags either inline (`tags: [a, b]` / `tags: a, b`) or as a
-// block list (`tags:` followed by `- a` lines). Both must survive indexing or
+// Frontmatter carries tags either inline (`tags: [a, b]` / `tags: a, b`) or as
+// a block list (`tags:` followed by `- a` lines). Both must survive indexing or
 // vault tags never reach the tag search arm.
 const parseFrontmatterTags = (frontmatter: string): string[] => {
   const lines = frontmatter.split('\n');

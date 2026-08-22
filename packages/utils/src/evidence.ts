@@ -2,8 +2,8 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?\r?\n)---/;
 const LINE = /^derives_from:.*$/m;
 
 // The ids a note declares as what it was built from. The file is the record —
-// a person edits these notes in Obsidian, and a projection that only exists in
-// a database is one a reindex can lose.
+// a person edits these notes by hand, and a projection that only exists in a
+// database is one a reindex can lose.
 export const parseDerivesFrom = (content: string): number[] => {
   const front = FRONTMATTER.exec(content)?.[1];
   const line = front ? LINE.exec(front)?.[0] : null;

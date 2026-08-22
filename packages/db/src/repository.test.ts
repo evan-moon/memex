@@ -273,7 +273,7 @@ describe('resolveLinkTargets', () => {
     expect(resolveLinkTargets(client, ['auth decision']).get('auth decision')).toBe(target.id);
   });
 
-  it('opens a link written against the filename, the way Obsidian does', () => {
+  it('opens a link written against the filename, not just the title', () => {
     const slashed = addNote('Round-2/3 25/25 통과');
     const asked = addNote('앵커란 무엇인가요?');
 

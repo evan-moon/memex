@@ -76,7 +76,7 @@ describe('renderNoteFile', () => {
   });
 });
 
-describe('saveNote — filename is the Obsidian link target', () => {
+describe('saveNote — filename is what a wiki link resolves against', () => {
   let dbDir: string;
   let vaultDir: string;
   let client: MemexClient;

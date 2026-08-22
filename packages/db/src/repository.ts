@@ -502,10 +502,10 @@ export const linkTargets = (content: string): string[] => [
   ),
 ];
 
-// Obsidian opens `[[X]]` when X is a note's title or the name of its file, and
-// those two differ whenever the title held a character a filesystem rejects —
-// a slash, a question mark. Matching on the title alone called a third of this
-// vault's links dead while Obsidian followed them fine.
+// A `[[X]]` link names either a note's title or the file it was written to,
+// and those two differ whenever the title held a character a filesystem rejects
+// — a slash, a question mark. Matching on the title alone called a third of
+// this vault's links dead with the note they meant sitting right there.
 export const resolveLinkTargets = (client: MemexClient, targets: string[]): Map<string, number> => {
   if (targets.length === 0) return new Map();
 

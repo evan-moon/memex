@@ -65,8 +65,8 @@ export type NoteFileMeta = {
 };
 
 // A note file has one of three shapes, and a write must not corrupt the two
-// shapes that originate outside memex (the interop contract: files stay
-// editable in Obsidian and re-indexable without drift):
+// shapes that originate outside memex (the contract: a file memex did not
+// author keeps the shape it arrived in and re-indexes without drift):
 // - frontmatter file (indexed from an external vault): the DB content IS the
 //   full file, frontmatter included — write it back verbatim, only syncing the
 //   frontmatter `title:` field so a title edit survives the next reindex.
@@ -75,8 +75,8 @@ export type NoteFileMeta = {
 //   prepending a second one, and don't force frontmatter onto a file the user
 //   shaped themselves.
 // - memex-native content: generate frontmatter (title/date/tags/layer) so the
-//   note's metadata survives the Obsidian -> `memex index` round-trip instead
-//   of living only in the DB.
+//   note's metadata survives a `memex index` round-trip instead of living
+//   only in the DB.
 export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMeta): string => {
   if (content.startsWith('---')) {
     const end = content.indexOf('\n---', 3);
