@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { sep } from 'node:path';
 import { listNotes, type MemexClient, type Note, parseTags, serializeTags } from '@memex/db';
-import { findTagVariants, rewriteTags, type TagVariant } from '@memex/utils';
+import { findTagVariants, inVault, rewriteTags, type TagVariant } from '@memex/utils';
 
 const tagCounts = (client: MemexClient): Map<string, number> =>
   (
@@ -21,8 +21,6 @@ export const renameMap = (variants: TagVariant[]): Map<string, string> =>
 // Only the vault is ours to rewrite. An indexed source is someone else's
 // repository — a blog's tag spellings are its published taxonomy, and a tidy
 // that reaches in there is editing a website from a note command.
-const inVault = (filePath: string, vault: string) =>
-  filePath.startsWith(vault.endsWith(sep) ? vault : `${vault}${sep}`);
 
 export type Pending = { note: Note; next: string[] };
 

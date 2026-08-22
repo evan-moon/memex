@@ -571,3 +571,71 @@ describe('semanticSearchMulti', () => {
     expect(results).toHaveLength(2);
   });
 });
+
+describe('borrowed notes', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let outsideDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-vault-'));
+    outsideDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-outside-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    for (const dir of [dbDir, vaultDir, outsideDir]) rmSync(dir, { recursive: true, force: true });
+  });
+
+  const indexedFrom = (dir: string) => {
+    const filePath = join(dir, 'post.md');
+    writeFileSync(filePath, '# post\n\nbody\n', 'utf8');
+    return insertNote(client, {
+      title: 'post',
+      content: '# post\n\nbody\n',
+      filePath,
+      source: 'index',
+      layer: 'state',
+    });
+  };
+
+  it('refuses to edit a note the next index would overwrite', async () => {
+    const note = indexedFrom(outsideDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(result).toMatchObject({ error: 'EXTERNAL_SOURCE' });
+    expect(readFileSync(note.filePath, 'utf8')).toContain('body');
+  });
+
+  it('offers a note of its own instead, with the borrowed one as its source', async () => {
+    const note = indexedFrom(outsideDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(
+      isEditRejection(result) && result.error === 'EXTERNAL_SOURCE' && result.suggestion,
+    ).toMatchObject({ action: 'save_note', layer: 'state', derivesFrom: [note.id] });
+  });
+
+  it('will not delete the original file to forget a borrowed note', () => {
+    const note = indexedFrom(outsideDir);
+
+    const rejection = removeNote(client, note.id, note.filePath, { vaultPath: vaultDir });
+
+    expect(rejection).toMatchObject({ error: 'EXTERNAL_SOURCE' });
+    expect(readFileSync(note.filePath, 'utf8')).toContain('body');
+    expect(getNote(client, note.id)).toBeTruthy();
+  });
+
+  it('still edits a note that lives in the vault', async () => {
+    const note = indexedFrom(vaultDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(isEditRejection(result)).toBe(false);
+  });
+});

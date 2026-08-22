@@ -40,6 +40,7 @@ const en = {
     const messages: Record<string, string> = {
       'not-found': 'That note does not exist.',
       'draft-state-only': 'Only a state note can get an update draft.',
+      'edit-rejected': 'This note cannot be edited here.',
       'draft-no-evidence': 'There is nothing newer to reconcile this against.',
       'draft-no-claude': 'Could not find the claude CLI. Drafting needs Claude Code on your PATH.',
       'empty-body': 'The body is empty.',
@@ -330,6 +331,7 @@ const ko: typeof en = {
     const messages: Record<string, string> = {
       'not-found': '없는 노트야.',
       'draft-state-only': 'state 노트만 갱신 초안을 만들 수 있어.',
+      'edit-rejected': '여기서는 못 고치는 노트야.',
       'draft-no-evidence': '갱신할 근거 노트가 없어.',
       'draft-no-claude':
         'claude CLI를 찾을 수 없어. 초안을 만들려면 Claude Code가 PATH에 있어야 해.',

@@ -154,7 +154,7 @@ registerSaveNote(server, client, embedder, vaultPath);
 registerSearchNotes(server, client, embedder, reranker);
 registerListNotes(server, client);
 registerGetNote(server, client);
-registerDeleteNote(server, client);
+registerDeleteNote(server, client, vaultPath);
 registerUpdateNote(server, client, embedder, vaultPath);
 registerListTags(server, client);
 registerListFolders(server, client);

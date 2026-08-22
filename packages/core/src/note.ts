@@ -31,6 +31,7 @@ import {
   buildEmbeddingText,
   collapseSeries,
   extractCategory,
+  inVault,
   sanitizeFilename,
 } from '@memex/utils';
 import { indexNoteVectors } from './vectors.ts';
@@ -122,7 +123,9 @@ const persistFlashbackLinks = (
 /** Who is driving the write. MCP tool handlers are always 'agent'; only the CLI passes 'user'. */
 export type WriteActor = 'user' | 'agent';
 
-export type RuleWriteRejection = { error: 'RULE_USER_ONLY'; message: string };
+export type RuleWriteRejection =
+  | { error: 'RULE_USER_ONLY'; message: string }
+  | { error: 'EXTERNAL_SOURCE'; message: string };
 
 export const isSaveRejection = (
   result: { note: Note } | RuleWriteRejection,
@@ -384,7 +387,28 @@ export type EditNoteRejection =
         amends: number;
       };
     }
-  | { error: 'RULE_USER_ONLY'; message: string };
+  | { error: 'RULE_USER_ONLY'; message: string }
+  | {
+      error: 'EXTERNAL_SOURCE';
+      message: string;
+      suggestion: {
+        action: 'save_note';
+        title: string;
+        link: string;
+        layer: NoteLayer;
+        derivesFrom: number[];
+      };
+    };
+
+// What to do with a borrowed note instead of editing it: say something about
+// it in a note memex owns, and name it as the source.
+export const referenceSuggestion = (note: { id: number; title: string }) => ({
+  action: 'save_note' as const,
+  title: `${note.title} — what I make of it`,
+  link: `[[${note.title}]]`,
+  layer: 'state' as const,
+  derivesFrom: [note.id],
+});
 
 // The shape of a correction, in one place: the rejection an agent gets and the
 // form a person fills in have to agree on what an amendment looks like.
@@ -406,6 +430,19 @@ export const editNote = async (
 ): Promise<(Note & { signal?: Signal }) | EditNoteRejection | null> => {
   const note = getNote(client, id);
   if (!note) return null;
+
+  // The next `memex index` reads this file again and overwrites whatever was
+  // written here, so an edit that appears to work is the worst outcome.
+  if (!inVault(note.filePath, vaultPath)) {
+    return {
+      error: 'EXTERNAL_SOURCE',
+      message:
+        `#${id} lives outside the vault, in ${dirname(note.filePath)}. memex indexes that ` +
+        'directory but does not own it: an edit here is undone by the next index, and the ' +
+        'tool that wrote the file never sees it. Write a note about it instead.',
+      suggestion: referenceSuggestion(note),
+    };
+  }
 
   if (note.layer === 'past') {
     return {
@@ -471,7 +508,7 @@ export const removeNote = (
   client: MemexClient,
   id: number,
   filePath: string,
-  options: { actor?: WriteActor } = {},
+  options: { actor?: WriteActor; vaultPath?: string } = {},
 ): RuleWriteRejection | undefined => {
   // Deleting a rule removes a constraint on the agent — the same self-modification surface as
   // creating or editing one, so it is user-only too.
@@ -482,6 +519,20 @@ export const removeNote = (
       message: `rule notes can only be deleted by the user. Suggest they run: memex delete ${String(id)}`,
     };
   }
+
+  // Deleting an indexed note unlinks the file it was read from, and outside the
+  // vault that file is the original: a blog post, a repo doc. Forgetting a
+  // borrowed note has to mean dropping the index entry, never the source.
+  if (options.vaultPath !== undefined && !inVault(filePath, options.vaultPath)) {
+    return {
+      error: 'EXTERNAL_SOURCE',
+      message:
+        `#${id} was indexed from ${dirname(filePath)}, outside the vault. Deleting it here ` +
+        'would delete the original file. Remove the directory with `memex source` instead, ' +
+        'or delete the file where it lives.',
+    };
+  }
+
   if (existsSync(filePath)) unlinkSync(filePath);
   deleteNote(client, id);
   return undefined;
