@@ -26,16 +26,11 @@ export const undeclaredProjections = (client: MemexClient): Undeclared[] => {
 // A session hands over a bounded stack, not the whole backlog: the count that
 // never moves is what turned the home screen into a second statistics board.
 export const evidenceBatch = (client: MemexClient, limit: number): RepairBatch => {
-  const rows = undeclaredProjections(client);
-  return {
-    remaining: rows.length,
-    cards: rows
-      .filter((row) => row.candidates > 0)
-      .slice(0, limit)
-      .map((row) => ({
-        id: row.id,
-        title: row.title,
-        candidates: candidateSources(client, { id: row.id, layer: 'state' }),
-      })),
-  };
+  const servable = undeclaredProjections(client).filter((row) => row.candidates > 0);
+  const cards = servable.slice(0, limit).map((row) => ({
+    id: row.id,
+    title: row.title,
+    candidates: candidateSources(client, { id: row.id, layer: 'state' }),
+  }));
+  return { remaining: servable.length - cards.length, cards };
 };

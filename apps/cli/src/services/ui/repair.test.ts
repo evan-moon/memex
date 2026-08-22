@@ -78,13 +78,13 @@ describe('evidenceBatch', () => {
     }
   };
 
-  it('hands over a bounded stack while still reporting the whole backlog', () => {
+  it('counts what is left after this stack, not the whole backlog', () => {
     undeclaredWithLinks(5);
 
     const batch = evidenceBatch(client, 2);
 
     expect(batch.cards).toHaveLength(2);
-    expect(batch.remaining).toBe(5);
+    expect(batch.remaining).toBe(3);
   });
 
   it('skips a judgement with nothing to offer, since the card would be empty', () => {
@@ -94,7 +94,16 @@ describe('evidenceBatch', () => {
     const batch = evidenceBatch(client, 20);
 
     expect(batch.cards).toHaveLength(1);
-    expect(batch.remaining).toBe(2);
+    expect(batch.remaining).toBe(0);
+  });
+
+  it('empties to zero after enough sessions, counting only servable cards', () => {
+    undeclaredWithLinks(5);
+    addNote('never servable', 'state');
+
+    expect(evidenceBatch(client, 3).remaining).toBe(2);
+    expect(evidenceBatch(client, 5).remaining).toBe(0);
+    expect(evidenceBatch(client, 20).remaining).toBe(0);
   });
 
   it('carries the candidates so a card does not need a second round trip', () => {
