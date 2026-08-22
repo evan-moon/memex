@@ -117,6 +117,16 @@ export const Sidebar = ({
       </Section>
       <div className="px-4 pt-2">
         <NavLink
+          to="/threads"
+          className={({ isActive }) =>
+            `block rounded-md px-2 py-2 text-sm ${
+              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
+            }`
+          }
+        >
+          {t.sidebar.threads}
+        </NavLink>
+        <NavLink
           to="/tags"
           className={({ isActive }) =>
             `block rounded-md px-2 py-2 text-sm ${

@@ -258,6 +258,11 @@ export const NoteScreen = () => {
         </span>
       </div>
       {showSource ? <SourcePanel id={note.id} /> : null}
+      {note.supersededBy.length > 0 || note.corrects.length > 0 ? (
+        <Link to={`/thread/${note.id}`} className="mt-4 block text-sm text-primary">
+          {t.threads.open}
+        </Link>
+      ) : null}
       {newest ? (
         <Card className="mt-4">
           <div className="text-sm" style={{ color: 'var(--negative)' }}>

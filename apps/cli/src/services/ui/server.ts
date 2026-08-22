@@ -42,6 +42,7 @@ import {
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
 import type { NoteStatus } from './status.ts';
+import { buildThread, listThreads } from './threads.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -230,6 +231,13 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/topics') {
     return json(buildTopics(client));
+  }
+  if (method === 'GET' && url.pathname === '/api/threads') {
+    return json(listThreads(client));
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/thread/')) {
+    const thread = buildThread(client, Number(url.pathname.split('/').pop()));
+    return thread ? json(thread) : notFound;
   }
   if (method === 'GET' && url.pathname.startsWith('/api/topic/')) {
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));

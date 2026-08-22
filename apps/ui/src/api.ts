@@ -32,6 +32,26 @@ export type Topic = {
 
 export type TopicDetail = Topic & { notes: NoteRef[] };
 
+export type ThreadStep = {
+  id: number;
+  title: string;
+  layer: string;
+  at: number;
+  children: ThreadStep[];
+};
+
+export type ThreadRef = {
+  rootId: number;
+  title: string;
+  steps: number;
+  branches: number;
+  startedAt: number;
+  lastAt: number;
+  tags: string[];
+};
+
+export type Thread = ThreadRef & { root: ThreadStep };
+
 export type Amendment = {
   action: 'save_note';
   title: string;
@@ -264,6 +284,8 @@ export const api = {
   overview: () => request<Overview>('/api/overview'),
   digest: (days: number) => request<Digest>(`/api/digest?days=${days}`),
   topics: () => request<Topic[]>('/api/topics'),
+  threads: () => request<ThreadRef[]>('/api/threads'),
+  thread: (id: number) => request<Thread>(`/api/thread/${id}`),
   topic: (tag: string) => request<TopicDetail>(`/api/topic/${encodeURIComponent(tag)}`),
   note: (id: number) => request<NoteDetail>(`/api/note/${id}`),
   source: (id: number) => request<NoteSource>(`/api/source/${id}`),

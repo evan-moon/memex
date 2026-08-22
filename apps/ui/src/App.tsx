@@ -16,6 +16,7 @@ import { Overview } from './Overview.tsx';
 import { RepairScreen } from './Repair.tsx';
 import { NoteScreen, SearchScreen, TopicScreen, TopicsScreen } from './screens.tsx';
 import { Sidebar } from './Sidebar.tsx';
+import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
 import { useTheme } from './theme.ts';
 
 export const App = () => {
@@ -132,6 +133,8 @@ export const App = () => {
               <Route path="/" element={<Overview data={overview} />} />
               <Route path="/topics" element={<TopicsScreen topics={topics} />} />
               <Route path="/topic/:tag" element={<TopicScreen />} />
+              <Route path="/threads" element={<ThreadsScreen />} />
+              <Route path="/thread/:id" element={<ThreadScreen />} />
               <Route path="/note/:id" element={<NoteScreen />} />
               <Route path="/search" element={<SearchScreen />} />
               <Route path="/repair/evidence" element={<RepairScreen />} />
