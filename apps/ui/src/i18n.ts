@@ -169,6 +169,8 @@ const en = {
     backlinks: (n: number) => `Notes referencing this one ${n}`,
     related: 'Semantically close notes',
     deadLink: 'No note with this title yet',
+    written: (d: string) => `written ${d}`,
+    lastEdited: (d: string) => `last edited ${d}`,
   },
   tags: {
     title: 'Tags that might be one tag',
@@ -469,6 +471,8 @@ const ko: typeof en = {
     backlinks: (n) => `이 노트를 참조하는 노트 ${n}`,
     related: '의미상 가까운 노트',
     deadLink: '아직 없는 노트',
+    written: (d) => `작성 ${d}`,
+    lastEdited: (d) => `마지막 수정 ${d}`,
   },
   tags: {
     title: '같은 태그일지도 모르는 것들',

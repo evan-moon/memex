@@ -17,6 +17,18 @@ export const Layer = ({ layer }: { layer: string }) => (
   </span>
 );
 
+export const Dates = ({ at, updatedAt }: { at: number; updatedAt: number }) => {
+  const t = useT();
+  const written = day(at);
+  const edited = day(updatedAt);
+  return (
+    <span className="tabular-nums">
+      {t.note.written(written)}
+      {edited !== written && edited !== '—' ? ` · ${t.note.lastEdited(edited)}` : ''}
+    </span>
+  );
+};
+
 // Only the agent's own notes are marked. Marking the person's would put a
 // badge on almost every row, which says nothing.
 export const Agent = () => {

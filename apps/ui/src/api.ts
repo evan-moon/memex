@@ -67,6 +67,7 @@ export type NoteDetail = {
   layer: string;
   author: string;
   at: number;
+  updatedAt: number;
   tags: string[];
   filePath: string;
   folder: string | null;
@@ -275,7 +276,14 @@ export const searchQuery = (query: string, filters: SearchFilters): string => {
   return params.toString();
 };
 
-export type RepairCard = { id: number; title: string; candidates: NoteRef[] };
+export type RepairCard = {
+  id: number;
+  title: string;
+  layer: string;
+  at: number;
+  updatedAt: number;
+  candidates: NoteRef[];
+};
 
 export type RepairBatch = { remaining: number; cards: RepairCard[] };
 

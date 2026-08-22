@@ -1,9 +1,23 @@
 import { type MemexClient, notesDeclaringEvidence } from '@memex/db';
-import { type NoteRef, candidateSources } from './notes.ts';
+import { candidateSources, type NoteRef } from './notes.ts';
 
-export type Undeclared = { id: number; title: string; candidates: number };
+export type Undeclared = {
+  id: number;
+  title: string;
+  candidates: number;
+  layer: string;
+  at: number;
+  updatedAt: number;
+};
 
-export type RepairCard = { id: number; title: string; candidates: NoteRef[] };
+export type RepairCard = {
+  id: number;
+  title: string;
+  layer: string;
+  at: number;
+  updatedAt: number;
+  candidates: NoteRef[];
+};
 
 export type RepairBatch = { remaining: number; cards: RepairCard[] };
 
@@ -12,7 +26,10 @@ export const undeclaredProjections = (client: MemexClient): Undeclared[] => {
   return (
     client.sqlite
       .prepare(
-        `SELECT n.id, n.title, COUNT(l.target_id) AS candidates
+        `SELECT n.id, n.title, n.layer,
+                COALESCE(n.authored_at, n.created_at) AS at,
+                n.updated_at AS updatedAt,
+                COUNT(l.target_id) AS candidates
          FROM notes n
          LEFT JOIN note_links l ON l.source_id = n.id AND l.source = 'wiki'
          WHERE n.layer = 'state' AND n.author = 'person'
@@ -30,6 +47,9 @@ export const evidenceBatch = (client: MemexClient, limit: number): RepairBatch =
   const cards = servable.slice(0, limit).map((row) => ({
     id: row.id,
     title: row.title,
+    layer: row.layer,
+    at: row.at,
+    updatedAt: row.updatedAt,
     candidates: candidateSources(client, { id: row.id, layer: 'state' }),
   }));
   return { remaining: servable.length - cards.length, cards };

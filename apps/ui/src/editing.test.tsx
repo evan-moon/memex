@@ -16,6 +16,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   layer: 'state',
   author: 'person',
   at: Date.now(),
+  updatedAt: Date.now(),
   tags: ['one', 'two'],
   filePath: '/vault/note.md',
   deadLinks: [],

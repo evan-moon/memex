@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type RepairBatch, toFailure } from './api.ts';
-import { Button, Card, Layer } from './bits.tsx';
+import { Button, Card, Dates, Layer } from './bits.tsx';
 import { useT } from './i18n.ts';
 
 const BATCH = 20;
@@ -111,6 +111,10 @@ const Deck = ({ batch, onFinished }: { batch: RepairBatch; onFinished: (n: numbe
         >
           {card.title}
         </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+          <Layer layer={card.layer} />
+          <Dates at={card.at} updatedAt={card.updatedAt} />
+        </div>
 
         <p className="mt-4 text-xs text-muted">{t.repair.sources}</p>
         <ul className="mt-2 flex flex-col gap-1">

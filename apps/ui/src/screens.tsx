@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  api,
   type ApiFailure,
+  api,
   type Facets,
   type NoteDetail,
   type NoteSource,
@@ -11,17 +11,17 @@ import {
   type Topic,
   type TopicDetail,
 } from './api.ts';
-import { Agent, Button, Card, Layer, NoteItem, NoteList } from './bits.tsx';
-import { ago, day } from './time.ts';
-import { Evidence } from './Evidence.tsx';
-import { HypothesisLinks } from './Hypothesis.tsx';
+import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList } from './bits.tsx';
 import { correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
+import { Evidence } from './Evidence.tsx';
 import { Composer, NoteEditor } from './editing.tsx';
+import { HypothesisLinks } from './Hypothesis.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
+import { rememberVisit } from './recent.ts';
 import { Spark } from './Spark.tsx';
 import { StalePanel } from './StalePanel.tsx';
-import { rememberVisit } from './recent.ts';
+import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
 const Page = ({ children }: { children: React.ReactNode }) => (
@@ -240,7 +240,7 @@ export const NoteScreen = () => {
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
         <Layer layer={note.layer} />
         {note.author === 'agent' ? <Agent /> : null}
-        <span className="tabular-nums">{day(note.at)}</span>
+        <Dates at={note.at} updatedAt={note.updatedAt} />
         {note.tags.map((tag) => (
           <Link key={tag} to={`/topic/${encodeURIComponent(tag)}`} className="text-primary">
             {tag}

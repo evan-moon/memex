@@ -106,6 +106,18 @@ describe('evidenceBatch', () => {
     expect(evidenceBatch(client, 20).remaining).toBe(0);
   });
 
+  it('carries both dates so a later edit does not read as a later note', () => {
+    const source = addNote('what happened');
+    const projection = addNote('my judgement', 'state');
+    link(projection.id, source.id);
+
+    const [card] = evidenceBatch(client, 20).cards;
+
+    expect(card.layer).toBe('state');
+    expect(card.at).toBeGreaterThan(0);
+    expect(card.updatedAt).toBeGreaterThan(0);
+  });
+
   it('carries the candidates so a card does not need a second round trip', () => {
     const source = addNote('what happened');
     const projection = addNote('my judgement', 'state');

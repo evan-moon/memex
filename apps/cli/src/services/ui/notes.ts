@@ -32,6 +32,7 @@ export type NoteDetail = {
   content: string;
   layer: NoteLayer;
   at: number;
+  updatedAt: number;
   tags: string[];
   author: string;
   filePath: string;
@@ -257,6 +258,7 @@ export const noteDetail = (
     layer: note.layer,
     author: note.author,
     at: note.authoredAt ?? note.createdAt,
+    updatedAt: note.updatedAt,
     tags: parseTags(note.tags),
     filePath: note.filePath,
     folder: folderOf(note.filePath, vaultPath),
