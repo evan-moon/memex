@@ -286,6 +286,22 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_shape (
+      note_id     INTEGER PRIMARY KEY,
+      kind        TEXT    NOT NULL,
+      source_hash TEXT    NOT NULL,
+      model_id    TEXT,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS note_claims (
+      note_id INTEGER NOT NULL,
+      idx     INTEGER NOT NULL,
+      text    TEXT    NOT NULL,
+      PRIMARY KEY (note_id, idx)
+    );
+  `);
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS retrieval_log (
       id      INTEGER PRIMARY KEY AUTOINCREMENT,
       query   TEXT    NOT NULL,

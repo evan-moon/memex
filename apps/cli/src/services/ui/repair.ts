@@ -1,4 +1,4 @@
-import { type MemexClient, notesDeclaringEvidence } from '@memex/db';
+import { indexTypeNoteIds, type MemexClient, notesDeclaringEvidence } from '@memex/db';
 import { candidateSources, type NoteRef } from './notes.ts';
 
 export type Undeclared = {
@@ -21,8 +21,10 @@ export type RepairCard = {
 
 export type RepairBatch = { remaining: number; cards: RepairCard[] };
 
+// An index note asserts nothing of its own, so "what is this built on?" has no
+// answer to give. Asking anyway is what made the widest cards the slowest.
 export const undeclaredProjections = (client: MemexClient): Undeclared[] => {
-  const declared = new Set(notesDeclaringEvidence(client));
+  const skip = new Set([...notesDeclaringEvidence(client), ...indexTypeNoteIds(client)]);
   return (
     client.sqlite
       .prepare(
@@ -37,7 +39,7 @@ export const undeclaredProjections = (client: MemexClient): Undeclared[] => {
          ORDER BY candidates DESC, n.updated_at DESC`,
       )
       .all() as Undeclared[]
-  ).filter((row) => !declared.has(row.id));
+  ).filter((row) => !skip.has(row.id));
 };
 
 // A session hands over a bounded stack, not the whole backlog: the count that

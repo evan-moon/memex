@@ -1,3 +1,12 @@
+export {
+  getNoteShape,
+  indexTypeNoteIds,
+  type NoteShape,
+  type NoteShapeInput,
+  type NoteShapeKind,
+  overClaimCeiling,
+  setNoteShape,
+} from './claims.ts';
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
 export { parseAuthoredAt } from './dates.ts';

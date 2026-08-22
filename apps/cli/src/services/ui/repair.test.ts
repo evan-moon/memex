@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type MemexClient, insertNote, openDb, setNoteEvidence } from '@memex/db';
+import { insertNote, type MemexClient, openDb, setNoteEvidence, setNoteShape } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { evidenceBatch, undeclaredProjections } from './repair.ts';
 
@@ -66,6 +66,19 @@ describe('undeclaredProjections', () => {
     for (const source of sources) link(thick.id, source.id);
 
     expect(undeclaredProjections(client).map((row) => row.id)).toEqual([thick.id, thin.id]);
+  });
+});
+
+describe('undeclaredProjections', () => {
+  it('leaves out a note read as an index, which has no answer to give', () => {
+    const source = addNote('what happened');
+    const position = addNote('my judgement', 'state');
+    const index = addNote('a roster of pointers', 'state');
+    link(position.id, source.id);
+    link(index.id, source.id);
+    setNoteShape(client, { noteId: index.id, kind: 'index', claims: [] });
+
+    expect(undeclaredProjections(client).map((r) => r.id)).toEqual([position.id]);
   });
 });
 
