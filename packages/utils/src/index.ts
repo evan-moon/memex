@@ -25,3 +25,4 @@ export type { CollapsedSeries, SeriesMember } from './series.ts';
 export { collapseSeries, isSameSeries, seriesKey, seriesLabel } from './series.ts';
 export type { TagVariant } from './tags.ts';
 export { findTagVariants, rewriteTags, tagKey } from './tags.ts';
+export { yamlScalar } from './yaml.ts';

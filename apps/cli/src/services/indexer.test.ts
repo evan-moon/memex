@@ -6,6 +6,7 @@ import {
   getBacklinks,
   getNoteByFilePath,
   getNoteEvidence,
+  listNotes,
   type MemexClient,
   openDb,
 } from '@memex/db';
@@ -96,6 +97,28 @@ describe('indexDirectory', () => {
 
     const renamed = getNoteByFilePath(client, join(vaultDir, 'target.md'));
     expect(getBacklinks(client, renamed?.id ?? 0).map((n) => n.id)).toEqual([source?.id]);
+  });
+
+  it('reads a quoted title as the words it means, not the escapes it needed', async () => {
+    writeFileSync(
+      join(vaultDir, 'quoted.md'),
+      '---\ntitle: "1인칭은 \\"필자\\""\n---\n\nbody\n',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(listNotes(client, 50).map((n) => n.title)).toContain('1인칭은 "필자"');
+  });
+
+  it('leaves a backslash alone in a title that was never quoted', async () => {
+    writeFileSync(
+      join(vaultDir, 'regex.md'),
+      '---\ntitle: 공백을 찾아내는 \\s 캐릭터 클래스\n---\n\nbody\n',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(listNotes(client, 50).map((n) => n.title)).toContain('공백을 찾아내는 \\s 캐릭터 클래스');
   });
 
   it('parses authored_at from frontmatter dates on insert', async () => {

@@ -16,7 +16,7 @@ import {
   syncNoteEvidence,
   updateNote,
 } from '@memex/db';
-import { authorOfPath, extractCategory, parseDerivesFrom } from '@memex/utils';
+import { authorOfPath, extractCategory, parseDerivesFrom, yamlScalar } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -36,11 +36,7 @@ type ExtractedNote = {
   layer?: NoteLayer;
 };
 
-const unquote = (value: string): string =>
-  value
-    .trim()
-    .replace(/^["']|["']$/g, '')
-    .replace(/^#/, '');
+const unquote = (value: string): string => yamlScalar(value).replace(/^#/, '');
 
 // Frontmatter carries tags either inline (`tags: [a, b]` / `tags: a, b`) or as
 // a block list (`tags:` followed by `- a` lines). Both must survive indexing or
@@ -76,7 +72,7 @@ const extractNote = (content: string, filePath: string): ExtractedNote => {
     | NoteLayer
     | undefined;
 
-  const fmTitle = frontmatter?.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]?.trim();
+  const fmTitle = yamlScalar(frontmatter?.match(/^title:[ \t]*(.*)$/m)?.[1] ?? '');
   if (fmTitle) return { title: fmTitle, body: content, tags, layer };
 
   const h1 = content.match(/^#\s+(.+)$/m);
