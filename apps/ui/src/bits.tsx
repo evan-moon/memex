@@ -74,6 +74,10 @@ export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) 
     </div>
   );
 
+export const Page = ({ children }: { children: React.ReactNode }) => (
+  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
+);
+
 export const Card = ({
   children,
   className = '',

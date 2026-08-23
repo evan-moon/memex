@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type RepairBatch, toFailure } from './api.ts';
-import { Button, Card, Dates, Layer } from './bits.tsx';
+import { Button, Card, Dates, Layer, Page } from './bits.tsx';
 import { useT } from './i18n.ts';
 
 const BATCH = 20;
@@ -205,7 +205,7 @@ export const RepairScreen = () => {
   };
 
   return (
-    <section>
+    <Page>
       <h1 className="text-xl font-semibold">{t.repair.title}</h1>
       <p className="mt-1 text-xs text-muted">{t.repair.subtitle}</p>
 
@@ -224,6 +224,6 @@ export const RepairScreen = () => {
       {done === null && !batch ? (
         <p className="mt-4 text-xs text-muted">{failure ? t.error(failure) : t.common.loading}</p>
       ) : null}
-    </section>
+    </Page>
   );
 };

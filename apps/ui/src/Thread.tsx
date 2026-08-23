@@ -1,14 +1,10 @@
 import { Link, useParams } from 'react-router-dom';
 import { api, type Thread, type ThreadStep } from './api.ts';
-import { Card, Layer } from './bits.tsx';
+import { Card, Layer, Page } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { lengthOf, straighten, type ThreadLine } from './thread-layout.ts';
 import { day } from './time.ts';
 import { useAsync } from './useAsync.ts';
-
-const Page = ({ children }: { children: React.ReactNode }) => (
-  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
-);
 
 const RAIL = 20;
 const DOT = 10;

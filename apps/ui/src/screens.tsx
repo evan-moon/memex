@@ -10,7 +10,7 @@ import {
   type SearchPage,
   type TopicDetail,
 } from './api.ts';
-import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList } from './bits.tsx';
+import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList, Page } from './bits.tsx';
 import { correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
 import { Evidence } from './Evidence.tsx';
 import { Composer, NoteEditor } from './editing.tsx';
@@ -21,10 +21,6 @@ import { rememberVisit } from './recent.ts';
 import { StalePanel } from './StalePanel.tsx';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
-
-const Page = ({ children }: { children: React.ReactNode }) => (
-  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
-);
 
 const Pending = ({ failure }: { failure: ApiFailure | null }) => {
   const t = useT();
