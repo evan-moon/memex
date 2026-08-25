@@ -92,7 +92,7 @@ describe('buildRuleInstructions', () => {
     expect(buildRuleInstructions(client)).toBe('');
   });
 
-  it('truncates content over the byte budget and marks it', () => {
+  it('truncates a first rule note too large to fit at all, rather than dropping every rule', () => {
     const big = 'x'.repeat(10_000);
     insertNote(client, {
       title: 'Big',
@@ -104,5 +104,68 @@ describe('buildRuleInstructions', () => {
     const out = buildRuleInstructions(client, { maxChars: 2000 });
     expect(out.length).toBeLessThanOrEqual(2200);
     expect(out).toContain('[truncated]');
+  });
+
+  it('keeps whole rule notes rather than cutting one mid-sentence', () => {
+    insertNote(client, {
+      title: 'Small',
+      content: 'Prefer const.',
+      filePath: join(dbDir, 's.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+    insertNote(client, {
+      title: 'Large',
+      content: `Never do this. ${'y'.repeat(5_000)}`,
+      filePath: join(dbDir, 'l.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const out = buildRuleInstructions(client, { maxChars: 500 });
+    expect(out).toContain('Prefer const.');
+    expect(out).not.toContain('### Large');
+    expect(out).not.toContain('Never do this.');
+    expect(out).not.toContain('y'.repeat(20));
+  });
+
+  it('tells the agent how many rule notes it cannot see', () => {
+    insertNote(client, {
+      title: 'Small',
+      content: 'Prefer const.',
+      filePath: join(dbDir, 's.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+    for (const n of [1, 2]) {
+      insertNote(client, {
+        title: `Large ${n}`,
+        content: 'z'.repeat(5_000),
+        filePath: join(dbDir, `l${n}.md`),
+        source: 'manual',
+        layer: 'rule',
+      });
+    }
+
+    const out = buildRuleInstructions(client, { maxChars: 500 });
+    expect(out).toContain('2 further rule notes did not fit');
+    expect(out).toContain('layer `rule`');
+  });
+
+  it('emits every rule note when they all fit', () => {
+    for (const n of [1, 2, 3]) {
+      insertNote(client, {
+        title: `Rule ${n}`,
+        content: `body ${n}`,
+        filePath: join(dbDir, `r${n}.md`),
+        source: 'manual',
+        layer: 'rule',
+      });
+    }
+
+    const out = buildRuleInstructions(client, { maxChars: 8000 });
+    expect(out).toContain('### Rule 1');
+    expect(out).toContain('### Rule 3');
+    expect(out).not.toContain('did not fit');
   });
 });
