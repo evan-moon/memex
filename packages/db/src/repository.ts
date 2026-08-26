@@ -492,18 +492,25 @@ export type RelatedNote = Note & { sharedTags: string[]; score: number };
 
 const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
 
-// `[[Note|shown as this]]` and `[[Note#Heading]]` both target `Note`; the rest
-// is display text and an anchor. Reading the whole bracket as the title made
-// every such link look dead — to the graph and to the dangling-link detector
-// alike. Composed forms are normalized because the vault holds both NFC and
-// NFD spellings of the same Korean title.
+// `[[Note|shown as this]]` targets `Note`; the rest is display text. The `#` in
+// `[[Note#Heading]]` is an anchor — but a title may hold one too, and this vault
+// names notes after the id they answer, so 38 of them carry a `#` and were
+// unreachable while the anchor was cut here, with no title yet in reach to check
+// against. Extraction keeps what was written; resolution decides what it meant.
+// Composed forms are normalized because the vault holds both NFC and NFD
+// spellings of the same Korean title.
 export const linkTargets = (content: string): string[] => [
   ...new Set(
     [...content.matchAll(WIKI_LINK_RE)]
-      .map((m) => m[1].split('|')[0].split('#')[0].trim().normalize('NFC'))
+      .map((m) => m[1].split('|')[0].trim().normalize('NFC'))
       .filter(Boolean),
   ),
 ];
+
+const anchorless = (target: string) => {
+  const cut = target.indexOf('#');
+  return cut === -1 ? '' : target.slice(0, cut).trim().normalize('NFC');
+};
 
 // A `[[X]]` link names either a note's title or the file it was written to,
 // and those two differ whenever the title held a character a filesystem rejects
@@ -522,9 +529,15 @@ export const resolveLinkTargets = (client: MemexClient, targets: string[]): Map<
     return byTitle.has(key) || acc.has(key) ? acc : acc.set(key, row.id);
   }, new Map<string, number>());
 
+  // Written form first, so a title that contains a `#` wins over reading the
+  // same characters as an anchor. Only what no note is named falls through to
+  // being cut at the `#`.
   return targets.reduce((acc, target) => {
-    const key = titleKey(target);
-    const id = byTitle.get(key) ?? byFilename.get(key);
+    const stem = anchorless(target);
+    const id =
+      byTitle.get(titleKey(target)) ??
+      byFilename.get(titleKey(target)) ??
+      (stem ? (byTitle.get(titleKey(stem)) ?? byFilename.get(titleKey(stem))) : undefined);
     return id === undefined ? acc : acc.set(target, id);
   }, new Map<string, number>());
 };

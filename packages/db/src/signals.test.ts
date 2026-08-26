@@ -334,12 +334,12 @@ describe('linkTargets', () => {
     expect(linkTargets('see [[Note|shown as this]]')).toEqual(['Note']);
   });
 
-  it('reads the target, not the heading anchor', () => {
-    expect(linkTargets('see [[Note#Some Heading]]')).toEqual(['Note']);
+  it('keeps the heading anchor for resolution to interpret', () => {
+    expect(linkTargets('see [[Note#Some Heading]]')).toEqual(['Note#Some Heading']);
   });
 
-  it('handles both at once and dedupes', () => {
-    expect(linkTargets('[[Note#H|shown]] and [[Note]]')).toEqual(['Note']);
+  it('drops display text while keeping the anchor, and dedupes', () => {
+    expect(linkTargets('[[Note#H|shown]] and [[Note]]')).toEqual(['Note#H', 'Note']);
   });
 
   it('normalizes composed forms so NFD and NFC name the same note', () => {
@@ -355,6 +355,18 @@ describe('detectDanglingLinks — link syntax', () => {
   it('does not flag a link that only carries display text', () => {
     addNote({ title: '도착' });
     addNote({ title: '출발', content: 'see [[도착|이렇게 보임]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+
+  it('reaches a note whose own title holds a #', () => {
+    addNote({ title: '세션 인계 — 작업지시서 #2219 실행' });
+    addNote({ title: '출발', content: '이어서 [[세션 인계 — 작업지시서 #2219 실행]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+
+  it('still reads a # as an anchor when no note is named that way', () => {
+    addNote({ title: '도착' });
+    addNote({ title: '출발', content: 'see [[도착#어느 절]]' });
     expect(detectDanglingLinks(client)).toHaveLength(0);
   });
 
