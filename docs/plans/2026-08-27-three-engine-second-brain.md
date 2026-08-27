@@ -358,23 +358,44 @@ tip)와 stale 탐색의 **방향**(state→evidence → 신규 event→영향받
 
 앞의 여섯이 전부 규모 대응 리팩터다. register는 일곱째, pilot 출시는 열한째다.
 
-| # | 무엇 | 위치 |
-|---|---|---|
-| 1 | 정본/파생 경계 확정, 위생·영감 파이프라인 분리 | — |
-| 2 | 쓰기마다 동기 `refreshSignals` 제거 → change log + detector별 watermark | `core/src/note.ts:217,516` |
-| 3 | `resolveLinkTargets` title 전수 적재 → 정규화 인덱스 point lookup | `db/src/repository.ts:519` |
-| 4 | 본문 전체 적재 → `link_targets` 추출 테이블 + LEFT JOIN | `db/src/repository.ts:571`, `db/src/signals.ts:172` |
-| 5 | 오타 후보 title 전수 편집거리 → prefix/trigram 축소 후 소수만 | `db/src/dangling.ts:93` |
-| 6 | startup migration 본문 전체 스캔 → versioned batch cursor | `db/src/client.ts:128` |
-| 7 | predicate registry + register 도입 | 신규 |
-| 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` |
-| 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts:515` |
-| 10 | 회고 benchmark 실행 (74 / 80 / 14건) | — |
-| 11 | inline pilot 출시 (structural 60 / live 30 / exploration 10) | — |
-| 12 | 명시적 피드백 100건 후 예산 재배분 | — |
+| # | 무엇 | 위치 | 상태 |
+|---|---|---|---|
+| 1 | 정본/파생 경계 확정, 위생·영감 파이프라인 분리 | — | |
+| 2 | 쓰기마다 동기 `refreshSignals` 제거 → change log + detector별 watermark | `core/src/note.ts:217,516` | ✅ `ccde7a4` |
+| 3 | `resolveLinkTargets` title 전수 적재 → 정규화 인덱스 point lookup | `db/src/link-index.ts` | ✅ `27658f4` |
+| 4 | 본문 전체 적재 → `link_targets` 추출 테이블 + LEFT JOIN | `db/src/link-index.ts` | ✅ `ba3ede9` |
+| 5 | 오타 후보 title 전수 편집거리 → prefix/trigram 축소 후 소수만 | `db/src/dangling.ts` | ✅ `ecd4e09` |
+| 6 | startup migration 본문 전체 스캔 → versioned batch cursor | `db/src/migrations.ts` | ✅ `46996fc` |
+| 7 | predicate registry + register 도입 | 신규 | |
+| 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` | |
+| 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts:515` | |
+| 10 | 회고 benchmark 실행 (74 / 80 / 14건) | — | |
+| 11 | inline pilot 출시 (structural 60 / live 30 / exploration 10) | — | |
+| 12 | 명시적 피드백 100건 후 예산 재배분 | — | |
 
 10만 개 × 3KB면 지금은 탐지 1회에 **약 300MB를 메모리에 올린다.** 2~6번을 안 하면 register도
 nomination도 의미가 없다.
+
+### 2~6이 실제로 걷어낸 것 (2026-08-28)
+
+1,387개 볼트 실측. 전부 동작 보존 — 링크 해석 569건 불일치 0, dead link 88노트 불일치 0,
+dangling 분류는 바이트 동일.
+
+| 무엇 | 전 | 후 |
+|---|---|---|
+| 링크 1건 해석 ×1,000 | 2,011ms | 7ms |
+| dead link 전수 판정 | 본문 전량 적재 | 인덱스 조인 |
+| dangling 분류 1회 | 213ms | 13ms |
+| **저장 1회** | **363ms** | **5ms** |
+| 변화 없는 read refresh | 366ms | 0ms |
+| 태그만 바뀐 뒤 refresh | 366ms | 3ms |
+
+읽기 경로의 전수 sweep은 그대로 365ms다. **그건 8·9번이 할 일이고, 2번이 옮긴 것은 그 비용을
+쓰기에서 읽기로 옮긴 것뿐이다.** 저장 시 힌트는 dangling_link만 남고 stale_state(146건)와
+hidden_arc(15건)는 다음 read에서 뜬다 — 화면 문서가 신호를 두기로 한 자리와 같다.
+
+남은 전수 스캔 하나: `apps/cli/src/services/indexer.ts`의 `resyncLinks`가 아직 본문을 전량
+읽는다. 인덱싱 자체가 O(N)이라 급하진 않지만 `note_link_targets`에서 읽으면 없앨 수 있다.
 
 ## 12. 논의 메모 — 무엇이 철회됐나
 
