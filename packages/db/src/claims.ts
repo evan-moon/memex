@@ -53,7 +53,9 @@ export const setNoteShape = (
     const insert = client.sqlite.prepare(
       'INSERT INTO note_claims (note_id, idx, text) VALUES (?, ?, ?)',
     );
-    claims.forEach((text, idx) => insert.run(input.noteId, idx, text));
+    claims.forEach((text, idx) => {
+      insert.run(input.noteId, idx, text);
+    });
   })();
 
   return {

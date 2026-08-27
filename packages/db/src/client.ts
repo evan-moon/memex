@@ -4,7 +4,7 @@ import { EMBEDDING_DIM } from '@memex/utils';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
-import { parseAuthoredAt } from './dates.ts';
+import { applyMigrations } from './migrations.ts';
 import * as schema from './schema.ts';
 
 export { EMBEDDING_DIM };
@@ -91,62 +91,6 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
 
-  try {
-    sqlite.exec('ALTER TABLE notes ADD COLUMN category TEXT');
-  } catch {
-    /* already exists */
-  }
-  try {
-    sqlite.exec("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'");
-  } catch {
-    /* already exists */
-  }
-
-  const cols = sqlite.prepare('PRAGMA table_info(notes)').all() as { name: string }[];
-  if (!cols.some((c) => c.name === 'layer')) {
-    sqlite.exec("ALTER TABLE notes ADD COLUMN layer TEXT NOT NULL DEFAULT 'past'");
-
-    const STATE_FOLDERS = ['projects', 'dev', 'herald'];
-    const RULE_FOLDERS = ['coding'];
-
-    const setLayer = sqlite.prepare(
-      "UPDATE notes SET layer = ? WHERE category = ? OR category LIKE ? || '/%'",
-    );
-
-    for (const f of STATE_FOLDERS) setLayer.run('state', f, f);
-    for (const f of RULE_FOLDERS) setLayer.run('rule', f, f);
-  }
-
-  // author: whose memory a note is. Backfilled from the path, which is where
-  // the distinction already lived — an agent keeps its working notes in a
-  // `memory/` directory beside the project they belong to.
-  if (!cols.some((c) => c.name === 'author')) {
-    sqlite.exec("ALTER TABLE notes ADD COLUMN author TEXT NOT NULL DEFAULT 'person'");
-    sqlite.exec("UPDATE notes SET author = 'agent' WHERE file_path LIKE '%/memory/%'");
-  }
-
-  // authored_at: the note's real authored date (frontmatter `date:` or a
-  // (YYYY-MM-DD) in the title), distinct from created_at (import time). Without
-  // it, temporal signals are meaningless on an imported vault where every
-  // created_at lands in the import window.
-  if (!cols.some((c) => c.name === 'authored_at')) {
-    sqlite.exec('ALTER TABLE notes ADD COLUMN authored_at INTEGER');
-
-    const rows = sqlite.prepare('SELECT id, title, content FROM notes').all() as {
-      id: number;
-      title: string;
-      content: string;
-    }[];
-    const upd = sqlite.prepare('UPDATE notes SET authored_at = ? WHERE id = ?');
-    const backfill = sqlite.transaction(() => {
-      for (const r of rows) {
-        const ms = parseAuthoredAt(r.title, r.content);
-        if (ms !== null) upd.run(ms, r.id);
-      }
-    });
-    backfill();
-  }
-
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS note_links (
       source_id INTEGER NOT NULL,
@@ -155,34 +99,6 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       PRIMARY KEY (source_id, target_id, source)
     );
   `);
-
-  const linkCols = sqlite.prepare('PRAGMA table_info(note_links)').all() as { name: string }[];
-  if (!linkCols.some((c) => c.name === 'source')) {
-    sqlite.exec("ALTER TABLE note_links ADD COLUMN source TEXT NOT NULL DEFAULT 'wiki'");
-  }
-
-  // `source` was added by ALTER on older DBs, which cannot widen a primary key —
-  // so a pair already joined by a wiki link silently rejected every other edge
-  // type between the same two notes, amendments included. Rebuild the table so
-  // one note can both cite and correct another.
-  const linkPk = sqlite.prepare('PRAGMA table_info(note_links)').all() as {
-    name: string;
-    pk: number;
-  }[];
-  if (!linkPk.some((c) => c.name === 'source' && c.pk > 0)) {
-    sqlite.exec(`
-      CREATE TABLE note_links_rebuilt (
-        source_id INTEGER NOT NULL,
-        target_id INTEGER NOT NULL,
-        source    TEXT    NOT NULL DEFAULT 'wiki',
-        PRIMARY KEY (source_id, target_id, source)
-      );
-      INSERT OR IGNORE INTO note_links_rebuilt(source_id, target_id, source)
-        SELECT source_id, target_id, source FROM note_links;
-      DROP TABLE note_links;
-      ALTER TABLE note_links_rebuilt RENAME TO note_links;
-    `);
-  }
 
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
@@ -321,20 +237,6 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     CREATE INDEX IF NOT EXISTS retrieval_log_at ON retrieval_log (at);
   `);
 
-  // Who asked. The recall daemon fires on every prompt, so it wrote 97.6% of the
-  // rows here and drowns the handful a person actually typed — a frequency read
-  // off this table without the distinction measures the daemon, not the user.
-  // Stored rather than derived from surface at read time: what a surface meant
-  // can change, and a row should keep saying what was true when it was written.
-  const logCols = sqlite.prepare('PRAGMA table_info(retrieval_log)').all() as { name: string }[];
-  if (!logCols.some((c) => c.name === 'initiator')) {
-    sqlite.exec(
-      "ALTER TABLE retrieval_log ADD COLUMN initiator TEXT NOT NULL DEFAULT 'agent_assisted'",
-    );
-    sqlite.exec("UPDATE retrieval_log SET initiator = 'daemon' WHERE surface = 'recall'");
-    sqlite.exec("UPDATE retrieval_log SET initiator = 'user_explicit' WHERE surface IN ('cli','ui')");
-  }
-
   // A signal's status says what became of it, never whether it was put in front
   // of anyone. Without that, silence and refusal are the same row — and a signal
   // nobody saw would be read as one the user turned down.
@@ -349,20 +251,7 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       ON signal_presentations (signal_id);
   `);
 
-  const evCols = sqlite.prepare('PRAGMA table_info(inference_evidence)').all() as {
-    name: string;
-  }[];
-  if (!evCols.some((c) => c.name === 'source_excerpt')) {
-    sqlite.exec('ALTER TABLE inference_evidence ADD COLUMN source_excerpt TEXT');
-  }
-
-  // prompt_text: the exact evidence bundle the agent synthesized from at mint
-  // time, kept verbatim so "why did the AI think that?" stays answerable even
-  // after the source notes change.
-  const infCols = sqlite.prepare('PRAGMA table_info(inferences)').all() as { name: string }[];
-  if (!infCols.some((c) => c.name === 'prompt_text')) {
-    sqlite.exec('ALTER TABLE inferences ADD COLUMN prompt_text TEXT');
-  }
+  applyMigrations(sqlite);
 
   return { db: drizzle(sqlite, { schema }), sqlite };
 };
