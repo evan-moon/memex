@@ -100,6 +100,20 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
 
+  // What a `[[Title]]` can name a note by, one row per name. Resolving a link
+  // used to load every title in the vault and build two Maps for it; here it is
+  // an indexed point lookup that costs the same whether the vault holds a
+  // thousand notes or a hundred thousand.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_title_keys (
+      key     TEXT    NOT NULL,
+      kind    TEXT    NOT NULL,
+      note_id INTEGER NOT NULL,
+      PRIMARY KEY (key, kind, note_id)
+    );
+    CREATE INDEX IF NOT EXISTS note_title_keys_note ON note_title_keys (note_id);
+  `);
+
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       title,

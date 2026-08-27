@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { parseAuthoredAt } from './dates.ts';
+import { titleLookupKeys } from './link-index.ts';
 
 type Migration = {
   version: number;
@@ -182,6 +183,27 @@ const MIGRATIONS: readonly Migration[] = [
     version: 10,
     name: 'inferences.prompt_text',
     up: (sqlite) => addColumnIfMissing(sqlite, 'inferences', 'prompt_text', 'prompt_text TEXT'),
+  },
+  {
+    // Every name the vault's existing titles can be linked by. Built once here
+    // so resolution never has to read the titles table whole again.
+    version: 11,
+    name: 'note_title_keys.backfill',
+    up: (sqlite) => {
+      const { n } = sqlite.prepare('SELECT COUNT(*) AS n FROM note_title_keys').get() as {
+        n: number;
+      };
+      if (n > 0) return;
+
+      const insert = sqlite.prepare(
+        'INSERT OR IGNORE INTO note_title_keys (key, kind, note_id) VALUES (?, ?, ?)',
+      );
+      forEachNoteBatch<{ id: number; title: string }>(sqlite, 'title', (rows) => {
+        for (const row of rows) {
+          for (const { key, kind } of titleLookupKeys(row.title)) insert.run(key, kind, row.id);
+        }
+      });
+    },
   },
 ];
 

@@ -1,6 +1,7 @@
-import { filenameKey, titleKey } from '@memex/utils';
+import { titleKey } from '@memex/utils';
 import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
+import { dropTitleKeys, keyLookup, syncTitleKeys } from './link-index.ts';
 import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
@@ -24,6 +25,7 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
     .values({ ...note, createdAt: now, updatedAt: now })
     .returning()
     .all();
+  syncTitleKeys(client, inserted.id, inserted.title);
   return inserted;
 };
 
@@ -415,6 +417,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
   deleteNoteChunks(client, id);
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
+  dropTitleKeys(client, id);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
 
@@ -431,6 +434,7 @@ export const updateNote = (
     .where(eq(notes.id, id))
     .returning()
     .all();
+  if (patch.title !== undefined) syncTitleKeys(client, updated.id, updated.title);
   return updated;
 };
 
@@ -519,25 +523,14 @@ const anchorless = (target: string) => {
 export const resolveLinkTargets = (client: MemexClient, targets: string[]): Map<string, number> => {
   if (targets.length === 0) return new Map();
 
-  const rows = client.sqlite.prepare('SELECT id, title FROM notes').all() as {
-    id: number;
-    title: string;
-  }[];
-  const byTitle = new Map(rows.map((row) => [titleKey(row.title), row.id]));
-  const byFilename = rows.reduce((acc, row) => {
-    const key = filenameKey(row.title);
-    return byTitle.has(key) || acc.has(key) ? acc : acc.set(key, row.id);
-  }, new Map<string, number>());
+  const lookup = keyLookup(client);
 
   // Written form first, so a title that contains a `#` wins over reading the
   // same characters as an anchor. Only what no note is named falls through to
   // being cut at the `#`.
   return targets.reduce((acc, target) => {
     const stem = anchorless(target);
-    const id =
-      byTitle.get(titleKey(target)) ??
-      byFilename.get(titleKey(target)) ??
-      (stem ? (byTitle.get(titleKey(stem)) ?? byFilename.get(titleKey(stem))) : undefined);
+    const id = lookup(titleKey(target)) ?? (stem ? lookup(titleKey(stem)) : undefined);
     return id === undefined ? acc : acc.set(target, id);
   }, new Map<string, number>());
 };
