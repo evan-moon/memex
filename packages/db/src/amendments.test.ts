@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
+import { syncLinks } from './link-index.ts';
 import {
   deleteNote,
   getAmendments,
@@ -10,7 +11,6 @@ import {
   insertNote,
   linkAmendment,
   serializeTags,
-  syncLinks,
 } from './repository.ts';
 
 let dbDir: string;

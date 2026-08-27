@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
 import { dismissedDanglingNoteIds } from './dangling.ts';
 import { notesDeclaringEvidence } from './evidence.ts';
-import { linkTargets, parseTags, resolveLinkTargets } from './repository.ts';
+import { unresolvedLinksByNote } from './link-index.ts';
+import { parseTags } from './repository.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -155,47 +156,24 @@ export const setSignalStatus = (
 
 const DAY_MS = 86_400_000;
 
-type NoteRow = {
-  id: number;
-  title: string;
-  content: string;
-  tags: string;
-  layer: string;
-  category: string | null;
-  created_at: number;
-  updated_at: number;
-};
-
 // dangling_link: a [[Title]] reference whose target note does not exist.
 // Identity = source note + missing title (lowercased), so one note can raise
 // distinct signals for distinct missing targets.
 export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
-  const notes = client.sqlite.prepare('SELECT id, title, content FROM notes').all() as Pick<
-    NoteRow,
-    'id' | 'title' | 'content'
-  >[];
-
-  const resolved = resolveLinkTargets(
-    client,
-    notes.flatMap((n) => linkTargets(n.content)),
-  );
   const dismissed = new Set(dismissedDanglingNoteIds(client));
   const candidates: SignalCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const note of notes) {
-    if (dismissed.has(note.id)) continue;
-    const titles = linkTargets(note.content);
-    for (const title of titles) {
-      const key = title.toLowerCase();
-      if (resolved.has(title)) continue;
-      const dedup = `${note.id}:${key}`;
+  for (const [noteId, targets] of unresolvedLinksByNote(client)) {
+    if (dismissed.has(noteId)) continue;
+    for (const title of targets) {
+      const dedup = `${noteId}:${title.toLowerCase()}`;
       if (seen.has(dedup)) continue;
       seen.add(dedup);
       candidates.push({
         type: 'dangling_link',
-        evidenceIds: [note.id],
-        reasoning: `Note #${note.id} links to "${title}", which has no note yet (open question).`,
+        evidenceIds: [noteId],
+        reasoning: `Note #${noteId} links to "${title}", which has no note yet (open question).`,
         identity: dedup,
       });
     }

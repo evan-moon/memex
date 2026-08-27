@@ -1,6 +1,6 @@
 import { withinEditDistance } from '@memex/utils';
 import type { MemexClient } from './client.ts';
-import { unresolvedLinksByNote } from './repository.ts';
+import { unresolvedLinksByNote } from './link-index.ts';
 
 export type DanglingKind = 'placeholder' | 'typo' | 'forward';
 

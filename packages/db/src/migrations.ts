@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { parseAuthoredAt } from './dates.ts';
-import { titleLookupKeys } from './link-index.ts';
+import { linkTargets, targetLookupKeys, titleLookupKeys } from './link-index.ts';
 
 type Migration = {
   version: number;
@@ -201,6 +201,31 @@ const MIGRATIONS: readonly Migration[] = [
       forEachNoteBatch<{ id: number; title: string }>(sqlite, 'title', (rows) => {
         for (const row of rows) {
           for (const { key, kind } of titleLookupKeys(row.title)) insert.run(key, kind, row.id);
+        }
+      });
+    },
+  },
+  {
+    // Every `[[X]]` already written into the vault, extracted once. Until this
+    // runs the join has nothing to read and every link looks alive.
+    version: 12,
+    name: 'note_link_targets.backfill',
+    up: (sqlite) => {
+      const { n } = sqlite.prepare('SELECT COUNT(*) AS n FROM note_link_targets').get() as {
+        n: number;
+      };
+      if (n > 0) return;
+
+      const insert = sqlite.prepare(
+        `INSERT OR IGNORE INTO note_link_targets (note_id, ord, target, key_full, key_stem)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      forEachNoteBatch<{ id: number; content: string }>(sqlite, 'content', (rows) => {
+        for (const row of rows) {
+          linkTargets(row.content).forEach((target, ord) => {
+            const { keyFull, keyStem } = targetLookupKeys(target);
+            insert.run(row.id, ord, target, keyFull, keyStem);
+          });
         }
       });
     },

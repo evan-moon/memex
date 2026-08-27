@@ -20,6 +20,13 @@ export {
   restoreDanglingFor,
 } from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
+export {
+  findUnresolvedLinks,
+  linkTargets,
+  resolveLinkTargets,
+  syncLinks,
+  unresolvedLinksByNote,
+} from './link-index.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
 export {
   bodyHash,
@@ -78,7 +85,6 @@ export {
   findFlashbacks,
   findRelatedNotes,
   findSimilarByEmbedding,
-  findUnresolvedLinks,
   getAmendments,
   getAmendmentsFor,
   getBacklinks,
@@ -86,7 +92,6 @@ export {
   getNoteByFilePath,
   insertNote,
   linkAmendment,
-  linkTargets,
   listAllFolders,
   listAllTags,
   listNotes,
@@ -98,8 +103,6 @@ export {
   saveEmbedding,
   searchNotes,
   serializeTags,
-  syncLinks,
-  unresolvedLinksByNote,
   updateNote,
 } from './repository.ts';
 export {

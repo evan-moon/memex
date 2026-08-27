@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
 import { setNoteEvidence } from './evidence.ts';
-import { insertNote, linkTargets, saveEmbedding, serializeTags } from './repository.ts';
+import { linkTargets } from './link-index.ts';
+import { insertNote, saveEmbedding, serializeTags } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,

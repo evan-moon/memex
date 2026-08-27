@@ -1,7 +1,11 @@
-import { titleKey } from '@memex/utils';
 import { desc, eq, gte, like } from 'drizzle-orm';
 import type { MemexClient } from './client.ts';
-import { dropTitleKeys, keyLookup, syncTitleKeys } from './link-index.ts';
+import {
+  dropLinkTargets,
+  dropTitleKeys,
+  syncLinkTargets,
+  syncTitleKeys,
+} from './link-index.ts';
 import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
@@ -26,6 +30,7 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
     .returning()
     .all();
   syncTitleKeys(client, inserted.id, inserted.title);
+  syncLinkTargets(client, inserted.id, inserted.content);
   return inserted;
 };
 
@@ -418,6 +423,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   dropTitleKeys(client, id);
+  dropLinkTargets(client, id);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
 
@@ -435,6 +441,7 @@ export const updateNote = (
     .returning()
     .all();
   if (patch.title !== undefined) syncTitleKeys(client, updated.id, updated.title);
+  if (patch.content !== undefined) syncLinkTargets(client, updated.id, updated.content);
   return updated;
 };
 
@@ -493,89 +500,6 @@ export const listAllFolders = (client: MemexClient): FolderCount[] =>
     .all() as FolderCount[];
 
 export type RelatedNote = Note & { sharedTags: string[]; score: number };
-
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
-
-// `[[Note|shown as this]]` targets `Note`; the rest is display text. The `#` in
-// `[[Note#Heading]]` is an anchor — but a title may hold one too, and this vault
-// names notes after the id they answer, so 38 of them carry a `#` and were
-// unreachable while the anchor was cut here, with no title yet in reach to check
-// against. Extraction keeps what was written; resolution decides what it meant.
-// Composed forms are normalized because the vault holds both NFC and NFD
-// spellings of the same Korean title.
-export const linkTargets = (content: string): string[] => [
-  ...new Set(
-    [...content.matchAll(WIKI_LINK_RE)]
-      .map((m) => m[1].split('|')[0].trim().normalize('NFC'))
-      .filter(Boolean),
-  ),
-];
-
-const anchorless = (target: string) => {
-  const cut = target.indexOf('#');
-  return cut === -1 ? '' : target.slice(0, cut).trim().normalize('NFC');
-};
-
-// A `[[X]]` link names either a note's title or the file it was written to,
-// and those two differ whenever the title held a character a filesystem rejects
-// — a slash, a question mark. Matching on the title alone called a third of
-// this vault's links dead with the note they meant sitting right there.
-export const resolveLinkTargets = (client: MemexClient, targets: string[]): Map<string, number> => {
-  if (targets.length === 0) return new Map();
-
-  const lookup = keyLookup(client);
-
-  // Written form first, so a title that contains a `#` wins over reading the
-  // same characters as an anchor. Only what no note is named falls through to
-  // being cut at the `#`.
-  return targets.reduce((acc, target) => {
-    const stem = anchorless(target);
-    const id = lookup(titleKey(target)) ?? (stem ? lookup(titleKey(stem)) : undefined);
-    return id === undefined ? acc : acc.set(target, id);
-  }, new Map<string, number>());
-};
-
-export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
-  client.sqlite
-    .prepare("DELETE FROM note_links WHERE source_id = ? AND source = 'wiki'")
-    .run(sourceId);
-
-  const resolved = resolveLinkTargets(client, linkTargets(content));
-  if (resolved.size === 0) return;
-
-  const insert = client.sqlite.prepare(
-    "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')",
-  );
-  for (const targetId of resolved.values()) insert.run(sourceId, targetId);
-};
-
-// An unmatched target is a dead link on disk, not just a missing row in
-// note_links — nothing in the vault opens it, under either name.
-export const findUnresolvedLinks = (client: MemexClient, content: string): string[] => {
-  const targets = linkTargets(content);
-  const resolved = resolveLinkTargets(client, targets);
-  return targets.filter((target) => !resolved.has(target));
-};
-
-// Counted rather than remembered: a signal row records that a link was dead
-// when detection last ran, and detection is skipped while nothing changes. The
-// index is built once here and every note checked against it, so the number a
-// screen shows always matches what opening the note would show.
-export const unresolvedLinksByNote = (client: MemexClient): Map<number, string[]> => {
-  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
-    id: number;
-    content: string;
-  }[];
-  const resolved = resolveLinkTargets(
-    client,
-    notes.flatMap((note) => linkTargets(note.content)),
-  );
-
-  return notes.reduce((acc, note) => {
-    const dead = linkTargets(note.content).filter((target) => !resolved.has(target));
-    return dead.length === 0 ? acc : acc.set(note.id, dead);
-  }, new Map<number, string[]>());
-};
 
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
   client.sqlite

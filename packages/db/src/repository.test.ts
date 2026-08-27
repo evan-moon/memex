@@ -3,18 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
+import { findUnresolvedLinks, resolveLinkTargets, syncLinks } from './link-index.ts';
 import {
   findFlashbacks,
-  findUnresolvedLinks,
   getBacklinks,
-  resolveLinkTargets,
   getNote,
   insertNote,
   parseTags,
   saveEmbedding,
   searchNotes,
   serializeTags,
-  syncLinks,
   updateNote,
 } from './repository.ts';
 

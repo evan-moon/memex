@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { deleteNote, insertNote, resolveLinkTargets, updateNote } from './repository.ts';
+import { resolveLinkTargets, unresolvedLinksByNote } from './link-index.ts';
+import { deleteNote, insertNote, updateNote } from './repository.ts';
 
 describe('note title index', () => {
   let dir: string;
@@ -102,5 +103,79 @@ describe('note title index', () => {
   it('resolves nothing for an empty target list without touching the index', () => {
     addNote('present');
     expect(resolveLinkTargets(client, []).size).toBe(0);
+  });
+});
+
+describe('dead links', () => {
+  let dir: string;
+  let client: MemexClient;
+
+  const addNote = (title: string, content = '') =>
+    insertNote(client, {
+      title,
+      content,
+      filePath: join(dir, `${title}.md`),
+      category: null,
+      tags: '[]',
+      source: 'manual',
+      layer: 'past',
+      author: 'person',
+      authoredAt: null,
+    });
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'memex-dead-links-'));
+    client = openDb(dir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reports a link to a note nobody wrote, in the order it was written', () => {
+    const note = addNote('source', 'see [[missing one]] and [[missing two]]');
+    expect(unresolvedLinksByNote(client).get(note.id)).toEqual(['missing one', 'missing two']);
+  });
+
+  it('says nothing about a link that resolves', () => {
+    addNote('target');
+    const note = addNote('source', 'see [[target]]');
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+
+  it('stops calling a link dead once the note it named gets written', () => {
+    const note = addNote('source', 'see [[written later]]');
+    expect(unresolvedLinksByNote(client).get(note.id)).toEqual(['written later']);
+
+    addNote('written later');
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+
+  it('calls a link dead again when the note it named is deleted', () => {
+    const target = addNote('target');
+    const note = addNote('source', 'see [[target]]');
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+
+    deleteNote(client, target.id);
+    expect(unresolvedLinksByNote(client).get(note.id)).toEqual(['target']);
+  });
+
+  it('follows an edit that removes the link', () => {
+    const note = addNote('source', 'see [[missing]]');
+    updateNote(client, note.id, { content: 'nothing to see' });
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+
+  it('forgets the links of a deleted note', () => {
+    const note = addNote('source', 'see [[missing]]');
+    deleteNote(client, note.id);
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+
+  it('resolves a link through the anchor when the stem names a note', () => {
+    addNote('target');
+    const note = addNote('source', 'see [[target#Heading]]');
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
   });
 });

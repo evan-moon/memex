@@ -114,6 +114,22 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     CREATE INDEX IF NOT EXISTS note_title_keys_note ON note_title_keys (note_id);
   `);
 
+  // Every `[[X]]` a note was written with, and the keys that link could resolve
+  // under. Asking which links are dead used to mean reading every body in the
+  // vault; against this it is one join between two indexes.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_link_targets (
+      note_id  INTEGER NOT NULL,
+      ord      INTEGER NOT NULL,
+      target   TEXT    NOT NULL,
+      key_full TEXT    NOT NULL,
+      key_stem TEXT,
+      PRIMARY KEY (note_id, ord)
+    );
+    CREATE INDEX IF NOT EXISTS note_link_targets_full ON note_link_targets (key_full);
+    CREATE INDEX IF NOT EXISTS note_link_targets_stem ON note_link_targets (key_stem);
+  `);
+
   sqlite.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       title,
