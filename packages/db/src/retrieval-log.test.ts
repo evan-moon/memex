@@ -52,7 +52,35 @@ describe('logRetrieval', () => {
   it('can count only what was retrieved since a cutoff', () => {
     logRetrieval(client, { query: 'old', surface: 'mcp', noteIds: [1] }, 10);
     logRetrieval(client, { query: 'new', surface: 'mcp', noteIds: [2] }, 100);
-    expect(retrievalCounts(client, 50)).toEqual([{ noteId: 2, hits: 1, lastAt: 100 }]);
+    expect(retrievalCounts(client, { since: 50 })).toEqual([{ noteId: 2, hits: 1, lastAt: 100 }]);
+  });
+
+  it('records who asked, so the daemon can be told from a person', () => {
+    logRetrieval(client, { query: 'a', surface: 'cli', noteIds: [1] }, 10);
+    logRetrieval(client, { query: 'b', surface: 'ui', noteIds: [2] }, 20);
+    logRetrieval(client, { query: 'c', surface: 'mcp', noteIds: [3] }, 30);
+    logRetrieval(client, { query: 'd', surface: 'recall', noteIds: [4] }, 40);
+
+    const rows = client.sqlite
+      .prepare('SELECT surface, initiator FROM retrieval_log ORDER BY at')
+      .all();
+    expect(rows).toEqual([
+      { surface: 'cli', initiator: 'user_explicit' },
+      { surface: 'ui', initiator: 'user_explicit' },
+      { surface: 'mcp', initiator: 'agent_assisted' },
+      { surface: 'recall', initiator: 'daemon' },
+    ]);
+  });
+
+  it('counts only the attention it was asked to stand for', () => {
+    logRetrieval(client, { query: 'a', surface: 'recall', noteIds: [1] }, 10);
+    logRetrieval(client, { query: 'a', surface: 'recall', noteIds: [1] }, 20);
+    logRetrieval(client, { query: 'b', surface: 'cli', noteIds: [2] }, 30);
+
+    expect(retrievalCounts(client, { initiators: ['user_explicit'] })).toEqual([
+      { noteId: 2, hits: 1, lastAt: 30 },
+    ]);
+    expect(retrievalCounts(client)).toHaveLength(2);
   });
 
   it('keeps every occurrence so frequency reflects repeated retrieval', () => {

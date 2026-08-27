@@ -321,6 +321,34 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     CREATE INDEX IF NOT EXISTS retrieval_log_at ON retrieval_log (at);
   `);
 
+  // Who asked. The recall daemon fires on every prompt, so it wrote 97.6% of the
+  // rows here and drowns the handful a person actually typed — a frequency read
+  // off this table without the distinction measures the daemon, not the user.
+  // Stored rather than derived from surface at read time: what a surface meant
+  // can change, and a row should keep saying what was true when it was written.
+  const logCols = sqlite.prepare('PRAGMA table_info(retrieval_log)').all() as { name: string }[];
+  if (!logCols.some((c) => c.name === 'initiator')) {
+    sqlite.exec(
+      "ALTER TABLE retrieval_log ADD COLUMN initiator TEXT NOT NULL DEFAULT 'agent_assisted'",
+    );
+    sqlite.exec("UPDATE retrieval_log SET initiator = 'daemon' WHERE surface = 'recall'");
+    sqlite.exec("UPDATE retrieval_log SET initiator = 'user_explicit' WHERE surface IN ('cli','ui')");
+  }
+
+  // A signal's status says what became of it, never whether it was put in front
+  // of anyone. Without that, silence and refusal are the same row — and a signal
+  // nobody saw would be read as one the user turned down.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS signal_presentations (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      signal_id INTEGER NOT NULL,
+      surface   TEXT    NOT NULL,
+      at        INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS signal_presentations_signal
+      ON signal_presentations (signal_id);
+  `);
+
   const evCols = sqlite.prepare('PRAGMA table_info(inference_evidence)').all() as {
     name: string;
   }[];

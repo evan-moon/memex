@@ -1,5 +1,10 @@
 import { isSaveRejection, saveNote } from '@memex/core';
-import { findUnresolvedLinks, type MemexClient, type NoteSource } from '@memex/db';
+import {
+  findUnresolvedLinks,
+  type MemexClient,
+  type NoteSource,
+  recordPresentation,
+} from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
@@ -101,6 +106,9 @@ The response may include "Flashback" lines pointing to older notes from a differ
               .join('\n')}`
           : '';
 
+      // Recorded here rather than where the signal is chosen: saveNote hands one
+      // back to every caller, and only the ones that render it have shown it.
+      if (signal) recordPresentation(client, signal.id, 'mcp');
       const signalSection = signal
         ? `\n\n💡 Proactive Signal: Note joined an un-synthesized ${signal.type.replace('_', ' ')} (#${signal.id}: ${signal.reasoning})`
         : '';

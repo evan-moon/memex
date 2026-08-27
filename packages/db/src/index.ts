@@ -103,10 +103,21 @@ export {
   updateNote,
 } from './repository.ts';
 export {
+  presentationsFor,
+  type PresentationSurface,
+  receptionCounts,
+  recordPresentation,
+  type SignalPresentation,
+  type SignalReception,
+  wasIgnored,
+} from './presentations.ts';
+export {
   countRetrievals,
   logRetrieval,
   type RetrievalCount,
+  type RetrievalCountOptions,
   type RetrievalEntry,
+  type RetrievalInitiator,
   type RetrievalSurface,
   retrievalCounts,
 } from './retrieval-log.ts';
