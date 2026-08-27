@@ -181,8 +181,22 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
 
-  // Small key/value store for engine bookkeeping (e.g. last signal refresh, for
-  // the dirty-flag that makes on-read detection free when nothing changed).
+  // What each write did, so a detector can ask what happened since it last ran
+  // instead of re-reading the corpus. One global dirty flag made any edit
+  // re-run every detector; a kind per row lets a tag change skip the sweeps
+  // that only embeddings and links can disturb.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_changes (
+      id      INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER NOT NULL,
+      kind    TEXT    NOT NULL,
+      at      INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS note_changes_kind ON note_changes (kind, id);
+  `);
+
+  // Small key/value store for engine bookkeeping (e.g. per-detector watermarks
+  // into note_changes, so on-read detection is free when nothing it reads moved).
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS engine_meta (
       key   TEXT PRIMARY KEY,

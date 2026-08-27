@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
 import { dismissedDanglingNoteIds } from './dangling.ts';
 import { notesDeclaringEvidence } from './evidence.ts';
-import { unresolvedLinksByNote } from './link-index.ts';
+import { unresolvedLinksByNote, unresolvedLinksFor } from './link-index.ts';
 import { parseTags } from './repository.ts';
+import { type ChangeKind, changeHead, hasChangeFrom, trimChangeLog } from './changes.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -24,6 +25,11 @@ export type SignalType =
   | 'tag_burst'
   | 'conflict_candidate';
 export type SignalStatus = 'new' | 'snoozed' | 'dismissed' | 'minted';
+
+// conflict_candidate is nominated on demand, not swept for, so it has no
+// watermark and is never retired by a refresh.
+const REFRESHABLE = ['dangling_link', 'stale_state', 'tag_burst', 'hidden_arc'] as const;
+type RefreshableType = (typeof REFRESHABLE)[number];
 
 export type Signal = {
   id: number;
@@ -159,27 +165,43 @@ const DAY_MS = 86_400_000;
 // dangling_link: a [[Title]] reference whose target note does not exist.
 // Identity = source note + missing title (lowercased), so one note can raise
 // distinct signals for distinct missing targets.
-export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
-  const dismissed = new Set(dismissedDanglingNoteIds(client));
-  const candidates: SignalCandidate[] = [];
-  const seen = new Set<string>();
-
-  for (const [noteId, targets] of unresolvedLinksByNote(client)) {
-    if (dismissed.has(noteId)) continue;
-    for (const title of targets) {
-      const dedup = `${noteId}:${title.toLowerCase()}`;
-      if (seen.has(dedup)) continue;
-      seen.add(dedup);
-      candidates.push({
-        type: 'dangling_link',
+const danglingCandidates = (
+  noteId: number,
+  targets: string[],
+  seen: Set<string>,
+): SignalCandidate[] =>
+  targets.flatMap((title) => {
+    const dedup = `${noteId}:${title.toLowerCase()}`;
+    if (seen.has(dedup)) return [];
+    seen.add(dedup);
+    return [
+      {
+        type: 'dangling_link' as const,
         evidenceIds: [noteId],
         reasoning: `Note #${noteId} links to "${title}", which has no note yet (open question).`,
         identity: dedup,
-      });
-    }
-  }
-  return candidates;
+      },
+    ];
+  });
+
+export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
+  const dismissed = new Set(dismissedDanglingNoteIds(client));
+  const seen = new Set<string>();
+
+  return [...unresolvedLinksByNote(client)]
+    .filter(([noteId]) => !dismissed.has(noteId))
+    .flatMap(([noteId, targets]) => danglingCandidates(noteId, targets, seen));
 };
+
+// The same question asked of one note. A write needs to know what it just broke,
+// not what the whole vault has left open.
+export const detectDanglingLinksFor = (
+  client: MemexClient,
+  noteId: number,
+): SignalCandidate[] =>
+  dismissedDanglingNoteIds(client).includes(noteId)
+    ? []
+    : danglingCandidates(noteId, unresolvedLinksFor(client, noteId), new Set());
 
 export type StaleStateOptions = { maxDistance?: number; minNewer?: number };
 
@@ -599,11 +621,17 @@ export const detectHiddenArcs = (
   return candidates;
 };
 
-const REFRESH_META_KEY = 'signals_refreshed_at';
+// What each detector reads. A detector is re-run only when the log holds a
+// change of a kind it can see: renaming a tag cannot move an embedding, so it
+// has no business costing a kNN sweep of the whole corpus.
+const WATCHES: Record<RefreshableType, ChangeKind[]> = {
+  dangling_link: ['content', 'title', 'links', 'removed'],
+  stale_state: ['content', 'removed'],
+  tag_burst: ['tags', 'content', 'removed'],
+  hidden_arc: ['content', 'links', 'removed'],
+};
 
-const maxNotesUpdatedAt = (client: MemexClient): number =>
-  (client.sqlite.prepare('SELECT MAX(updated_at) AS m FROM notes').get() as { m: number | null })
-    .m ?? 0;
+const watermarkKey = (type: RefreshableType) => `signals_watermark:${type}`;
 
 const getMeta = (client: MemexClient, key: string): number =>
   (
@@ -624,13 +652,21 @@ const setMeta = (client: MemexClient, key: string, value: number): void => {
 // a real vault pointed at notes that had since been written. Only untriaged
 // signals are dropped; dismissed and minted are decisions, and re-raising those
 // would argue with the user.
-const retireResolved = (client: MemexClient, candidates: SignalCandidate[]) => {
+const retireResolved = (
+  client: MemexClient,
+  candidates: SignalCandidate[],
+  ran: Set<RefreshableType>,
+) => {
   const live = new Set(candidates.map(computeSignalHash));
   const open = client.sqlite
-    .prepare("SELECT id, signal_hash FROM signals WHERE status = 'new'")
-    .all() as { id: number; signal_hash: string }[];
+    .prepare("SELECT id, type, signal_hash FROM signals WHERE status = 'new'")
+    .all() as { id: number; type: SignalType; signal_hash: string }[];
 
-  const gone = open.filter((row) => !live.has(row.signal_hash));
+  // Only a detector that just ran can say its findings are void. Retiring on
+  // behalf of one that was skipped would delete every signal it ever raised.
+  const gone = open.filter(
+    (row) => ran.has(row.type as RefreshableType) && !live.has(row.signal_hash),
+  );
   if (gone.length === 0) return;
 
   const remove = client.sqlite.prepare('DELETE FROM signals WHERE id = ?');
@@ -655,19 +691,44 @@ export const refreshSignals = (
     force?: boolean;
   } = {},
 ): Signal[] => {
-  if (!options.force && maxNotesUpdatedAt(client) <= getMeta(client, REFRESH_META_KEY)) {
-    return [];
-  }
+  const head = changeHead(client);
+
+  const detectors: Record<RefreshableType, () => SignalCandidate[]> = {
+    dangling_link: () => detectDanglingLinks(client),
+    stale_state: () => detectStaleState(client, options.stale),
+    tag_burst: () => detectTagBursts(client, options.burst),
+    hidden_arc: () => detectHiddenArcs(client, options.arc),
+  };
+
+  // A watermark of zero means this detector has never read the log — on a vault
+  // that predates it, or one that has just been opened. It runs once to learn
+  // what is already there, and is skipped by the log after that.
+  const due = REFRESHABLE.filter((type) => {
+    const from = getMeta(client, watermarkKey(type));
+    return options.force || from === 0 || hasChangeFrom(client, from, WATCHES[type]);
+  });
+  if (due.length === 0) return [];
+
+  const candidates = due.flatMap((type) => detectors[type]());
+  const touched = candidates.map((c) => upsertSignal(client, c));
+  retireResolved(client, candidates, new Set(due));
+  for (const type of due) setMeta(client, watermarkKey(type), head + 1);
+  trimChangeLog(client, Math.min(...REFRESHABLE.map((t) => getMeta(client, watermarkKey(t)))) - 1);
+
+  return touched;
+};
+
+// One signal about the note just written, from the detectors that can answer
+// for a single note without reading the corpus. stale_state and hidden_arc are
+// findings about the whole vault, not about this write, and they now surface on
+// the next read rather than making every save pay for a full sweep.
+export const proactiveSignalFor = (client: MemexClient, noteId: number): Signal | undefined => {
   const candidates = [
-    ...detectDanglingLinks(client),
-    ...detectStaleState(client, options.stale),
-    ...detectTagBursts(client, options.burst),
-    ...detectHiddenArcs(client, options.arc),
+    ...detectDanglingLinksFor(client, noteId),
+    ...detectTagBursts(client).filter((c) => c.evidenceIds.includes(noteId)),
   ];
   const touched = candidates.map((c) => upsertSignal(client, c));
-  retireResolved(client, candidates);
-  setMeta(client, REFRESH_META_KEY, Date.now());
-  return touched;
+  return findBestProactiveSignal(touched, noteId);
 };
 
 /**

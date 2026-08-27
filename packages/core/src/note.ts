@@ -5,7 +5,6 @@ import {
   deleteNote,
   type Flashback,
   type FlashbackOptions,
-  findBestProactiveSignal,
   findFlashbacks,
   findSimilarByEmbedding,
   getNote,
@@ -21,7 +20,7 @@ import {
   parseTags,
   type RetrievalSurface,
   RRF_K,
-  refreshSignals,
+  proactiveSignalFor,
   type SearchResult,
   type Signal,
   type SimilarNote,
@@ -214,11 +213,11 @@ export const saveNote = async (
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
 
-  // Proactive surfacing: the write just bumped updated_at, so the dirty-flag
-  // lets this refresh run (detection cost is paid on write, keeping reads free).
-  // We then surface at most one signal the new note is part of.
-  const signals = refreshSignals(client);
-  const signal = findBestProactiveSignal(signals, note.id);
+  // Proactive surfacing: the detectors that can answer for a single note run
+  // here; the corpus-wide sweeps are left to the next read, which the change
+  // log now wakes on its own. A save used to pay 363ms of detection to find
+  // one hint about the note it had just written.
+  const signal = proactiveSignalFor(client, note.id);
 
   return {
     note,
@@ -513,8 +512,7 @@ export const editNote = async (
   });
   syncLinks(client, id, content);
 
-  const signals = refreshSignals(client);
-  const signal = findBestProactiveSignal(signals, id);
+  const signal = proactiveSignalFor(client, id);
 
   return { ...updated, signal };
 };

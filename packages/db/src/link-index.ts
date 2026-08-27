@@ -142,12 +142,13 @@ export const findUnresolvedLinks = (client: MemexClient, content: string): strin
 // A target is dead when neither name it could go by is one any note answers to.
 // Asked of the two indexes rather than of every body in the vault, which is the
 // only version of this question that survives a corpus too big to hold in memory.
-const UNRESOLVED = `SELECT t.note_id AS noteId, t.target
+const UNRESOLVED_WHERE = `SELECT t.note_id AS noteId, t.target
    FROM note_link_targets t
    WHERE NOT EXISTS (SELECT 1 FROM note_title_keys k WHERE k.key = t.key_full)
      AND (t.key_stem IS NULL
-          OR NOT EXISTS (SELECT 1 FROM note_title_keys k WHERE k.key = t.key_stem))
-   ORDER BY t.note_id, t.ord`;
+          OR NOT EXISTS (SELECT 1 FROM note_title_keys k WHERE k.key = t.key_stem))`;
+
+const UNRESOLVED = `${UNRESOLVED_WHERE} ORDER BY t.note_id, t.ord`;
 
 // Counted rather than remembered: a signal row records that a link was dead
 // when detection last ran, and detection is skipped while nothing changes. The
@@ -161,3 +162,10 @@ export const unresolvedLinksByNote = (client: MemexClient): Map<number, string[]
     return acc.set(row.noteId, [...dead, row.target]);
   }, new Map<number, string[]>());
 };
+
+export const unresolvedLinksFor = (client: MemexClient, noteId: number): string[] =>
+  (
+    client.sqlite
+      .prepare(`${UNRESOLVED_WHERE} AND t.note_id = ? ORDER BY t.ord`)
+      .all(noteId) as { target: string }[]
+  ).map((row) => row.target);

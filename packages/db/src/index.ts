@@ -136,9 +136,16 @@ export type {
   TagBurstOptions,
 } from './signals.ts';
 export {
+  type ChangeKind,
+  changeHead,
+  hasChangeFrom,
+  recordNoteChange,
+} from './changes.ts';
+export {
   computeSignalHash,
   detectConflictPairs,
   detectDanglingLinks,
+  detectDanglingLinksFor,
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
@@ -146,6 +153,7 @@ export {
   getSignal,
   getSignalByHash,
   listSignals,
+  proactiveSignalFor,
   refreshSignals,
   setSignalStatus,
   upsertSignal,

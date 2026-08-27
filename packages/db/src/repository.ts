@@ -1,4 +1,5 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
+import { type ChangeKind, recordNoteChange } from './changes.ts';
 import type { MemexClient } from './client.ts';
 import {
   dropLinkTargets,
@@ -31,6 +32,7 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
     .all();
   syncTitleKeys(client, inserted.id, inserted.title);
   syncLinkTargets(client, inserted.id, inserted.content);
+  recordNoteChange(client, inserted.id, ['content', 'title', 'tags', 'links'], now);
   return inserted;
 };
 
@@ -424,8 +426,15 @@ export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   dropTitleKeys(client, id);
   dropLinkTargets(client, id);
+  recordNoteChange(client, id, ['removed']);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
+
+const changedKinds = (patch: Partial<NewNote>): ChangeKind[] => [
+  ...(patch.content !== undefined ? (['content', 'links'] as const) : []),
+  ...(patch.title !== undefined ? (['title'] as const) : []),
+  ...(patch.tags !== undefined ? (['tags'] as const) : []),
+];
 
 export const updateNote = (
   client: MemexClient,
@@ -442,6 +451,7 @@ export const updateNote = (
     .all();
   if (patch.title !== undefined) syncTitleKeys(client, updated.id, updated.title);
   if (patch.content !== undefined) syncLinkTargets(client, updated.id, updated.content);
+  recordNoteChange(client, updated.id, changedKinds(patch));
   return updated;
 };
 

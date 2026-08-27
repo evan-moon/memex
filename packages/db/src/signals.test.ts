@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
 import { setNoteEvidence } from './evidence.ts';
 import { linkTargets } from './link-index.ts';
-import { insertNote, saveEmbedding, serializeTags } from './repository.ts';
+import { deleteNote, insertNote, saveEmbedding, serializeTags, updateNote } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,
@@ -14,6 +14,7 @@ import {
   detectTagBursts,
   findBestProactiveSignal,
   listSignals,
+  proactiveSignalFor,
   refreshSignals,
   setSignalStatus,
   upsertSignal,
@@ -261,7 +262,7 @@ describe('findBestProactiveSignal', () => {
   });
 });
 
-describe('refreshSignals dirty-flag', () => {
+describe('refreshSignals watermarks', () => {
   const seedArc = () => {
     const now = Date.now();
     for (const d of [400, 300, 200, 10]) {
@@ -275,9 +276,63 @@ describe('refreshSignals dirty-flag', () => {
     expect(refreshSignals(client)).toHaveLength(0); // clean → short-circuit
     expect(refreshSignals(client, { force: true }).length).toBeGreaterThan(0); // forced
 
-    // a change bumps updated_at (explicit future ts avoids same-ms flakiness)
-    addNote({ tags: ['y'], content: 'see [[Nope]]', updatedAt: Date.now() + 60_000 });
-    expect(refreshSignals(client).length).toBeGreaterThan(0); // dirty again
+    addNote({ tags: ['y'], content: 'see [[Nope]]' });
+    expect(refreshSignals(client).length).toBeGreaterThan(0); // logged → dirty again
+  });
+
+  it('leaves a detector alone when only what it cannot read has moved', () => {
+    const note = addNote({ content: 'see [[Nope]]' });
+    refreshSignals(client);
+    const before = listSignals(client).map((s) => s.id);
+
+    updateNote(client, note.id, { tags: serializeTags(['unrelated']) });
+
+    // tag_burst is the only detector watching tags, and it finds nothing here,
+    // so the dangling signal survives rather than being retired on its behalf.
+    expect(refreshSignals(client)).toHaveLength(0);
+    expect(listSignals(client).map((s) => s.id)).toEqual(before);
+  });
+
+  it('wakes on a deletion, which bumps no timestamp of its own', () => {
+    const target = addNote({ title: 'Target' });
+    addNote({ content: 'see [[Target]]' });
+    refreshSignals(client);
+    expect(listSignals(client).filter((s) => s.type === 'dangling_link')).toHaveLength(0);
+
+    deleteNote(client, target.id);
+
+    expect(refreshSignals(client).some((s) => s.type === 'dangling_link')).toBe(true);
+  });
+});
+
+describe('proactiveSignalFor', () => {
+  it('surfaces a dead link in the note just written', () => {
+    const note = addNote({ content: 'see [[Nothing At All]]' });
+    expect(proactiveSignalFor(client, note.id)?.type).toBe('dangling_link');
+  });
+
+  it('says nothing about a note with no answerable signal', () => {
+    const note = addNote({ content: 'plain prose' });
+    expect(proactiveSignalFor(client, note.id)).toBeUndefined();
+  });
+
+  it('answers for the written note only, not for its neighbours', () => {
+    const other = addNote({ content: 'see [[Also Missing]]' });
+    const note = addNote({ content: 'plain prose' });
+
+    expect(proactiveSignalFor(client, note.id)).toBeUndefined();
+    expect(listSignals(client).some((s) => s.evidenceIds.includes(other.id))).toBe(false);
+  });
+
+  it('persists what it found, so a later refresh does not raise it twice', () => {
+    const note = addNote({ content: 'see [[Nothing At All]]' });
+    const hint = proactiveSignalFor(client, note.id);
+
+    refreshSignals(client);
+    const dangling = listSignals(client).filter(
+      (s) => s.type === 'dangling_link' && s.evidenceIds.includes(note.id),
+    );
+    expect(dangling.map((s) => s.id)).toEqual([hint?.id]);
   });
 });
 
