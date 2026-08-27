@@ -74,6 +74,7 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
   sqlite.exec('CREATE INDEX IF NOT EXISTS note_chunks_note_id ON note_chunks(note_id)');
+  sqlite.exec('CREATE INDEX IF NOT EXISTS notes_title_length ON notes(LENGTH(title))');
 
   const chunkEmbRow = sqlite
     .prepare(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withinEditDistance } from './distance.ts';
+import { findNearest, withinEditDistance } from './distance.ts';
 
 describe('withinEditDistance', () => {
   it('counts an identical string as distance zero', () => {
@@ -29,5 +29,50 @@ describe('withinEditDistance', () => {
   it('handles an empty string against a word', () => {
     expect(withinEditDistance('', 'abc', 3)).toBe(true);
     expect(withinEditDistance('', 'abcd', 3)).toBe(false);
+  });
+});
+
+describe('findNearest', () => {
+  const titles = [
+    'Obsidian 정합성 재편',
+    'memex',
+    '모순 탐지 — 낡음 다음에 오는 것',
+    'Opula 유료화 전략',
+    'signals mint',
+  ];
+
+  it('finds the title a target is one edit away from', () => {
+    expect(findNearest('Obsidian 정합성 재편본', titles, 2)).toBe('Obsidian 정합성 재편');
+  });
+
+  it('ignores a candidate that only differs in case', () => {
+    expect(findNearest('MEMEX', ['memex', 'memux'], 1)).toBe('memux');
+  });
+
+  it('returns nothing when every candidate is too far', () => {
+    expect(findNearest('완전히 다른 제목입니다', titles, 2)).toBeUndefined();
+  });
+
+  it('takes the first candidate that matches, not the closest', () => {
+    expect(findNearest('memux', ['memex', 'memax'], 1)).toBe('memex');
+  });
+
+  it('never rejects a pair the exact measure would accept', () => {
+    const alphabet = [...'ab근거x '];
+    const words = alphabet.flatMap((a) =>
+      alphabet.flatMap((b) =>
+        alphabet.flatMap((c) => alphabet.map((d) => `${a}${b}${c}${d}단어`)),
+      ),
+    );
+
+    for (const max of [1, 2]) {
+      const target = 'ab근거단어';
+      const exact = words.filter(
+        (word) =>
+          word.toLowerCase() !== target.toLowerCase() &&
+          withinEditDistance(word.toLowerCase(), target.toLowerCase(), max),
+      );
+      expect(findNearest(target, words, max)).toBe(exact[0]);
+    }
   });
 });

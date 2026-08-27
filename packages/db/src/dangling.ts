@@ -1,4 +1,4 @@
-import { withinEditDistance } from '@memex/utils';
+import { findNearest } from '@memex/utils';
 import type { MemexClient } from './client.ts';
 import { unresolvedLinksByNote } from './link-index.ts';
 
@@ -56,14 +56,7 @@ export const classifyDangling = (
     return { noteId: link.noteId, target: link.target, kind: 'placeholder' };
 
   const allowed = typoDistance(link.target);
-  const nearest =
-    allowed === 0
-      ? undefined
-      : titles.find(
-          (title) =>
-            title.toLowerCase() !== link.target.toLowerCase() &&
-            withinEditDistance(title.toLowerCase(), link.target.toLowerCase(), allowed),
-        );
+  const nearest = allowed === 0 ? undefined : findNearest(link.target, titles, allowed);
 
   return nearest
     ? { noteId: link.noteId, target: link.target, kind: 'typo', nearest }
@@ -90,27 +83,63 @@ export const dismissedDanglingNoteIds = (client: MemexClient): number[] =>
     }[]
   ).map((r) => r.noteId);
 
-// Classified once against every title, so a screen and the detector cannot
-// disagree about what kind of dead link a note has.
-export const danglingLinks = (client: MemexClient): DanglingLink[] => {
-  const dismissed = new Set(dismissedDanglingNoteIds(client));
-  const titles = (
-    client.sqlite.prepare('SELECT title FROM notes').all() as { title: string }[]
-  ).map((r) => r.title);
-  const paths = new Map(
-    (
-      client.sqlite.prepare('SELECT id, file_path AS filePath FROM notes').all() as {
-        id: number;
-        filePath: string;
-      }[]
-    ).map((r) => [r.id, r.filePath]),
+// A title too long or too short to be reachable within the allowed distance
+// cannot be the one that was meant, and the length check inside the matrix
+// would only reject it after the row has already been read. Rejecting by an
+// indexed range first means a link is measured against a handful of plausible
+// titles rather than against the whole vault.
+const NEARBY_TITLES = `SELECT title FROM notes
+   WHERE LENGTH(title) BETWEEN ? AND ?
+   ORDER BY id`;
+
+const nearbyTitles = (client: MemexClient) => {
+  const query = client.sqlite.prepare(NEARBY_TITLES);
+
+  return (target: string) => {
+    const allowed = typoDistance(target);
+    if (allowed === 0) return [];
+    const length = [...target].length;
+    return (query.all(length - allowed, length + allowed) as { title: string }[]).map(
+      (row) => row.title,
+    );
+  };
+};
+
+const PATH_BATCH = 500;
+
+const pathsFor = (client: MemexClient, ids: number[]) => {
+  const read = (batch: number[]) =>
+    client.sqlite
+      .prepare(
+        `SELECT id, file_path AS filePath FROM notes WHERE id IN (${batch.map(() => '?').join(',')})`,
+      )
+      .all(...batch) as { id: number; filePath: string }[];
+
+  const batches = Array.from({ length: Math.ceil(ids.length / PATH_BATCH) }, (_, i) =>
+    ids.slice(i * PATH_BATCH, (i + 1) * PATH_BATCH),
   );
 
-  return [...unresolvedLinksByNote(client).entries()]
-    .filter(([noteId]) => !dismissed.has(noteId))
-    .flatMap(([noteId, targets]) =>
-      targets.map((target) =>
-        classifyDangling({ noteId, target, filePath: paths.get(noteId) ?? '' }, titles),
-      ),
-    );
+  return new Map(batches.flatMap(read).map((row) => [row.id, row.filePath]));
+};
+
+// Classified against the same titles a screen would offer, so a screen and the
+// detector cannot disagree about what kind of dead link a note has.
+export const danglingLinks = (client: MemexClient): DanglingLink[] => {
+  const dismissed = new Set(dismissedDanglingNoteIds(client));
+  const dead = [...unresolvedLinksByNote(client).entries()].filter(
+    ([noteId]) => !dismissed.has(noteId),
+  );
+  if (dead.length === 0) return [];
+
+  const paths = pathsFor(
+    client,
+    dead.map(([noteId]) => noteId),
+  );
+  const nearby = nearbyTitles(client);
+
+  return dead.flatMap(([noteId, targets]) =>
+    targets.map((target) =>
+      classifyDangling({ noteId, target, filePath: paths.get(noteId) ?? '' }, nearby(target)),
+    ),
+  );
 };
