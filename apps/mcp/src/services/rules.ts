@@ -12,8 +12,13 @@ const dropNotice = (count: number) =>
     count === 1 ? 'is' : 'are'
   } not shown here. Search memex for layer \`rule\` before concluding a rule does not exist._`;
 
+// The six notes that are actually behaviour guidance come to 9,761 characters in
+// this vault, so a budget under that silently drops a real rule no matter how the
+// layer is tidied. Raise it with MEMEX_RULES_MAX_CHARS when that stops being true.
+const DEFAULT_MAX_CHARS = 10_000;
+
 export const buildRuleInstructions = (client: MemexClient, options: Options = {}): string => {
-  const maxChars = options.maxChars ?? 8000;
+  const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
   const rows = client.sqlite
     .prepare("SELECT title, content FROM notes WHERE layer = 'rule' ORDER BY id ASC")
     .all() as { title: string; content: string }[];
