@@ -24,7 +24,7 @@ export const registerIndex = (program: Command) => {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
 
         const dirs = [vaultPath, ...config.sources.map((src) => src.path)];
-        const total = { added: 0, updated: 0, removed: 0, skipped: 0, relinked: 0 };
+        const total = { added: 0, updated: 0, removed: 0, skipped: 0, relinked: 0, reindexed: 0 };
 
         for (const dir of dirs) {
           s.message(`Indexing ${dir}...`);
@@ -42,6 +42,7 @@ export const registerIndex = (program: Command) => {
           total.removed += stats.removed;
           total.skipped += stats.skipped;
           total.relinked += stats.relinked;
+          total.reindexed += stats.reindexed;
         }
 
         const parts = [
@@ -51,6 +52,7 @@ export const registerIndex = (program: Command) => {
           total.skipped > 0 && pc.dim(`${total.skipped} unchanged`),
           total.relinked !== 0 &&
             pc.cyan(`${total.relinked > 0 ? '+' : ''}${total.relinked} links`),
+          total.reindexed > 0 && pc.cyan(`${total.reindexed} reindexed`),
         ].filter(Boolean);
 
         s.stop(parts.length > 0 ? parts.join('  ') : 'Nothing to update');

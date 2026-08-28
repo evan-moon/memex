@@ -11,6 +11,7 @@ import {
   type NoteLayer,
   parseAuthoredAt,
   parseTags,
+  resyncLinkIndexes,
   serializeTags,
   syncLinks,
   syncNoteEvidence,
@@ -27,6 +28,8 @@ type IndexStats = {
   skipped: number;
   /** Wiki links the rebuilt graph gained (or lost, when negative). */
   relinked: number;
+  /** Notes whose title or link-target index had drifted from their content. */
+  reindexed: number;
 };
 
 type ExtractedNote = {
@@ -210,7 +213,14 @@ export const indexDirectory = async (
   onProgress?: (file: string) => void,
   force = false,
 ): Promise<IndexStats> => {
-  const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0, relinked: 0 };
+  const stats: IndexStats = {
+    added: 0,
+    updated: 0,
+    removed: 0,
+    skipped: 0,
+    relinked: 0,
+    reindexed: 0,
+  };
 
   const files: string[] = [];
   // The exclude callback sees paths like "sub/node_modules", so match path
@@ -240,6 +250,8 @@ export const indexDirectory = async (
     }
   }
 
+  const repaired = resyncLinkIndexes(client);
+  stats.reindexed = Math.max(repaired.titles, repaired.targets);
   stats.relinked = resyncLinks(client);
   resyncEvidence(client);
   return stats;

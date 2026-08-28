@@ -169,3 +169,46 @@ export const unresolvedLinksFor = (client: MemexClient, noteId: number): string[
       .prepare(`${UNRESOLVED_WHERE} AND t.note_id = ? ORDER BY t.ord`)
       .all(noteId) as { target: string }[]
   ).map((row) => row.target);
+
+// The write paths keep both indexes current, so this exists for when they were
+// not the ones writing: a note saved by a build that predates an index, or one
+// whose backfill had already run and would not run again. `memex index` is
+// where the vault and the index are reconciled, so it is where the check goes.
+export const resyncLinkIndexes = (client: MemexClient) => {
+  const notes = client.sqlite.prepare('SELECT id, title, content FROM notes').all() as {
+    id: number;
+    title: string;
+    content: string;
+  }[];
+
+  const titled = new Set(
+    (
+      client.sqlite.prepare('SELECT DISTINCT note_id AS noteId FROM note_title_keys').all() as {
+        noteId: number;
+      }[]
+    ).map((row) => row.noteId),
+  );
+
+  const extracted = (
+    client.sqlite
+      .prepare('SELECT note_id AS noteId, target FROM note_link_targets')
+      .all() as { noteId: number; target: string }[]
+  ).reduce((acc, row) => {
+    const seen = acc.get(row.noteId) ?? new Set<string>();
+    return acc.set(row.noteId, seen.add(row.target));
+  }, new Map<number, Set<string>>());
+
+  const staleTitles = notes.filter((note) => !titled.has(note.id));
+  const staleTargets = notes.filter((note) => {
+    const want = linkTargets(note.content);
+    const have = extracted.get(note.id) ?? new Set<string>();
+    return want.length !== have.size || want.some((target) => !have.has(target));
+  });
+
+  client.sqlite.transaction(() => {
+    for (const note of staleTitles) syncTitleKeys(client, note.id, note.title);
+    for (const note of staleTargets) syncLinkTargets(client, note.id, note.content);
+  })();
+
+  return { titles: staleTitles.length, targets: staleTargets.length };
+};

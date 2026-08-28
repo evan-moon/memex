@@ -24,6 +24,7 @@ export {
   findUnresolvedLinks,
   linkTargets,
   resolveLinkTargets,
+  resyncLinkIndexes,
   syncLinks,
   unresolvedLinksByNote,
 } from './link-index.ts';

@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { resolveLinkTargets, unresolvedLinksByNote } from './link-index.ts';
+import {
+  resolveLinkTargets,
+  resyncLinkIndexes,
+  unresolvedLinksByNote,
+} from './link-index.ts';
 import { deleteNote, insertNote, updateNote } from './repository.ts';
 
 describe('note title index', () => {
@@ -177,5 +181,64 @@ describe('dead links', () => {
     addNote('target');
     const note = addNote('source', 'see [[target#Heading]]');
     expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+});
+
+describe('index reconciliation', () => {
+  let dir: string;
+  let client: MemexClient;
+
+  const addNote = (title: string, content = '') =>
+    insertNote(client, {
+      title,
+      content,
+      filePath: join(dir, `${title}.md`),
+      category: null,
+      tags: '[]',
+      source: 'manual',
+      layer: 'past',
+      author: 'person',
+      authoredAt: null,
+    });
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'memex-resync-'));
+    client = openDb(dir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reports nothing to do when the write paths kept up', () => {
+    addNote('target');
+    addNote('source', 'see [[target]]');
+
+    expect(resyncLinkIndexes(client)).toEqual({ titles: 0, targets: 0 });
+  });
+
+  it('restores a note written by a build that did not maintain the indexes', () => {
+    const target = addNote('target');
+    const note = addNote('source', 'see [[target]]');
+
+    // What an older binary leaves behind: rows in notes, nothing in either index.
+    client.sqlite.prepare('DELETE FROM note_title_keys WHERE note_id = ?').run(target.id);
+    client.sqlite.prepare('DELETE FROM note_link_targets WHERE note_id = ?').run(note.id);
+    expect(resolveLinkTargets(client, ['target']).has('target')).toBe(false);
+
+    expect(resyncLinkIndexes(client)).toEqual({ titles: 1, targets: 1 });
+    expect(resolveLinkTargets(client, ['target']).get('target')).toBe(target.id);
+    expect(unresolvedLinksByNote(client).has(note.id)).toBe(false);
+  });
+
+  it('notices a link-target row that no longer matches the body', () => {
+    const note = addNote('source', 'see [[target]]');
+    client.sqlite
+      .prepare('UPDATE note_link_targets SET target = ? WHERE note_id = ?')
+      .run('something else', note.id);
+
+    expect(resyncLinkIndexes(client).targets).toBe(1);
+    expect(unresolvedLinksByNote(client).get(note.id)).toEqual(['target']);
   });
 });
