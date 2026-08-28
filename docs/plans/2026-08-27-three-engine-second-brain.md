@@ -366,12 +366,16 @@ tip)와 stale 탐색의 **방향**(state→evidence → 신규 event→영향받
 | 4 | 본문 전체 적재 → `link_targets` 추출 테이블 + LEFT JOIN | `db/src/link-index.ts` | ✅ `ba3ede9` |
 | 5 | 오타 후보 title 전수 편집거리 → prefix/trigram 축소 후 소수만 | `db/src/dangling.ts` | ✅ `ecd4e09` |
 | 6 | startup migration 본문 전체 스캔 → versioned batch cursor | `db/src/migrations.ts` | ✅ `46996fc` |
-| 7 | predicate registry + register 도입 | 신규 | |
+| 7 | predicate registry + register 도입 | 신규 | ⚠️ 성격 변경 |
 | 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` | ✅ `b76bef9` |
 | 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts` | ✅ `b76bef9` |
 | 10 | 회고 benchmark 실행 (74 / 80 / 14건) | — | |
 | 11 | inline pilot 출시 (structural 60 / live 30 / exploration 10) | — | |
 | 12 | 명시적 피드백 100건 후 예산 재배분 | — | |
+
+> **7번의 성격이 바뀌었다** — `2026-08-28-what-memex-is.md`. register는 부차적 기능이 아니라
+> "AI가 히스토리와 현재 상태를 파악한다"는 목표 그 자체이고, 데스크탑 앱이 보여주고
+> 교정하는 대상이다. **스키마만이 아니라 화면과 함께 설계한다.**
 
 10만 개 × 3KB면 지금은 탐지 1회에 **약 300MB를 메모리에 올린다.** 2~6번을 안 하면 register도
 nomination도 의미가 없다.

@@ -26,21 +26,41 @@ DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
 Keep pure helpers out of files that export components. React Fast Refresh gives up on a module that mixes them and invalidates everything downstream, which costs you the state you were trying to keep. That is why `time.ts` and `drafts.ts` sit beside `bits.tsx` and `editing.tsx`.
 
+## Who this is for
+
+**memex is a note tool an AI uses. It does not assume a person types into it.**
+
+The agent writes the memories — `past`, `state`, and `rule` alike. A person writes for exactly
+one reason: the agent remembered something wrong. That is not a leftover chore handed to the
+UI; an agent cannot know it is wrong, so the correction is information that only exists outside
+the vault, and the app is its only door in.
+
+The target user is **not a developer**. They install the app, the app registers the MCP server,
+and from then on they work in conversation and in the app. The CLI is not on that path.
+
+`rule` is the one layer with a feedback loop — what the agent writes becomes its own next input.
+So `save_note` may write a rule, but it lands `provisional` and is not injected until a person
+approves it in the app. See `docs/plans/2026-08-28-what-memex-is.md`.
+
 ## Surface policy
 
-**MCP-first. The CLI is the safety net.**
+**App + MCP for everyone. The CLI is a developer's diagnostic and repair tool.**
 
-Users interact with memex through the MCP server (Claude Desktop / Claude Code / Cursor): search and save happen in conversation, not at a prompt. The CLI exists only for what the MCP path cannot or must not do. New features default to MCP-only; a CLI command is added only when it fits one of these groups (mirrored in `memex --help`):
+New features go to the app and MCP. **Do not grow the CLI** — it is already past what a safety
+net should be (28 commands), and what the app absorbs is decided when the app is designed, not
+before. Existing commands stay in these groups (mirrored in `memex --help`):
 
 - **Setup**: `mcp`, `recall`, `config`
-- **Capture** (manual entry + AI-mistake correction, and the user-only writes the agent is forbidden from): `add`, `edit`, `delete`, `capture-commit`
+- **Capture** (manual entry and AI-mistake correction): `add`, `edit`, `delete`, `capture-commit`
 - **Vault** (external sources & embeddings): `source`, `index`, `reembed`
 - **Verify** (inspect what landed in the DB; `tags tidy` is the one write, and it proposes before it applies): `search`, `list`, `show`, `related`, `tags` (+ `tags tidy`)
 - **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
 - **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`, `stats flashback`), `schedule`
 - **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, and in a finite daily session that empties. Never as a standing backlog counter
 
-Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`). The MCP tool surface is deliberately small (13 tools) — duplicate read paths give the model more ways to pick wrong; consolidate before enumerating.
+Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`).
+
+The MCP tool surface is deliberately small (13 tools) — **duplicate read paths** give the model more ways to pick wrong; consolidate before enumerating. This bounds read paths, not write kinds: a genuinely new kind of write (`set_register`) is not what that rule is guarding against.
 
 ## Memex MCP Usage
 
