@@ -195,6 +195,18 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     CREATE INDEX IF NOT EXISTS note_changes_kind ON note_changes (kind, id);
   `);
 
+  // Each note's k nearest neighbours, kept rather than recomputed. The arc
+  // detector's cost was never the graph walk — it was one vector query per note
+  // to rebuild the same edges every run. Stored, only what moved is re-queried.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS note_neighbors (
+      note_id     INTEGER NOT NULL,
+      neighbor_id INTEGER NOT NULL,
+      PRIMARY KEY (note_id, neighbor_id)
+    );
+    CREATE INDEX IF NOT EXISTS note_neighbors_reverse ON note_neighbors (neighbor_id);
+  `);
+
   // Small key/value store for engine bookkeeping (e.g. per-detector watermarks
   // into note_changes, so on-read detection is free when nothing it reads moved).
   sqlite.exec(`

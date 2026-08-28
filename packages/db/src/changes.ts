@@ -36,6 +36,22 @@ export const hasChangeFrom = (client: MemexClient, from: number, kinds: ChangeKi
   return row !== undefined;
 };
 
+// Which notes moved, for a detector that can start from them instead of from
+// the whole corpus. A note that changed twice is named once.
+export const changedNotesFrom = (
+  client: MemexClient,
+  from: number,
+  kinds: ChangeKind[],
+): number[] =>
+  (
+    client.sqlite
+      .prepare(
+        `SELECT DISTINCT note_id AS noteId FROM note_changes
+         WHERE id >= ? AND kind IN (${kinds.map(() => '?').join(',')})`,
+      )
+      .all(from, ...kinds) as { noteId: number }[]
+  ).map((row) => row.noteId);
+
 // The log answers "has anything a detector cares about happened since it last
 // ran", so once every detector has read past a row nobody will ask about it
 // again. Kept generous rather than trimmed on every write.
