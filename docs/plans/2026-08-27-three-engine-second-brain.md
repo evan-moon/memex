@@ -367,8 +367,8 @@ tip)와 stale 탐색의 **방향**(state→evidence → 신규 event→영향받
 | 5 | 오타 후보 title 전수 편집거리 → prefix/trigram 축소 후 소수만 | `db/src/dangling.ts` | ✅ `ecd4e09` |
 | 6 | startup migration 본문 전체 스캔 → versioned batch cursor | `db/src/migrations.ts` | ✅ `46996fc` |
 | 7 | predicate registry + register 도입 | 신규 | |
-| 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` | |
-| 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts:515` | |
+| 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` | ✅ `b76bef9` |
+| 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts` | ✅ `b76bef9` |
 | 10 | 회고 benchmark 실행 (74 / 80 / 14건) | — | |
 | 11 | inline pilot 출시 (structural 60 / live 30 / exploration 10) | — | |
 | 12 | 명시적 피드백 100건 후 예산 재배분 | — | |
@@ -390,9 +390,37 @@ dangling 분류는 바이트 동일.
 | 변화 없는 read refresh | 366ms | 0ms |
 | 태그만 바뀐 뒤 refresh | 366ms | 3ms |
 
-읽기 경로의 전수 sweep은 그대로 365ms다. **그건 8·9번이 할 일이고, 2번이 옮긴 것은 그 비용을
-쓰기에서 읽기로 옮긴 것뿐이다.** 저장 시 힌트는 dangling_link만 남고 stale_state(146건)와
-hidden_arc(15건)는 다음 read에서 뜬다 — 화면 문서가 신호를 두기로 한 자리와 같다.
+읽기 경로의 전수 sweep은 2번 시점에 365ms로 남아 있었다. 8·9번이 그걸 마저 걷어냈다.
+
+### 8·9가 걷어낸 것 (2026-08-28)
+
+두 detector 모두 비용이 **노트당 벡터 쿼리 1회**였다. `stale_state`는 state 247개를
+순회했고, `hidden_arc`는 매번 mutual-kNN 그래프를 1,387개에서 다시 만들었다.
+
+- **8번** — 질문 방향을 뒤집었다. 신규 past 노트는 자기 근처의 state만 흔들 수 있으니,
+  모든 state에서 안쪽으로 묻지 않고 움직인 노트에서 바깥으로 찾는다. 삭제는 임베딩이
+  남지 않으므로 **이미 그 노트를 인용하던 신호에서** 대상 state를 복원한다.
+- **9번** — 그래프를 저장한다(`note_neighbors`). 비싼 건 union-find나 필터가 아니라
+  **같은 엣지를 매번 다시 만드는 것**이었다. 이웃이 움직일 수 있는 노트만 재조회한다:
+  바뀐 노트, 그걸 가리키던 노트, 같은 반경 안에 새로 들어온 노트. 그보다 먼 건 mutual
+  엣지가 될 수 없으니 arc에도 못 낀다. **출력은 여전히 전수다.**
+- **회수(retire)도 같은 경계를 배웠다.** 전수 sweep은 자기 신호를 void라 말할 수 있지만,
+  몇 개 노트에서 출발한 detector는 **닿은 identity에 대해서만** 말할 수 있다. 그 너머를
+  회수하면 아무도 다시 안 본 발견이 지워진다. 이제 detector가 "무엇을 판정했는지"를 같이 낸다.
+
+**검증** — 실볼트에서 추가·수정·삭제·개명·복합 변경 12라운드 무작위, **증분 == 전수 12/12**.
+합계 397ms 대 4,886ms.
+
+| | 2번 직후 | 8·9번 이후 |
+|---|---|---|
+| 읽기 refresh (변화 없음) | 0ms | 0ms |
+| 읽기 refresh (변화 있음) | 365ms | 12~100ms |
+| **저장 1건** | **5ms** (힌트 dangling만) | **20ms** (힌트 네 종류 전부) |
+| 저장 직후 read | 365ms | **0ms** |
+
+**저장이 다시 full refresh다.** 2번 시점엔 감당할 수 없어서 우회했는데, 이제 detector가
+방금 기록된 변화에서 출발하므로 **쓰기가 자기 변화분만 내고 뒤따르는 read는 할 일이 없다.**
+힌트도 온전해졌다 — 1,390개 중 225개(dangling_link 64 / stale_state 146 / hidden_arc 15).
 
 남은 전수 스캔 하나: `apps/cli/src/services/indexer.ts`의 `resyncLinks`가 아직 본문을 전량
 읽는다. 인덱싱 자체가 O(N)이라 급하진 않지만 `note_link_targets`에서 읽으면 없앨 수 있다.
