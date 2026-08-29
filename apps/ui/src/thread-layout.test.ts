@@ -28,9 +28,7 @@ describe('straighten', () => {
   });
 
   it('hangs a branch off the step it left', () => {
-    const line = straighten(
-      step(1, 1, [step(2, 2, [step(5, 5), step(6, 6, [step(7, 20)])])]),
-    );
+    const line = straighten(step(1, 1, [step(2, 2, [step(5, 5), step(6, 6, [step(7, 20)])])]));
 
     expect(line.steps.map((s) => s.id)).toEqual([1, 2, 6, 7]);
     expect(line.branches).toHaveLength(1);
@@ -39,9 +37,7 @@ describe('straighten', () => {
   });
 
   it('carries a branch that branched again', () => {
-    const line = straighten(
-      step(1, 1, [step(2, 2, [step(3, 3), step(4, 4)]), step(5, 30)]),
-    );
+    const line = straighten(step(1, 1, [step(2, 2, [step(3, 3), step(4, 4)]), step(5, 30)]));
 
     expect(line.steps.map((s) => s.id)).toEqual([1, 5]);
     const aside = line.branches[0].line;

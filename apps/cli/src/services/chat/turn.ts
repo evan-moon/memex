@@ -13,8 +13,9 @@ import {
   setRegister,
 } from '@memex/db';
 import type { Embedder } from '@memex/embed';
-import { claudeCode, isLlmFailure, type LlmModel, type LlmProvider } from '@memex/llm';
+import { isLlmFailure, type LlmModel, type LlmProvider } from '@memex/llm';
 import { tagKey } from '@memex/utils';
+import { askClaude } from '../llm.ts';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
 import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
@@ -235,7 +236,7 @@ export const planTurn = async (
   signal?: AbortSignal,
 ): Promise<Turn> => {
   const candidates = await gatherCandidates(deps, carried, message);
-  const answer = await (deps.ask ?? claudeCode)({
+  const answer = await (deps.ask ?? askClaude)({
     prompt: buildPrompt(message, candidates),
     model: CHAT_MODEL,
     signal,

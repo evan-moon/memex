@@ -1,7 +1,7 @@
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type ApiFailure, type NoteDetail, toFailure } from './api.ts';
+import { type ApiFailure, api, type NoteDetail, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
 import { useT } from './i18n.ts';
 

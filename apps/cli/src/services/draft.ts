@@ -1,4 +1,5 @@
-import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
+import { isLlmFailure, type LlmModel } from '@memex/llm';
+import { askClaude } from './llm.ts';
 
 export type DraftSource = {
   title: string;
@@ -142,7 +143,7 @@ export const parseDraft = (
 // write itself into what it is reading is not a proposal. That boundary now
 // lives in the provider (`@memex/llm`), not in this file.
 export const draftStateUpdate = async (source: DraftSource): Promise<Draft> => {
-  const answer = await claudeCode({ prompt: buildPrompt(source), model: MODEL });
+  const answer = await askClaude({ prompt: buildPrompt(source), model: MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

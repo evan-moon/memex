@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AXIS_WEIGHTS, type AuditCounts, scoreAudit } from './audit.ts';
+import { type AuditCounts, AXIS_WEIGHTS, scoreAudit } from './audit.ts';
 
 const counts = (over: Partial<AuditCounts> = {}): AuditCounts => ({
   grounded: { have: 10, total: 10 },

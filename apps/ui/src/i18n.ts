@@ -129,6 +129,7 @@ const en = {
     screenTitle: 'What is true now',
     intro:
       'Values I keep for a subject, each replacing the last rather than piling up. Correct one and the correction becomes the value I read next time.',
+    fixHere: 'Fix one of these by saying it →',
     subjectHint: 'One value per key. The old ones stay readable underneath.',
     none: 'Nothing here yet. I add a value when a fact gets replaced rather than accumulated.',
     always: 'always',
@@ -174,6 +175,67 @@ const en = {
     register: 'Connect',
     unreadable:
       'This version of Claude Code answers in a way memex does not recognise. Sign in from a terminal with `claude auth login`, then come back.',
+  },
+  chat: {
+    screenTitle: 'Chat',
+    intro: 'Tell me what I got wrong. I show you the change before I make it.',
+    placeholder: 'The opula trial is 30 days now',
+    send: 'Send',
+    stop: 'Stop',
+    thinking: 'Reading what is on record…',
+    confirmLead: 'Here is what I would change.',
+    apply: 'Make the change',
+    discard: 'Leave it',
+    discarded: 'Left as it was.',
+    nothingOnRecord: 'nothing on record',
+    newKey: 'Nothing on record matches this key, so it starts a new one.',
+    amendTarget: (title: string) => `Corrects “${title}”`,
+    amendUnknown: 'Corrects a note I cannot name here',
+    amendKeeps: 'The original stays as it is. This is saved as a new note.',
+    newNote: (layer: string) => `A new ${layer} note`,
+    ruleApprove: (title: string) => `Approve “${title}”`,
+    ruleDecline: (title: string) => `Decline “${title}”`,
+    ruleUnknown: 'A rule I cannot name here',
+    doneRegister: (subject: string, predicate: string, value: string) =>
+      `${subject} · ${predicate} is now ${value}.`,
+    doneRegisterFrom: (previous: string) => `It was ${previous}.`,
+    // The log only appends, so putting the old value back is another entry, not
+    // a retraction. Calling it one would be the screen lying about the record.
+    doneRewrite:
+      'To change it back, say the old value — that writes a new entry rather than removing this one.',
+    doneSimilar: (keys: string) => `Kept apart from keys that look alike: ${keys}`,
+    doneNote: (title: string) => `Saved “${title}”.`,
+    doneCorrected: (title: string) => `It corrects “${title}”.`,
+    doneUnlinked: (id: number) =>
+      `Saved — but note #${id} is gone, so nothing points at what you meant to correct.`,
+    doneRuleApproved: (title: string) => `“${title}” is guidance now.`,
+    doneRuleDeclined: (title: string) => `“${title}” is no longer guidance.`,
+    unmapped:
+      'I could not tell what to change. Say which note or which value, and what it should be.',
+    unmappedNoSearch:
+      'Search is still waiting on the model, so I could only look at values, not notes.',
+    nothingWritten: 'Nothing was written.',
+    carriedRegister: (subject: string) => `About ${subject}`,
+    carriedNote: (title: string) => `About “${title}”`,
+    failure: {
+      'not-installed': 'Claude Code is not installed yet.',
+      'logged-out': 'Claude Code is signed out.',
+      quota:
+        'Anthropic turned this down. That is a plan or limit question, not one memex can retry past.',
+      'model-refused': 'That model was not available.',
+      refused: 'Claude turned this down.',
+      timeout: 'No answer came back.',
+      cancelled: 'Stopped.',
+      'unreadable-plan': 'I did not understand that well enough to change anything.',
+      'register-rejected': 'That value could not be written as it was given.',
+      'save-rejected': 'That note could not be saved.',
+      'target-missing': 'The note this was meant to correct is not there any more.',
+      'unknown-plan': 'That change is no longer on offer. Say it again.',
+    } as Record<string, string>,
+    remedy: { install: 'Set memex up', 'sign-in': 'Sign in', retry: 'Try again' } as Record<
+      string,
+      string
+    >,
   },
   firstRun: {
     title: 'Set memex up',
@@ -545,6 +607,7 @@ const ko: typeof en = {
     screenTitle: '지금 참인 것',
     intro:
       '주제마다 제가 들고 있는 값이에요. 쌓이지 않고 앞의 값을 대체해요. 고쳐 주시면 다음부터 그 값을 읽어요.',
+    fixHere: '말해서 고치기 →',
     subjectHint: '항목 하나에 값 하나예요. 이전 값은 아래에 그대로 남아요.',
     none: '아직 없어요. 쌓이는 게 아니라 바뀌는 사실이 생기면 여기에 적어요.',
     always: '계속',
@@ -589,6 +652,62 @@ const ko: typeof en = {
     register: '연결하기',
     unreadable:
       '이 버전의 Claude Code는 memex가 모르는 방식으로 답해요. 터미널에서 `claude auth login`으로 로그인한 뒤 다시 와 주세요.',
+  },
+  chat: {
+    screenTitle: '대화',
+    intro: '제가 잘못 기억한 걸 말해 주세요. 바꾸기 전에 무엇이 바뀌는지 먼저 보여드려요.',
+    placeholder: 'opula 트라이얼 이제 30일이야',
+    send: '보내기',
+    stop: '그만두기',
+    thinking: '기록을 읽고 있어요…',
+    confirmLead: '이렇게 바꿀게요.',
+    apply: '바꾸기',
+    discard: '그대로 두기',
+    discarded: '그대로 뒀어요.',
+    nothingOnRecord: '기록 없음',
+    newKey: '기록에 없던 항목이라 새로 만들어요.',
+    amendTarget: (title) => `「${title}」를 정정해요`,
+    amendUnknown: '여기서 이름을 알 수 없는 노트를 정정해요',
+    amendKeeps: '원래 노트는 그대로 두고, 정정 노트를 새로 써요.',
+    newNote: (layer) => `새 ${layer} 노트`,
+    ruleApprove: (title) => `「${title}」를 승인해요`,
+    ruleDecline: (title) => `「${title}」를 거절해요`,
+    ruleUnknown: '여기서 이름을 알 수 없는 지침',
+    doneRegister: (subject, predicate, value) => `${subject} · ${predicate}가 이제 ${value}예요.`,
+    doneRegisterFrom: (previous) => `전에는 ${previous}였어요.`,
+    doneRewrite:
+      '되돌리려면 예전 값을 말해 주세요. 이 기록이 지워지는 게 아니라 새로 하나 더 쌓여요.',
+    doneSimilar: (keys) => `비슷해 보이는 항목과는 따로 뒀어요: ${keys}`,
+    doneNote: (title) => `「${title}」를 저장했어요.`,
+    doneCorrected: (title) => `「${title}」를 정정해요.`,
+    doneUnlinked: (id) =>
+      `저장은 했는데 #${id} 노트가 없어서, 정정하려던 내용에 아무것도 연결되지 않았어요.`,
+    doneRuleApproved: (title) => `「${title}」가 이제 지침이에요.`,
+    doneRuleDeclined: (title) => `「${title}」는 이제 지침이 아니에요.`,
+    unmapped:
+      '무엇을 바꿔야 할지 모르겠어요. 어떤 노트인지 또는 어떤 값인지, 그리고 무엇으로 바꿀지 말해 주세요.',
+    unmappedNoSearch: '모델을 아직 받는 중이라 노트는 못 보고 값만 봤어요.',
+    nothingWritten: '아무것도 쓰지 않았어요.',
+    carriedRegister: (subject) => `${subject} 이야기예요`,
+    carriedNote: (title) => `「${title}」 이야기예요`,
+    failure: {
+      'not-installed': '아직 Claude Code가 설치되지 않았어요.',
+      'logged-out': 'Claude Code가 로그아웃 상태예요.',
+      quota: 'Anthropic이 요청을 거절했어요. 요금제나 한도 문제라서 다시 눌러도 같아요.',
+      'model-refused': '그 모델을 쓸 수 없었어요.',
+      refused: 'Claude가 요청을 거절했어요.',
+      timeout: '답이 오지 않았어요.',
+      cancelled: '그만뒀어요.',
+      'unreadable-plan': '무엇을 바꿔야 할지 알아들을 만큼 이해하지 못했어요.',
+      'register-rejected': '그 값은 받은 그대로는 쓸 수 없었어요.',
+      'save-rejected': '노트를 저장하지 못했어요.',
+      'target-missing': '정정하려던 노트가 이제 없어요.',
+      'unknown-plan': '그 변경은 이제 유효하지 않아요. 다시 말해 주세요.',
+    } as Record<string, string>,
+    remedy: { install: 'memex 설정하기', 'sign-in': '로그인하기', retry: '다시 시도' } as Record<
+      string,
+      string
+    >,
   },
   firstRun: {
     title: 'memex 설정하기',

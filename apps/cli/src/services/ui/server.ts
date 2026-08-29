@@ -26,6 +26,7 @@ import {
   setRegister,
   setSignalStatus,
 } from '@memex/db';
+import type { LlmProvider } from '@memex/llm';
 import { writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
@@ -38,6 +39,7 @@ import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
+import { applyTicket, carriedFrom, type Pending, startChat } from './chat.ts';
 import { buildChores } from './chores.ts';
 import type { ModelRunner } from './model.ts';
 import {
@@ -162,7 +164,9 @@ export type ApiErrorCode =
   | 'invalid-scope'
   | 'empty-value'
   | 'empty-subject'
-  | 'empty-predicate';
+  | 'empty-predicate'
+  | 'empty-message'
+  | 'unknown-plan';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
@@ -175,6 +179,9 @@ const notFound = bad(404, 'not-found');
 export type UiDeps = {
   client: MemexClient;
   embedder: Embedder;
+  // Left out by the hosts, which want the resolved CLI. A test supplies one so
+  // the wiring can be exercised without an account behind it.
+  ask?: LlmProvider;
   vaultPath: string;
   mcp: { home: string; serverPath: string };
   pathEnv: string;
@@ -184,6 +191,16 @@ export type UiDeps = {
 };
 
 const runners = new WeakMap<UiDeps, ReturnType<typeof createLoginRunner>>();
+
+const pendingPlans = new WeakMap<UiDeps, Pending>();
+
+const pendingFor = (deps: UiDeps): Pending => {
+  const existing = pendingPlans.get(deps);
+  if (existing) return existing;
+  const created: Pending = new Map();
+  pendingPlans.set(deps, created);
+  return created;
+};
 
 const loginRunner = (deps: UiDeps) => {
   const existing = runners.get(deps);
@@ -240,6 +257,7 @@ export const route = async (
   method: string,
   url: URL,
   payload: unknown,
+  signal?: AbortSignal,
 ): Promise<Reply> => {
   const { client, vaultPath } = deps;
 
@@ -309,6 +327,21 @@ export const route = async (
     return started.kind === 'failed'
       ? bad(502, 'login-failed', started.error)
       : json({ login: started, claude: await readClaudeCode(deps.mcp.home, deps.pathEnv) });
+  }
+  if (method === 'POST' && url.pathname === '/api/chat') {
+    const asked = asRecord(payload);
+    const message = typeof asked?.message === 'string' ? asked.message.trim() : '';
+    if (message === '') return bad(400, 'empty-message');
+    const carried = carriedFrom(new URLSearchParams(url.search));
+    return json(await startChat(deps, pendingFor(deps), message, carried, signal));
+  }
+  if (method === 'POST' && url.pathname === '/api/chat/apply') {
+    const ticket = asRecord(payload)?.ticket;
+    if (typeof ticket !== 'string') return bad(400, 'unknown-plan');
+    const applied = await applyTicket(deps, pendingFor(deps), ticket);
+    // A ticket the server does not hold is a plan it never showed, or one the
+    // reader already pressed. Either way there is nothing here to apply.
+    return applied === null ? bad(410, 'unknown-plan') : json(applied);
   }
   if (method === 'GET' && url.pathname === '/api/register') {
     return json(buildRegisterSubjects(client));
@@ -661,8 +694,15 @@ export const startUiServer = (deps: UiDeps, port: number): Promise<string> =>
         return;
       }
 
+      // A reader who stops waiting stops the work: without this the fetch is
+      // abandoned while `claude` runs on to the end for an answer nobody reads.
+      const abandoned = new AbortController();
+      res.on('close', () => {
+        if (!res.writableEnded) abandoned.abort();
+      });
+
       (method === 'GET' ? Promise.resolve(null) : readJson(req))
-        .then((payload) => route(deps, method, url, payload))
+        .then((payload) => route(deps, method, url, payload, abandoned.signal))
         .then(({ status, headers, body }) => {
           res.writeHead(status, headers);
           res.end(body);

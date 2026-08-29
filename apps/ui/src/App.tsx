@@ -7,6 +7,7 @@ import {
   type Sidebar as SidebarData,
   type Topic,
 } from './api.ts';
+import { ChatScreen } from './Chat.tsx';
 import { ConnectScreen } from './Connect.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { firstRunSettled, gateFrom, settleFirstRun } from './first-run.ts';
@@ -169,6 +170,7 @@ export const App = () => {
                   )
                 }
               />
+              <Route path="/chat" element={<ChatScreen />} />
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />

@@ -3,8 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { Thread, ThreadStep } from './api.ts';
 import { dictionaries, setLocale } from './i18n.ts';
-import { straighten } from './thread-layout.ts';
 import { ThreadRow, ThreadTimeline } from './Thread.tsx';
+import { straighten } from './thread-layout.ts';
 
 const t = dictionaries.en;
 

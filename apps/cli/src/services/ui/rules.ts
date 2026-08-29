@@ -1,4 +1,4 @@
-import { type MemexClient, listRules } from '@memex/db';
+import { listRules, type MemexClient } from '@memex/db';
 import { stripFrontmatter } from '@memex/utils';
 
 export type RuleCard = {

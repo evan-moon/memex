@@ -177,6 +177,16 @@ export const Sidebar = ({
           {t.rules.screenTitle}
         </NavLink>
         <NavLink
+          to="/chat"
+          className={({ isActive }) =>
+            `block rounded-md px-2 py-2 text-sm ${
+              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
+            }`
+          }
+        >
+          {t.chat.screenTitle}
+        </NavLink>
+        <NavLink
           to="/register"
           className={({ isActive }) =>
             `block rounded-md px-2 py-2 text-sm ${

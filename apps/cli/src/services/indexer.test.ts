@@ -118,7 +118,9 @@ describe('indexDirectory', () => {
     );
     await indexDirectory(client, stubEmbedder, vaultDir);
 
-    expect(listNotes(client, 50).map((n) => n.title)).toContain('공백을 찾아내는 \\s 캐릭터 클래스');
+    expect(listNotes(client, 50).map((n) => n.title)).toContain(
+      '공백을 찾아내는 \\s 캐릭터 클래스',
+    );
   });
 
   it('parses authored_at from frontmatter dates on insert', async () => {

@@ -69,7 +69,11 @@ describe('buildToday', () => {
 
   it('lets no one kind take the whole day', () => {
     for (let i = 0; i < 20; i += 1) judgement(`judgement ${i}`);
-    const noisy = addNote('a note with many near misses', 'past', '[[judgement 0x]] [[judgement 1x]]');
+    const noisy = addNote(
+      'a note with many near misses',
+      'past',
+      '[[judgement 0x]] [[judgement 1x]]',
+    );
     expect(noisy.id).toBeGreaterThan(0);
 
     const kinds = new Set(today().items.map((i) => i.kind));

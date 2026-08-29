@@ -1,11 +1,11 @@
 import { Lightbulb, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, type ApiFailure, type InferenceDetail, toFailure } from './api.ts';
+import { type ApiFailure, api, type InferenceDetail, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
-import { day } from './time.ts';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
+import { day } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
 type Ref = { id: number; title: string; status: string };

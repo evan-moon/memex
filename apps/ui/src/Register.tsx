@@ -286,6 +286,15 @@ export const RegisterScreen = () => {
       </Link>
       <h1 className="mt-1 text-lg font-semibold text-foreground">{screen.subject}</h1>
       <p className="mt-1 text-xs text-muted">{t.register.subjectHint}</p>
+      {/* Carrying the subject is what makes the narrow immediate write reachable:
+          the same sentence typed here is about something, and typed into an empty
+          chat is a guess. */}
+      <Link
+        to={`/chat?subject=${encodeURIComponent(screen.subject)}`}
+        className="mt-2 inline-block text-[11px] text-primary hover:underline"
+      >
+        {t.register.fixHere}
+      </Link>
 
       {screen.keys.length === 0 ? (
         <p className="mt-5 text-xs text-muted">{t.register.none}</p>

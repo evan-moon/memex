@@ -1,4 +1,5 @@
-import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
+import { isLlmFailure, type LlmModel } from '@memex/llm';
+import { askClaude } from './llm.ts';
 
 const MODEL: LlmModel = 'sonnet';
 const MAX_NOTE_CHARS = 4000;
@@ -67,7 +68,7 @@ export const parseJudgement = (raw: string): { verdict: Verdict; explanation: st
 };
 
 export const judgeConflict = async (a: ConflictSide, b: ConflictSide): Promise<Judgement> => {
-  const answer = await claudeCode({ prompt: buildPrompt(a, b), model: MODEL });
+  const answer = await askClaude({ prompt: buildPrompt(a, b), model: MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

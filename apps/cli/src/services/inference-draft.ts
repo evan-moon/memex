@@ -1,4 +1,5 @@
-import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
+import { isLlmFailure, type LlmModel } from '@memex/llm';
+import { askClaude } from './llm.ts';
 
 const MODEL: LlmModel = 'sonnet';
 const SPLIT = '<<<SUMMARY>>>';
@@ -50,7 +51,7 @@ export const parseRedraft = (raw: string): { title: string; summary: string } | 
 };
 
 export const redraftInference = async (source: RedraftSource): Promise<Redraft> => {
-  const answer = await claudeCode({ prompt: buildPrompt(source), model: MODEL });
+  const answer = await askClaude({ prompt: buildPrompt(source), model: MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

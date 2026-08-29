@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type ApiFailure, type NoteDetail, type NotePatch, toFailure } from './api.ts';
+import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
 import type { Draft } from './drafts.ts';
 import { useT } from './i18n.ts';

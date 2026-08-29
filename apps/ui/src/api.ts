@@ -367,7 +367,75 @@ export type McpClient = {
 
 export type McpConnections = { serverPath: string; clients: McpClient[] };
 
+export type ChatPreview =
+  | {
+      kind: 'register';
+      subject: string;
+      predicate: string;
+      from: string[];
+      to: string;
+      newPredicate: boolean;
+    }
+  | { kind: 'amend'; target: { id: number; title: string } | null; title: string; body: string }
+  | {
+      kind: 'new-note';
+      title: string;
+      body: string;
+      folder: string | null;
+      layer: 'past' | 'state';
+      tags: string[];
+    }
+  | {
+      kind: 'rule';
+      rule: { id: number; title: string } | null;
+      decision: 'approve' | 'decline';
+    };
+
+export type ChatReceipt =
+  | {
+      kind: 'register';
+      subject: string;
+      predicate: string;
+      previous: string[];
+      value: string;
+      newPredicate: boolean;
+      similar: string[];
+    }
+  | {
+      kind: 'note';
+      id: number;
+      title: string;
+      corrected: { id: number; title: string } | null;
+      unlinked: number | null;
+    }
+  | { kind: 'rule'; id: number; title: string; decision: 'approve' | 'decline' };
+
+export type ChatRemedy = 'install' | 'sign-in' | 'billing' | 'retry' | 'rephrase' | 'none';
+
+export type ChatReply =
+  | { kind: 'done'; receipt: ChatReceipt }
+  | { kind: 'confirm'; ticket: string; preview: ChatPreview }
+  | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; searchable: boolean }
+  | { kind: 'failed'; failure: string; remedy: ChatRemedy; detail: string };
+
+export type ChatTarget = { kind: 'register'; subject: string } | { kind: 'note'; id: number };
+
+const chatQuery = (target: ChatTarget | null) => {
+  if (target === null) return '';
+  return target.kind === 'register'
+    ? `?subject=${encodeURIComponent(target.subject)}`
+    : `?note=${target.id}`;
+};
+
 export const api = {
+  chat: (message: string, target: ChatTarget | null, signal?: AbortSignal) =>
+    request<ChatReply>(`/api/chat${chatQuery(target)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal,
+    }),
+  applyChat: (ticket: string) => post<ChatReply>('/api/chat/apply', { ticket }),
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
   today: () => request<Today>('/api/today'),

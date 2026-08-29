@@ -27,7 +27,10 @@ const Body = ({ rule }: { rule: RuleCard }) => {
     <div className="text-xs">
       <Markdown>{rule.content}</Markdown>
       {rule.truncated && (
-        <Link to={`/note/${rule.id}`} className="mt-1 inline-block text-[11px] text-primary hover:underline">
+        <Link
+          to={`/note/${rule.id}`}
+          className="mt-1 inline-block text-[11px] text-primary hover:underline"
+        >
           {t.rules.readWhole}
         </Link>
       )}
