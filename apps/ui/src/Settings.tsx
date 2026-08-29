@@ -1,31 +1,12 @@
 import { useState } from 'react';
 import { api, type McpClient, type McpClientId, type McpConnections, toFailure } from './api.ts';
-import { Button, Page } from './bits.tsx';
+import { Button, Page, Section } from './bits.tsx';
 import { type Locale, type Strings, setLocale, useLocale } from './i18n.ts';
 import { ModelCard } from './ModelCard.tsx';
 import { type Choice, MODELS, setDefaultChoice, useDefaultChoice } from './models.ts';
 import { ClaudeCodeSetup } from './Setup.tsx';
 import { setTheme, type Theme, useTheme } from './theme.ts';
 import { useAsync } from './useAsync.ts';
-
-// Sections divided by a hairline rather than boxed into cards: a settings page
-// is a list of decisions, and a border around each one makes eleven things look
-// like eleven places instead of one.
-const Section = ({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-}) => (
-  <section className="border-t border-glass-line pt-6 first:border-t-0 first:pt-0">
-    <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-    {hint ? <p className="mt-1 max-w-prose text-xs text-muted">{hint}</p> : null}
-    <div className="mt-4">{children}</div>
-  </section>
-);
 
 const Options = <T extends string>({
   options,
@@ -147,13 +128,13 @@ export const SettingsScreen = ({
 
   const setup = (
     <>
-      <Section title={t.settings.searchModel} hint={t.settings.searchModelHint}>
+      <Section divided title={t.settings.searchModel} hint={t.settings.searchModelHint}>
         <ModelCard />
       </Section>
-      <Section title={t.settings.claudeCode} hint={t.settings.claudeCodeHint}>
+      <Section divided title={t.settings.claudeCode} hint={t.settings.claudeCodeHint}>
         <ClaudeCodeSetup connections={connections} onConnected={setWritten} />
       </Section>
-      <Section title={t.settings.apps} hint={t.settings.appsHint}>
+      <Section divided title={t.settings.apps} hint={t.settings.appsHint}>
         {error !== null ? <p className="mb-3 text-xs text-danger">{error}</p> : null}
         <div>
           {others.map((client) => (
@@ -176,7 +157,7 @@ export const SettingsScreen = ({
 
   const preferences = (
     <>
-      <Section title={t.settings.appearance}>
+      <Section divided title={t.settings.appearance}>
         <Options<Theme>
           value={theme}
           onPick={setTheme}
@@ -186,7 +167,7 @@ export const SettingsScreen = ({
           ]}
         />
       </Section>
-      <Section title={t.settings.language}>
+      <Section divided title={t.settings.language}>
         <Options<Locale>
           value={locale}
           onPick={setLocale}
@@ -196,7 +177,7 @@ export const SettingsScreen = ({
           ]}
         />
       </Section>
-      <Section title={t.settings.thinking} hint={t.settings.thinkingHint}>
+      <Section divided title={t.settings.thinking} hint={t.settings.thinkingHint}>
         <Options
           value={`${fallback.provider}:${fallback.model}`}
           onPick={(picked) => {

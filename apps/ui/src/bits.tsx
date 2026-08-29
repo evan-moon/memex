@@ -74,6 +74,35 @@ export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) 
     </div>
   );
 
+// The unit the reading screens are built from. A border would say "this is a
+// thing you act on", and a list of notes under a heading is not — the heading
+// and the space around it carry the hierarchy instead.
+export const Section = ({
+  title,
+  hint,
+  // A run of decisions reads better with a rule between them than with space
+  // alone; a run of note lists does not.
+  divided,
+  className = '',
+  children,
+}: {
+  title: React.ReactNode;
+  hint?: string;
+  divided?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) => (
+  <section
+    className={`${
+      divided ? 'border-t border-glass-line pt-6 first:border-t-0 first:pt-0' : 'mt-8'
+    } ${className}`}
+  >
+    <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">{title}</h2>
+    {hint ? <p className="mt-1 max-w-prose text-xs text-muted">{hint}</p> : null}
+    <div className="mt-2">{children}</div>
+  </section>
+);
+
 export const Page = ({ children }: { children: React.ReactNode }) => (
   <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
 );

@@ -10,7 +10,7 @@ import {
   type SearchPage,
   type TopicDetail,
 } from './api.ts';
-import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList, Page } from './bits.tsx';
+import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList, Page, Section } from './bits.tsx';
 import { correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
 import { Evidence } from './Evidence.tsx';
 import { Composer, NoteEditor } from './editing.tsx';
@@ -69,34 +69,32 @@ export const TopicScreen = () => {
           <div className="text-sm">💡 {arc.reasoning ?? t.topic.arcFallback}</div>
         </Card>
       ))}
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Card>
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <i className="size-2 rounded-full" style={{ background: 'var(--positive)' }} />
-            {t.topic.stillHolds(data.currentCount)}
-          </h2>
-          <div className="mt-2">
-            <NoteList notes={data.current} empty={t.common.none} />
-          </div>
-        </Card>
-        <Card>
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <i className="size-2 rounded-full" style={{ background: 'var(--caution)' }} />
-            {t.topic.oldNews(data.changedCount + data.reviewCount)}
-          </h2>
-          <div className="mt-2">
-            <p className="mb-1 text-[11px] text-muted">
-              {t.common.staleBreakdown(data.changedCount, data.reviewCount)}
-            </p>
-            <NoteList notes={data.outdated} empty={t.topic.outdatedEmpty} />
-          </div>
-        </Card>
+      <div className="grid gap-x-8 lg:grid-cols-2">
+        <Section
+          title={
+            <>
+              <i className="size-2 rounded-full" style={{ background: 'var(--positive)' }} />
+              {t.topic.stillHolds(data.currentCount)}
+            </>
+          }
+        >
+          <NoteList notes={data.current} empty={t.common.none} />
+        </Section>
+        <Section
+          title={
+            <>
+              <i className="size-2 rounded-full" style={{ background: 'var(--caution)' }} />
+              {t.topic.oldNews(data.changedCount + data.reviewCount)}
+            </>
+          }
+          hint={t.common.staleBreakdown(data.changedCount, data.reviewCount)}
+        >
+          <NoteList notes={data.outdated} empty={t.topic.outdatedEmpty} />
+        </Section>
       </div>
       {data.companions.length > 0 ? (
-        <Card className="mt-5">
-          <h2 className="text-sm font-semibold">{t.topic.companions}</h2>
-          <p className="mt-1 text-xs text-muted">{t.topic.companionsHint}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <Section title={t.topic.companions} hint={t.topic.companionsHint}>
+          <div className="flex flex-wrap gap-2">
             {data.companions.map((c) => (
               <Link
                 key={c.tag}
@@ -115,14 +113,11 @@ export const TopicScreen = () => {
               </Link>
             ))}
           </div>
-        </Card>
+        </Section>
       ) : null}
-      <Card className="mt-5">
-        <h2 className="text-sm font-semibold">{t.topic.all(data.notes.length)}</h2>
-        <div className="mt-2">
-          <NoteList notes={data.notes.slice(0, 60)} empty={t.common.none} />
-        </div>
-      </Card>
+      <Section title={t.topic.all(data.notes.length)}>
+        <NoteList notes={data.notes.slice(0, 60)} empty={t.common.none} />
+      </Section>
     </Page>
   );
 };
@@ -276,10 +271,8 @@ export const NoteScreen = () => {
         <p className="mt-8 text-xs text-muted">{t.today.dismissed}</p>
       ) : null}
       {note.deadLinks.length > 0 && !dismissed ? (
-        <Card className="mt-8">
-          <h2 className="text-sm font-semibold">{t.edit.deadLinks(note.deadLinks.length)}</h2>
-          <p className="mt-1 text-xs text-muted">{t.edit.deadLinksWhy}</p>
-          <ul className="mt-3 flex flex-col gap-1.5">
+        <Section title={t.edit.deadLinks(note.deadLinks.length)} hint={t.edit.deadLinksWhy}>
+          <ul className="flex flex-col gap-1.5">
             {note.deadLinks.map((title) => (
               <li key={title} className="flex items-center gap-2 text-xs">
                 <span className="min-w-0 flex-1 truncate text-muted">[[{title}]]</span>
@@ -294,23 +287,17 @@ export const NoteScreen = () => {
           >
             {t.today.dismiss}
           </button>
-        </Card>
+        </Section>
       ) : null}
       {note.backlinks.length > 0 ? (
-        <Card className="mt-8">
-          <h2 className="text-sm font-semibold">{t.note.backlinks(note.backlinks.length)}</h2>
-          <div className="mt-2">
-            <NoteList notes={note.backlinks} empty="" />
-          </div>
-        </Card>
+        <Section title={t.note.backlinks(note.backlinks.length)}>
+          <NoteList notes={note.backlinks} empty="" />
+        </Section>
       ) : null}
       {note.related.length > 0 ? (
-        <Card className="mt-3">
-          <h2 className="text-sm font-semibold">{t.note.related}</h2>
-          <div className="mt-2">
-            <NoteList notes={note.related} empty="" />
-          </div>
-        </Card>
+        <Section title={t.note.related} className="mt-4">
+          <NoteList notes={note.related} empty="" />
+        </Section>
       ) : null}
     </Page>
   );

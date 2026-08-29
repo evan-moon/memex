@@ -245,12 +245,12 @@ export const RegisterSubjectsScreen = () => {
       {data.length === 0 ? (
         <p className="mt-5 text-xs text-muted">{t.register.none}</p>
       ) : (
-        <div className="mt-5 space-y-2">
+        <div className="mt-5 divide-y divide-glass-line">
           {data.map((row) => (
             <Link
               key={row.subject}
               to={`/register/${encodeURIComponent(row.subject)}`}
-              className="glass flex items-center justify-between rounded-card bg-surface px-4 py-3 hover:bg-surface-muted"
+              className="-mx-2 flex items-center justify-between rounded-lg px-2 py-3 hover:bg-surface-muted"
             >
               <span className="text-sm font-semibold text-foreground">{row.subject}</span>
               <span className="text-[11px] text-muted">

@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { api, type Thread, type ThreadStep } from './api.ts';
-import { Card, Layer, Page } from './bits.tsx';
+import { Card, Layer, Page, Section } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { lengthOf, straighten, type ThreadLine } from './thread-layout.ts';
 import { day } from './time.ts';
@@ -205,10 +205,9 @@ export const ThreadScreen = () => {
       <div className="mt-1">
         <Span thread={data} />
       </div>
-      <Card className="mt-6">
-        <div className="mb-3 text-[11px] text-muted">{t.threads.startsHere}</div>
+      <Section title={t.threads.startsHere}>
         <ThreadTimeline line={straighten(data.root)} />
-      </Card>
+      </Section>
     </Page>
   );
 };
