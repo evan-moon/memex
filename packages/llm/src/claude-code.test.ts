@@ -62,7 +62,45 @@ describe('the Claude Code provider', () => {
       fakeBinary(`printf '%s' '{"is_error":true,"result":"rate limited"}'; exit 1`),
     );
 
-    expect(await ask(ASK)).toEqual({ error: 'rate limited' });
+    expect(await ask(ASK)).toEqual({ error: 'rate limited', code: 'refused' });
+  });
+
+  // The statuses are what the CLI actually answers with: signing out is decided
+  // before a request exists, so it arrives with no status and says so in words,
+  // while a model nobody has access to comes back 404.
+  it('tells apart the reasons a reader would act on differently', async () => {
+    const answering = (body: string) => createClaudeCode(fakeBinary(`printf '%s' '${body}'`))(ASK);
+
+    const cases: [string, string][] = [
+      ['{"is_error":true,"result":"Not logged in · Please run /login"}', 'logged-out'],
+      ['{"is_error":true,"api_error_status":"401","result":"unauthorized"}', 'logged-out'],
+      ['{"is_error":true,"api_error_status":"403","result":"forbidden"}', 'quota'],
+      ['{"is_error":true,"api_error_status":"429","result":"slow down"}', 'quota'],
+      ['{"is_error":true,"api_error_status":"404","result":"no such model"}', 'model-refused'],
+      ['{"is_error":true,"api_error_status":"500","result":"boom"}', 'refused'],
+    ];
+
+    for (const [body, code] of cases) {
+      expect(failure(await answering(body)).code).toBe(code);
+    }
+  });
+
+  it('gives up on a call that never comes back, rather than waiting with it', async () => {
+    const ask = createClaudeCode(fakeBinary('sleep 30'));
+
+    const result = failure(await ask({ ...ASK, timeoutMs: 200 }));
+
+    expect(result.code).toBe('timeout');
+  });
+
+  it('stops when the reader stops it, and says so', async () => {
+    const ask = createClaudeCode(fakeBinary('sleep 30'));
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 100);
+
+    const result = failure(await ask({ ...ASK, signal: controller.signal }));
+
+    expect(result.code).toBe('cancelled');
   });
 
   it('reports a refusal that carries no result at all', async () => {
