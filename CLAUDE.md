@@ -24,9 +24,14 @@ DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
 ## Working on the UI
 
-`yarn desktop` swaps the native module to Electron's ABI, builds, and runs the app against your
-real vault. There is no dev server and no HMR: a UI change means running it again. Swap back with
-`yarn native:node` before running the tests, or they die with `ERR_DLOPEN_FAILED`.
+`yarn dev:app` runs the app against your real vault with the screen hot-reloading: Vite owns the
+page and swaps a component without losing where you were, Electron owns everything else. The window
+still loads `memex://app/` — the handler asks Vite for the page instead of reading it off disk, so
+`/api` goes the same way it does in a packaged build. `yarn desktop` is the same thing without Vite,
+which is what to reach for when the question is about packaging rather than the screen.
+
+Both leave better-sqlite3 built for Electron's ABI. Run `yarn native:node` before the tests, or they
+die with `ERR_DLOPEN_FAILED`.
 
 There is no browser path and no port. The window loads `memex://app/`, and
 `apps/desktop/src/serve.ts` answers every request — `/api/*` by handing it to `route()` unchanged,

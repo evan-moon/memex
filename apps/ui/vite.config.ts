@@ -5,26 +5,13 @@ import { defineConfig } from 'vite';
 // A plain asset directory. The Electron app serves it through its own
 // `memex://` protocol handler, so there is no bundle for a page to travel
 // inside any more.
-const API_ORIGIN = `http://127.0.0.1:${process.env.MEMEX_API_PORT ?? 4321}`;
-
 export default defineConfig({
   plugins: [react(), tailwind()],
   build: { outDir: 'dist', emptyOutDir: true },
-  // Dev only: the page reloads itself while the API keeps its own process, so
-  // the proxy is what lets them share an origin. MEMEX_API_PORT follows
-  // whatever port scripts/dev-ui.mjs handed the CLI.
   server: {
-    proxy: {
-      // The API refuses a write whose Origin is not its own host, and the page
-      // is served from Vite's port, not the API's. Forwarding the browser's
-      // Origin unchanged makes every POST a 403 — which reads as a dead button
-      // rather than as a proxy that is lying about where the request came from.
-      '/api': {
-        target: API_ORIGIN,
-        changeOrigin: true,
-        headers: { origin: API_ORIGIN },
-      },
-    },
+    // The page is served from `memex://`, which the HMR client cannot derive a
+    // websocket URL from. Naming it explicitly is what lets it connect back.
+    hmr: { protocol: 'ws', host: 'localhost', port: 5173 },
     // Filesystem events do not reach every environment (containers, network
     // volumes, some sandboxes). MEMEX_POLL=1 trades a little CPU for a watcher
     // that always fires.

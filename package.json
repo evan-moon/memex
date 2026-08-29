@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "dev": "yarn workspace @evan-moon/memex dev",
+    "dev:app": "yarn native:electron && node scripts/dev-app.mjs",
     "dev:docs": "yarn workspace @memex/docs dev",
     "typecheck": "turbo typecheck",
     "build": "turbo build",

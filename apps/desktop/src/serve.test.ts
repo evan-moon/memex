@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type MemexClient, openDb } from '@memex/db';
@@ -9,6 +10,7 @@ let root: string;
 let dbDir: string;
 let client: MemexClient;
 let handle: (request: Request) => Promise<Response>;
+let deps: Parameters<typeof serve>[0];
 
 const at = (path: string, init?: RequestInit) =>
   handle(new Request(`${SCHEME}://app${path}`, init));
@@ -23,23 +25,23 @@ beforeEach(() => {
   writeFileSync(join(root, 'assets/app.js'), 'console.log(1)', 'utf8');
   writeFileSync(join(root, 'assets/app.css'), 'body{}', 'utf8');
 
-  handle = serve(
-    {
-      client,
-      embedder: async () => new Array(768).fill(0),
-      vaultPath: dbDir,
-      mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
-      pathEnv: '',
-      openUrl: () => {},
-      model: {
-        read: () => ({ kind: 'ready' as const }),
-        start: () => ({ kind: 'ready' as const }),
-        embed: async () => new Array(768).fill(0),
-      },
+  deps = {
+    client,
+    embedder: async () => new Array(768).fill(0),
+    vaultPath: dbDir,
+    mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
+    pathEnv: '',
+    openUrl: () => {},
+    model: {
+      read: () => ({ kind: 'ready' as const }),
+      start: () => ({ kind: 'ready' as const }),
+      embed: async () => new Array(768).fill(0),
     },
-    root,
-  );
+  };
+  handle = serve(deps, root);
 });
+
+const serveWith = (devServer: string) => serve(deps, root, devServer);
 
 afterEach(() => {
   client.sqlite.close();
@@ -119,5 +121,40 @@ describe('serving the API', () => {
     const res = await at('/api/note/999999');
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('serving the app while it is being worked on', () => {
+  let stand: Server;
+  let devServer: string;
+
+  beforeEach(async () => {
+    stand = createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(`from vite: ${req.url}`);
+    });
+    await new Promise<void>((resolve) => stand.listen(0, '127.0.0.1', resolve));
+    const bound = stand.address();
+    devServer = `http://127.0.0.1:${typeof bound === 'object' && bound ? bound.port : 0}`;
+  });
+
+  afterEach(() => stand.close());
+
+  it('asks the dev server for the page instead of reading it off disk', async () => {
+    const handle = serveWith(devServer);
+
+    const res = await handle(new Request(`${SCHEME}://app/src/App.tsx`));
+
+    expect(await res.text()).toBe('from vite: /src/App.tsx');
+  });
+
+  // The whole point of keeping the window on memex:// in development is that
+  // the API goes the same way it does in a packaged build.
+  it('still answers the API itself', async () => {
+    const handle = serveWith(devServer);
+
+    const res = await handle(new Request(`${SCHEME}://app/api/sidebar`));
+
+    expect(await res.json()).toHaveProperty('counts');
   });
 });

@@ -7,6 +7,8 @@ const WINDOW = { width: 1200, height: 820, minWidth: 720, minHeight: 520 };
 
 const HOME = `${SCHEME}://app/`;
 
+const DEV_SERVER = process.env.MEMEX_DEV_SERVER;
+
 // Registering the scheme has to happen before the app is ready, so it sits at
 // module scope rather than inside start().
 protocol.registerSchemesAsPrivileged(PRIVILEGES);
@@ -30,6 +32,11 @@ const createWindow = (url: string) => {
     },
   });
 
+  // Whatever the page logs shows up beside the app's own output, which is the
+  // only place to see it once there is no browser to open devtools in.
+  if (DEV_SERVER !== undefined) {
+    window.webContents.on('console-message', (_event, _level, message) => console.log(message));
+  }
   window.once('ready-to-show', () => window.show());
   window.loadURL(url);
 
@@ -51,7 +58,7 @@ const createWindow = (url: string) => {
 
 const start = () => {
   deps = createUiDeps();
-  protocol.handle(SCHEME, serve(deps, join(app.getAppPath(), 'dist/renderer')));
+  protocol.handle(SCHEME, serve(deps, join(app.getAppPath(), 'dist/renderer'), DEV_SERVER));
   createWindow(HOME);
 };
 

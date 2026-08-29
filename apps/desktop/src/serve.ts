@@ -48,7 +48,13 @@ const payloadOf = async (request: Request) => {
   return request.json().catch(() => null);
 };
 
-export const serve = (deps: UiDeps, rendererRoot: string) => {
+// In development the page comes from Vite instead of from disk, so a component
+// can be swapped without restarting the app. `/api` still goes through here,
+// which is what keeps the two halves on one origin the way they were.
+const fromDevServer = (devServer: string, url: URL) =>
+  fetch(new URL(`${url.pathname}${url.search}`, devServer));
+
+export const serve = (deps: UiDeps, rendererRoot: string, devServer?: string) => {
   const index = () => {
     const html = fileUnder(rendererRoot, '/index.html');
     return html === null
@@ -62,6 +68,8 @@ export const serve = (deps: UiDeps, rendererRoot: string) => {
     if (url.pathname.startsWith('/api/')) {
       return asResponse(await route(deps, request.method, url, await payloadOf(request)));
     }
+
+    if (devServer !== undefined) return fromDevServer(devServer, url);
 
     const file = fileUnder(rendererRoot, url.pathname);
     // Anything that is not a file is a route the page knows about: /note/1694
