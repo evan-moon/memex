@@ -750,6 +750,7 @@ __metadata:
     "@memex/core": "workspace:*"
     "@memex/db": "workspace:*"
     "@memex/embed": "workspace:*"
+    "@memex/llm": "workspace:*"
     "@memex/mcp": "workspace:*"
     "@memex/rerank": "workspace:^"
     "@memex/ui": "workspace:*"
@@ -1166,6 +1167,16 @@ __metadata:
   dependencies:
     "@huggingface/transformers": "npm:^3.5.1"
     "@memex/utils": "workspace:^"
+    "@types/node": "npm:^22"
+    tsup: "npm:^8.4.0"
+    typescript: "npm:^5.8.3"
+  languageName: unknown
+  linkType: soft
+
+"@memex/llm@workspace:*, @memex/llm@workspace:packages/llm":
+  version: 0.0.0-use.local
+  resolution: "@memex/llm@workspace:packages/llm"
+  dependencies:
     "@types/node": "npm:^22"
     tsup: "npm:^8.4.0"
     typescript: "npm:^5.8.3"

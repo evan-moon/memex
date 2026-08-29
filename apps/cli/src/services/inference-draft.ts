@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
 
-const run = promisify(execFile);
-
-const MODEL = 'sonnet';
+const MODEL: LlmModel = 'sonnet';
 const SPLIT = '<<<SUMMARY>>>';
 const MAX_NOTE_CHARS = 6000;
 
@@ -52,39 +49,16 @@ export const parseRedraft = (raw: string): { title: string; summary: string } | 
   return title.length > 0 && summary.length > 0 ? { title, summary } : null;
 };
 
-// Same shape as the state-note draft: headless, with its MCP servers stripped
-// so a proposal cannot write itself into the vault it is reading.
 export const redraftInference = async (source: RedraftSource): Promise<Redraft> => {
-  try {
-    const { stdout } = await run(
-      'claude',
-      [
-        '-p',
-        buildPrompt(source),
-        '--model',
-        MODEL,
-        '--output-format',
-        'json',
-        '--strict-mcp-config',
-        '--mcp-config',
-        '{"mcpServers":{}}',
-      ],
-      { maxBuffer: 16 * 1024 * 1024 },
-    );
-    const envelope = JSON.parse(stdout) as {
-      is_error?: boolean;
-      result?: string;
-      duration_ms?: number;
-    };
-    if (envelope.is_error || !envelope.result) {
-      return { error: envelope.result ?? 'Claude reported an error' };
-    }
-    const parsed = parseRedraft(envelope.result);
-    return parsed
-      ? { ...parsed, durationMs: envelope.duration_ms ?? 0 }
-      : { error: 'Claude did not answer in the requested shape' };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes('ENOENT') ? { error: message, code: 'no-claude' } : { error: message };
+  const answer = await claudeCode({ prompt: buildPrompt(source), model: MODEL });
+  if (isLlmFailure(answer)) {
+    return answer.code === 'not-installed'
+      ? { error: answer.error, code: 'no-claude' }
+      : { error: answer.error };
   }
+
+  const parsed = parseRedraft(answer.text);
+  return parsed
+    ? { ...parsed, durationMs: answer.durationMs }
+    : { error: 'Claude did not answer in the requested shape' };
 };

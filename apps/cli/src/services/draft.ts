@@ -1,7 +1,4 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const run = promisify(execFile);
+import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
 
 export type DraftSource = {
   title: string;
@@ -27,7 +24,7 @@ export type Draft =
     }
   | { error: string; code?: 'no-claude' };
 
-const MODEL = 'sonnet';
+const MODEL: LlmModel = 'sonnet';
 // A delimiter rather than JSON: the body is long Markdown with its own quotes,
 // backticks and newlines, and asking a model to escape all of that into a
 // string field fails far more often than asking it for a line.
@@ -141,48 +138,23 @@ export const parseDraft = (
   return changes.length === 0 ? nothing : { body, changes, verdict: 'changed', reason: '' };
 };
 
-// Headless Claude with its MCP servers stripped: the drafting call must not be
-// able to reach back into memex and write while it is still a proposal.
+// The drafting call runs without the vault's own tools: a proposal that can
+// write itself into what it is reading is not a proposal. That boundary now
+// lives in the provider (`@memex/llm`), not in this file.
 export const draftStateUpdate = async (source: DraftSource): Promise<Draft> => {
-  try {
-    const { stdout } = await run(
-      'claude',
-      [
-        '-p',
-        buildPrompt(source),
-        '--model',
-        MODEL,
-        '--output-format',
-        'json',
-        '--strict-mcp-config',
-        '--mcp-config',
-        '{"mcpServers":{}}',
-      ],
-      { maxBuffer: 16 * 1024 * 1024 },
-    );
-    // Deliberately not total_cost_usd. This runs under the user's Claude Code
-    // subscription, where that field is an API-equivalent estimate dominated by
-    // system-prompt cache creation — a two-token prompt reports $0.15. Showing
-    // it would put a price on something that is not billed per call. What the
-    // wait actually costs the reader is time.
-    const envelope = JSON.parse(stdout) as {
-      is_error?: boolean;
-      result?: string;
-      duration_ms?: number;
-    };
-    if (envelope.is_error || !envelope.result) {
-      return { error: envelope.result ?? 'Claude reported an error' };
-    }
-    const { body, changes, verdict, reason } = parseDraft(envelope.result, source.body);
-    return {
-      body: `${body}\n`,
-      changes,
-      verdict,
-      reason,
-      durationMs: envelope.duration_ms ?? 0,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes('ENOENT') ? { error: message, code: 'no-claude' } : { error: message };
+  const answer = await claudeCode({ prompt: buildPrompt(source), model: MODEL });
+  if (isLlmFailure(answer)) {
+    return answer.code === 'not-installed'
+      ? { error: answer.error, code: 'no-claude' }
+      : { error: answer.error };
   }
+
+  const { body, changes, verdict, reason } = parseDraft(answer.text, source.body);
+  return {
+    body: `${body}\n`,
+    changes,
+    verdict,
+    reason,
+    durationMs: answer.durationMs,
+  };
 };

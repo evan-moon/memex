@@ -47,6 +47,7 @@
     "@memex/core": "workspace:*",
     "@memex/db": "workspace:*",
     "@memex/embed": "workspace:*",
+    "@memex/llm": "workspace:*",
     "@memex/mcp": "workspace:*",
     "@memex/rerank": "workspace:^",
     "@memex/ui": "workspace:*",

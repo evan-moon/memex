@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { NoteShapeKind } from '@memex/db';
+import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
 
-const run = promisify(execFile);
-
-export const CLAIM_MODEL = 'sonnet';
+export const CLAIM_MODEL: LlmModel = 'sonnet';
 const MAX_NOTE_CHARS = 8000;
 
 export type ClaimSource = { id: number; title: string; body: string };
@@ -52,39 +49,16 @@ export const parseExtraction = (raw: string): { kind: NoteShapeKind; claims: str
   }
 };
 
-// Headless, with its MCP servers stripped, so reading a note to describe it can
-// never write back into the vault it is reading.
 export const extractClaims = async (note: ClaimSource): Promise<Extraction> => {
-  try {
-    const { stdout } = await run(
-      'claude',
-      [
-        '-p',
-        buildPrompt(note),
-        '--model',
-        CLAIM_MODEL,
-        '--output-format',
-        'json',
-        '--strict-mcp-config',
-        '--mcp-config',
-        '{"mcpServers":{}}',
-      ],
-      { maxBuffer: 16 * 1024 * 1024 },
-    );
-    const envelope = JSON.parse(stdout) as {
-      is_error?: boolean;
-      result?: string;
-      duration_ms?: number;
-    };
-    if (envelope.is_error || !envelope.result) {
-      return { error: envelope.result ?? 'Claude reported an error' };
-    }
-    const parsed = parseExtraction(envelope.result);
-    return parsed
-      ? { ...parsed, durationMs: envelope.duration_ms ?? 0 }
-      : { error: 'Claude did not answer in the requested shape' };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes('ENOENT') ? { error: message, code: 'no-claude' } : { error: message };
+  const answer = await claudeCode({ prompt: buildPrompt(note), model: CLAIM_MODEL });
+  if (isLlmFailure(answer)) {
+    return answer.code === 'not-installed'
+      ? { error: answer.error, code: 'no-claude' }
+      : { error: answer.error };
   }
+
+  const parsed = parseExtraction(answer.text);
+  return parsed
+    ? { ...parsed, durationMs: answer.durationMs }
+    : { error: 'Claude did not answer in the requested shape' };
 };

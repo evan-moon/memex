@@ -1,7 +1,6 @@
-import { spawn } from 'node:child_process';
+import { claudeCode, isLlmFailure, type LlmModel } from '@memex/llm';
 
-const MODEL = 'sonnet';
-const ERROR_CHARS = 300;
+const MODEL: LlmModel = 'sonnet';
 const MAX_NOTE_CHARS = 4000;
 
 export type ConflictSide = { id: number; title: string; body: string; at: string };
@@ -67,65 +66,16 @@ export const parseJudgement = (raw: string): { verdict: Verdict; explanation: st
   return { verdict, explanation };
 };
 
-// stdin is closed rather than left open: the CLI waits three seconds for input
-// that is never coming, and a run that asks about sixty pairs pays that wait
-// sixty times. The prompt travels in argv.
-const ask = (prompt: string) =>
-  new Promise<string>((resolve, reject) => {
-    const child = spawn(
-      'claude',
-      [
-        '-p',
-        prompt,
-        '--model',
-        MODEL,
-        '--output-format',
-        'json',
-        '--strict-mcp-config',
-        '--mcp-config',
-        '{"mcpServers":{}}',
-      ],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      // A refusal, a rate limit and a logged-out session all arrive as a JSON
-      // envelope that says what happened, sometimes alongside a non-zero exit.
-      // Reading it beats reporting the exit code the user cannot act on.
-      if (code === 0 || stdout.trimStart().startsWith('{')) resolve(stdout);
-      else reject(new Error(stderr.trim() || `claude exited with ${code}`));
-    });
-  });
-
 export const judgeConflict = async (a: ConflictSide, b: ConflictSide): Promise<Judgement> => {
-  try {
-    const stdout = await ask(buildPrompt(a, b));
-    const envelope = JSON.parse(stdout) as {
-      is_error?: boolean;
-      result?: string;
-      duration_ms?: number;
-    };
-    if (envelope.is_error || !envelope.result) {
-      return { error: envelope.result ?? 'Claude reported an error' };
-    }
-    const parsed = parseJudgement(envelope.result);
-    if (!parsed)
-      return { error: `Could not read a verdict from: ${envelope.result.slice(0, 200)}` };
-    return { ...parsed, durationMs: envelope.duration_ms ?? 0 };
-  } catch (error) {
-    const raw = error instanceof Error ? error.message : String(error);
-    // The prompt is an argument, so a failure that echoes the command line puts
-    // both notes on screen as if they were the error.
-    const message = raw.length > ERROR_CHARS ? `${raw.slice(0, ERROR_CHARS)}…` : raw;
-    return raw.includes('ENOENT') ? { error: message, code: 'no-claude' } : { error: message };
+  const answer = await claudeCode({ prompt: buildPrompt(a, b), model: MODEL });
+  if (isLlmFailure(answer)) {
+    return answer.code === 'not-installed'
+      ? { error: answer.error, code: 'no-claude' }
+      : { error: answer.error };
   }
+
+  const parsed = parseJudgement(answer.text);
+  return parsed
+    ? { ...parsed, durationMs: answer.durationMs }
+    : { error: `Could not read a verdict from: ${answer.text.slice(0, 200)}` };
 };
