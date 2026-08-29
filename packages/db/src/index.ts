@@ -125,7 +125,13 @@ export {
   type RetrievalSurface,
   retrievalCounts,
 } from './retrieval-log.ts';
-export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource } from './schema.ts';
+export {
+  approveRule,
+  countProvisionalRules,
+  declineRule,
+  listRules,
+} from './rules.ts';
+export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource, RuleStatus } from './schema.ts';
 export type {
   HiddenArcOptions,
   ListSignalsOptions,

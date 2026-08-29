@@ -37,6 +37,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 's.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
     insertNote(client, {
       title: 'TS',
@@ -44,6 +45,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 't.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
 
     const out = buildRuleInstructions(client);
@@ -61,6 +63,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, '1.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
     insertNote(client, {
       title: 'Second',
@@ -68,6 +71,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, '2.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
 
     const out = buildRuleInstructions(client);
@@ -100,6 +104,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 'b.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
     const out = buildRuleInstructions(client, { maxChars: 2000 });
     expect(out.length).toBeLessThanOrEqual(2200);
@@ -113,6 +118,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 's.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
     insertNote(client, {
       title: 'Large',
@@ -120,6 +126,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 'l.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
 
     const out = buildRuleInstructions(client, { maxChars: 500 });
@@ -136,6 +143,7 @@ describe('buildRuleInstructions', () => {
       filePath: join(dbDir, 's.md'),
       source: 'manual',
       layer: 'rule',
+      ruleStatus: 'canonical',
     });
     for (const n of [1, 2]) {
       insertNote(client, {
@@ -144,6 +152,7 @@ describe('buildRuleInstructions', () => {
         filePath: join(dbDir, `l${n}.md`),
         source: 'manual',
         layer: 'rule',
+      ruleStatus: 'canonical',
       });
     }
 
@@ -160,12 +169,58 @@ describe('buildRuleInstructions', () => {
         filePath: join(dbDir, `r${n}.md`),
         source: 'manual',
         layer: 'rule',
+      ruleStatus: 'canonical',
       });
     }
 
     const out = buildRuleInstructions(client, { maxChars: 8000 });
     expect(out).toContain('### Rule 1');
     expect(out).toContain('### Rule 3');
+    expect(out).not.toContain('did not fit');
+  });
+});
+
+describe('buildRuleInstructions — approval', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  const addRule = (title: string, ruleStatus: 'provisional' | 'canonical') =>
+    insertNote(client, {
+      title,
+      content: `body of ${title}`,
+      filePath: join(dbDir, `${title}.md`),
+      source: 'manual',
+      layer: 'rule',
+      ruleStatus,
+    });
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-rules-approval-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  it('injects a rule a person approved', () => {
+    addRule('Approved', 'canonical');
+    expect(buildRuleInstructions(client)).toContain('### Approved');
+  });
+
+  it('withholds a rule the agent proposed', () => {
+    addRule('Proposed', 'provisional');
+    expect(buildRuleInstructions(client)).toBe('');
+  });
+
+  it('does not let a proposal count against the budget of an approved one', () => {
+    addRule('Approved', 'canonical');
+    addRule('Proposed', 'provisional');
+
+    const out = buildRuleInstructions(client);
+    expect(out).toContain('### Approved');
+    expect(out).not.toContain('### Proposed');
     expect(out).not.toContain('did not fit');
   });
 });

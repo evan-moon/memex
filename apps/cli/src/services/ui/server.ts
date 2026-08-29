@@ -8,18 +8,21 @@ import {
   searchPage,
 } from '@memex/core';
 import {
+  approveRule,
+  countProvisionalRules,
+  declineRule,
   dismissDanglingFor,
   getAmendmentsFor,
   getInference,
   getNote,
   listSignals,
-  type MemexClient,
   refreshInferenceStaleness,
   restampInference,
   rewriteInference,
   setInferenceStatus,
   setNoteEvidence,
   setSignalStatus,
+  type MemexClient,
 } from '@memex/db';
 import { writeDerivesFrom } from '@memex/utils';
 import { buildDigest } from '../digest.ts';
@@ -44,6 +47,7 @@ import { PAGE } from './page.ts';
 import { evidenceBatch } from './repair.ts';
 import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
+import { buildRules } from './rules.ts';
 import { buildToday } from './today.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
@@ -211,6 +215,7 @@ export const route = async (
       stale: staleStateIds(client),
       state: listByLayer(client, 'state'),
       rule: listByLayer(client, 'rule'),
+      rulesWaiting: countProvisionalRules(client),
     });
   }
   if (method === 'GET' && url.pathname === '/api/digest') {
@@ -219,6 +224,26 @@ export const route = async (
       ? Math.min(Math.max(Math.trunc(asked), 1), 365)
       : DIGEST_DAYS;
     return json(buildDigest(client, { days }));
+  }
+  if (method === 'GET' && url.pathname === '/api/rules') {
+    return json(buildRules(client));
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/rule/')) {
+    const [, , , rawId, action] = url.pathname.split('/');
+    const id = Number(rawId);
+    if (!Number.isInteger(id) || id <= 0) return bad(400, 'invalid-note-id');
+
+    if (action === 'approve') {
+      const approved = approveRule(client, id);
+      return approved ? json({ ok: true }) : bad(404, 'not-found');
+    }
+    if (action === 'decline') {
+      const layer = asRecord(payload)?.layer;
+      if (layer !== 'past' && layer !== 'state') return bad(400, 'invalid-layer');
+      const declined = declineRule(client, id, layer);
+      return declined ? json({ ok: true }) : bad(404, 'not-found');
+    }
+    return bad(404, 'not-found');
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));

@@ -157,17 +157,12 @@ export const saveNote = async (
     }
   | RuleWriteRejection
 > => {
-  // Rule notes become SERVER_INSTRUCTIONS on the next startup — letting the agent channel write
-  // them is a self-poisoning / prompt-injection escalation path, so creation is user-only, like
-  // editing. The agent surfaces the proposed rule text instead.
-  if (params.layer === 'rule' && params.actor !== 'user') {
-    return {
-      error: 'RULE_USER_ONLY',
-      message:
-        'rule notes can only be created by the user. Show the proposed rule text in chat and ' +
-        'suggest they run: memex add --layer rule',
-    };
-  }
+  // Rule notes become SERVER_INSTRUCTIONS on the next startup, so a rule the
+  // agent wrote would be read back to the agent that writes the next one. The
+  // proposal is kept; it is the injection that waits for a person to approve it.
+  const ruleStatus =
+    params.layer === 'rule' ? (params.actor === 'user' ? 'canonical' : 'provisional') : null;
+
   const embedding = await embedder(
     buildEmbeddingText(params.title, params.content, params.folder, params.tags),
   );
@@ -197,6 +192,7 @@ export const saveNote = async (
     category: category ?? undefined,
     tags,
     authoredAt,
+    ruleStatus,
   });
   await indexNoteVectors(
     client,

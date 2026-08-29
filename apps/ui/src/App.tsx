@@ -14,6 +14,7 @@ import { Overview } from './Overview.tsx';
 import { Palette } from './Palette.tsx';
 import { RepairScreen } from './Repair.tsx';
 import { Sidebar } from './Sidebar.tsx';
+import { RulesScreen } from './Rules.tsx';
 import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
@@ -138,6 +139,7 @@ export const App = () => {
               <Route path="/search" element={<SearchScreen />} />
               <Route path="/repair/evidence" element={<RepairScreen />} />
               <Route path="/tags" element={<TagsScreen />} />
+              <Route path="/rules" element={<RulesScreen />} />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Routes>

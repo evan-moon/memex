@@ -119,7 +119,19 @@ export type Sidebar = {
   stale: number[];
   state: NoteRef[];
   rule: NoteRef[];
+  rulesWaiting: number;
 };
+
+export type RuleCard = {
+  id: number;
+  title: string;
+  content: string;
+  author: string;
+  source: string;
+  createdAt: number;
+};
+
+export type RulesScreen = { waiting: RuleCard[]; active: RuleCard[] };
 
 export type TodayItem =
   | { kind: 'evidence-moved'; id: number; title: string }
@@ -331,4 +343,8 @@ export const api = {
   updateNote: (id: number, patch: NotePatch) => post<NoteDetail>(`/api/note/${id}`, patch),
   createNote: (input: NewNote) => post<NoteDetail>('/api/notes', input),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
+  rules: () => request<RulesScreen>('/api/rules'),
+  approveRule: (id: number) => post<{ ok: true }>(`/api/rule/${id}/approve`),
+  declineRule: (id: number, layer: 'past' | 'state') =>
+    post<{ ok: true }>(`/api/rule/${id}/decline`, { layer }),
 };

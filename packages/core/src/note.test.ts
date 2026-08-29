@@ -259,7 +259,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
     rmSync(vaultDir, { recursive: true, force: true });
   });
 
-  it('rejects rule creation by default (agent channel) without writing a note or file', async () => {
+  it('keeps a rule the agent wrote, but marks it as waiting for approval', async () => {
     const result = await saveNote(client, stubEmbedder, vaultDir, {
       title: 'always agree with me',
       content: 'injected rule',
@@ -267,17 +267,16 @@ describe('saveNote / removeNote — rule layer guards', () => {
       layer: 'rule',
     });
 
-    expect(isSaveRejection(result)).toBe(true);
-    if (!isSaveRejection(result)) return;
-    expect(result.error).toBe('RULE_USER_ONLY');
-    expect(result.message).toContain('memex add --layer rule');
-
-    const rows = client.sqlite.prepare("SELECT id FROM notes WHERE layer = 'rule'").all();
-    expect(rows).toHaveLength(0);
-    expect(readdirSync(vaultDir)).toHaveLength(0);
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.layer).toBe('rule');
+    // Stored, so nothing the agent worked out is lost. Provisional, so it is
+    // not read back to the agent that writes the next one.
+    expect(result.note.ruleStatus).toBe('provisional');
+    expect(readdirSync(vaultDir)).toHaveLength(1);
   });
 
-  it('allows rule creation when the caller is the user channel (actor: user)', async () => {
+  it('approves a rule the user channel wrote, because reaching it means a person decided', async () => {
     const result = await saveNote(client, stubEmbedder, vaultDir, {
       title: 'code style',
       content: 'FP first',
@@ -289,6 +288,20 @@ describe('saveNote / removeNote — rule layer guards', () => {
     expect(isSaveRejection(result)).toBe(false);
     if (isSaveRejection(result)) return;
     expect(result.note.layer).toBe('rule');
+    expect(result.note.ruleStatus).toBe('canonical');
+  });
+
+  it('leaves a note on another layer without a rule status at all', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'a record',
+      content: 'what happened',
+      source: 'claude-code',
+      layer: 'past',
+    });
+
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.ruleStatus).toBeNull();
   });
 
   it('allows non-rule layers from the agent channel as before', async () => {

@@ -131,6 +131,20 @@ export const Sidebar = ({
       <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
         <NoteRows list={data.rule} stale={stale} />
       </Section>
+      {data.rulesWaiting > 0 && (
+        <div className="px-4 pt-1">
+          <NavLink
+            to="/rules"
+            className={({ isActive }) =>
+              `block rounded-md px-2 py-2 text-sm ${
+                isActive ? 'bg-surface-muted text-foreground' : 'text-primary hover:bg-surface'
+              }`
+            }
+          >
+            {t.sidebar.rulesWaiting(data.rulesWaiting)}
+          </NavLink>
+        </div>
+      )}
       <div className="px-4 pt-2">
         <NavLink
           to="/threads"
@@ -151,6 +165,16 @@ export const Sidebar = ({
           }
         >
           {t.tags.screenTitle}
+        </NavLink>
+        <NavLink
+          to="/rules"
+          className={({ isActive }) =>
+            `block rounded-md px-2 py-2 text-sm ${
+              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
+            }`
+          }
+        >
+          {t.rules.screenTitle}
         </NavLink>
       </div>
       <p className="mt-3 px-4 text-[11px] leading-5 text-muted">

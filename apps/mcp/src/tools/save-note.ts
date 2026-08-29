@@ -28,8 +28,8 @@ export const registerSaveNote = (
 - state: current state or plans (project progress, a person's current
          role, future roadmap). Freely updatable.
 - rule: behaviour guidance for Claude (coding style, search policy, etc.).
-        User-only — this tool always rejects rule writes. Show the proposed
-        rule text in chat and suggest \`memex add --layer rule\` instead.
+        You may write one, but it is stored as a proposal and is NOT injected
+        until the user approves it in the memex app. Say so when you write one.
 
 Rules of thumb: past tense vs present/future tense, "fact vs intent" axis.
 When in doubt, choose past.
@@ -65,7 +65,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
-          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — user-only; this tool rejects rule writes (suggest `memex add --layer rule`). When in doubt, choose past.',
+          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
         ),
     },
     async ({ title, content, folder, tags, source, layer, amends }) => {

@@ -46,7 +46,11 @@ const moveLayer = (client: ReturnType<typeof openDb>, idArg: string, layerArg: s
     return;
   }
 
-  client.sqlite.prepare('UPDATE notes SET layer = ? WHERE id = ?').run(layer, id);
+  // Reaching this command means a person decided. A rule they named is approved
+  // by the act of naming it; anything leaving `rule` stops having a status.
+  client.sqlite
+    .prepare('UPDATE notes SET layer = ?, rule_status = ? WHERE id = ?')
+    .run(layer, layer === 'rule' ? 'canonical' : null, id);
   console.log(`${pc.green('✓')} #${id} "${note.title}": ${pc.dim(note.layer)} → ${pc.bold(layer)}`);
 };
 

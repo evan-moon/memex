@@ -230,6 +230,17 @@ const MIGRATIONS: readonly Migration[] = [
       });
     },
   },
+  {
+    // Every rule that exists today was written through the CLI, which only a
+    // person can reach, so they are approved by construction. What arrives
+    // after this lands provisional unless a person put it there.
+    version: 13,
+    name: 'notes.rule_status',
+    up: (sqlite) => {
+      if (!addColumnIfMissing(sqlite, 'notes', 'rule_status', 'rule_status TEXT')) return;
+      sqlite.exec("UPDATE notes SET rule_status = 'canonical' WHERE layer = 'rule'");
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
