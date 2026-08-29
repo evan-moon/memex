@@ -1,12 +1,7 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
 import { type ChangeKind, recordNoteChange } from './changes.ts';
 import type { MemexClient } from './client.ts';
-import {
-  dropLinkTargets,
-  dropTitleKeys,
-  syncLinkTargets,
-  syncTitleKeys,
-} from './link-index.ts';
+import { dropLinkTargets, dropTitleKeys, syncLinkTargets, syncTitleKeys } from './link-index.ts';
 import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };

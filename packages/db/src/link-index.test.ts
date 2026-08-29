@@ -3,11 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import {
-  resolveLinkTargets,
-  resyncLinkIndexes,
-  unresolvedLinksByNote,
-} from './link-index.ts';
+import { resolveLinkTargets, resyncLinkIndexes, unresolvedLinksByNote } from './link-index.ts';
 import { deleteNote, insertNote, updateNote } from './repository.ts';
 
 describe('note title index', () => {

@@ -25,9 +25,9 @@ describe('note change log', () => {
 
   const kindsSince = (from: number) =>
     (
-      client.sqlite
-        .prepare('SELECT kind FROM note_changes WHERE id > ? ORDER BY id')
-        .all(from) as { kind: string }[]
+      client.sqlite.prepare('SELECT kind FROM note_changes WHERE id > ? ORDER BY id').all(from) as {
+        kind: string;
+      }[]
     ).map((row) => row.kind);
 
   beforeEach(() => {

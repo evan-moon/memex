@@ -1,9 +1,4 @@
 import { createHash } from 'node:crypto';
-import type { MemexClient } from './client.ts';
-import { dismissedDanglingNoteIds } from './dangling.ts';
-import { notesDeclaringEvidence } from './evidence.ts';
-import { unresolvedLinksByNote, unresolvedLinksFor } from './link-index.ts';
-import { parseTags } from './repository.ts';
 import {
   type ChangeKind,
   changedNotesFrom,
@@ -11,6 +6,11 @@ import {
   hasChangeFrom,
   trimChangeLog,
 } from './changes.ts';
+import type { MemexClient } from './client.ts';
+import { dismissedDanglingNoteIds } from './dangling.ts';
+import { notesDeclaringEvidence } from './evidence.ts';
+import { unresolvedLinksByNote, unresolvedLinksFor } from './link-index.ts';
+import { parseTags } from './repository.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -214,10 +214,7 @@ export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
 
 // The same question asked of one note. A write needs to know what it just broke,
 // not what the whole vault has left open.
-export const detectDanglingLinksFor = (
-  client: MemexClient,
-  noteId: number,
-): SignalCandidate[] =>
+export const detectDanglingLinksFor = (client: MemexClient, noteId: number): SignalCandidate[] =>
   dismissedDanglingNoteIds(client).includes(noteId)
     ? []
     : danglingCandidates(noteId, unresolvedLinksFor(client, noteId), new Set());
@@ -247,7 +244,9 @@ const statesTouchedBy = (client: MemexClient, changed: number[], maxDistance: nu
      JOIN notes n ON n.id = e.note_id
      WHERE e.embedding MATCH ? AND k = ? AND n.layer = 'state' AND e.distance < ?`,
   );
-  const isState = client.sqlite.prepare("SELECT 1 AS yes FROM notes WHERE id = ? AND layer = 'state'");
+  const isState = client.sqlite.prepare(
+    "SELECT 1 AS yes FROM notes WHERE id = ? AND layer = 'state'",
+  );
 
   const touched = new Set<number>();
 

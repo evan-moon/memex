@@ -10,16 +10,20 @@ import {
   approveRule,
   countProvisionalRules,
   declineRule,
+  deleteSession,
   dismissDanglingFor,
   getAmendmentsFor,
   getInference,
   getNote,
+  listSessions,
   listSignals,
   type MemexClient,
   type RegisterScope,
   refreshInferenceStaleness,
   restampInference,
   rewriteInference,
+  sessionExists,
+  sessionTurns,
   setInferenceStatus,
   setNoteEvidence,
   setRegister,
@@ -27,7 +31,6 @@ import {
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
 import { writeDerivesFrom } from '@memex/utils';
-import type { Said } from '../chat/turn.ts';
 import {
   createLoginRunner,
   installClaudeCode,
@@ -230,16 +233,6 @@ const choiceFrom = (value: unknown): LlmChoice | null => {
     : null;
 };
 
-const historyFrom = (value: unknown): Said[] =>
-  Array.isArray(value)
-    ? value.flatMap((turn) => {
-        const one = asRecord(turn);
-        return typeof one?.said === 'string' && typeof one?.outcome === 'string'
-          ? [{ said: one.said, outcome: one.outcome }]
-          : [];
-      })
-    : [];
-
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
   amendment ? { kind: 'amended', by: { id: amendment.id, title: amendment.title } } : null;
 
@@ -366,9 +359,20 @@ export const route = async (
         operationId,
         choice,
         carried: carriedFrom(new URLSearchParams(url.search)),
-        history: historyFrom(asked?.history),
+        sessionId: typeof asked?.sessionId === 'number' ? asked.sessionId : null,
       }),
     );
+  }
+  if (method === 'GET' && url.pathname === '/api/chat/sessions') {
+    return json(listSessions(client));
+  }
+  if (url.pathname.startsWith('/api/chat/session/')) {
+    const id = Number(url.pathname.slice('/api/chat/session/'.length));
+    if (!Number.isInteger(id) || id <= 0) return bad(400, 'invalid-note-id');
+    if (method === 'DELETE') return json({ removed: deleteSession(client, id) });
+    if (method === 'GET') {
+      return sessionExists(client, id) ? json(sessionTurns(client, id)) : notFound;
+    }
   }
   if (method === 'POST' && url.pathname === '/api/chat/cancel') {
     const operationId = asRecord(payload)?.operationId;

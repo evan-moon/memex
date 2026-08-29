@@ -27,7 +27,7 @@ const Section = ({
   </section>
 );
 
-const Choice = <T extends string>({
+const Options = <T extends string>({
   options,
   value,
   onPick,
@@ -177,7 +177,7 @@ export const SettingsScreen = ({
   const preferences = (
     <>
       <Section title={t.settings.appearance}>
-        <Choice<Theme>
+        <Options<Theme>
           value={theme}
           onPick={setTheme}
           options={[
@@ -187,7 +187,7 @@ export const SettingsScreen = ({
         />
       </Section>
       <Section title={t.settings.language}>
-        <Choice<Locale>
+        <Options<Locale>
           value={locale}
           onPick={setLocale}
           options={[
@@ -197,7 +197,7 @@ export const SettingsScreen = ({
         />
       </Section>
       <Section title={t.settings.thinking} hint={t.settings.thinkingHint}>
-        <Choice
+        <Options
           value={`${fallback.provider}:${fallback.model}`}
           onPick={(picked) => {
             const [provider, model = ''] = picked.split(':');

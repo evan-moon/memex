@@ -420,6 +420,12 @@ export type ChatReply =
 
 export type ChatTarget = { kind: 'register'; subject: string } | { kind: 'note'; id: number };
 
+export type ChatSession = { id: number; title: string; turns: number; lastAt: number };
+
+export type ChatTurn = { id: number; said: string; outcome: string; at: number };
+
+export type ChatAnswer = ChatReply & { sessionId: number };
+
 const chatQuery = (target: ChatTarget | null) => {
   if (target === null) return '';
   return target.kind === 'register'
@@ -433,8 +439,13 @@ export const api = {
     target: ChatTarget | null,
     operationId: string,
     choice: { provider: string; model: string },
-    history: { said: string; outcome: string }[],
-  ) => post<ChatReply>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, history }),
+    sessionId: number | null,
+  ) =>
+    post<ChatAnswer>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, sessionId }),
+  chatSessions: () => request<ChatSession[]>('/api/chat/sessions'),
+  chatSession: (id: number) => request<ChatTurn[]>(`/api/chat/session/${id}`),
+  forgetChatSession: (id: number) =>
+    request<{ removed: boolean }>(`/api/chat/session/${id}`, { method: 'DELETE' }),
   cancelChat: (operationId: string) =>
     post<{ stopped: boolean }>('/api/chat/cancel', { operationId }),
   applyChat: (ticket: string) => post<ChatReply>('/api/chat/apply', { ticket }),

@@ -1,15 +1,30 @@
 import { ArrowUp, FileText, Hash, MessageSquare, Square, SquarePen, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, type ChatPreview, type ChatReceipt, type ChatReply, toFailure } from './api.ts';
+import {
+  api,
+  type ChatPreview,
+  type ChatReceipt,
+  type ChatReply,
+  type ChatSession,
+  toFailure,
+} from './api.ts';
 import { Button, Card } from './bits.tsx';
-import { digest } from './chat-history.ts';
 import { targetFrom } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
 import { type Choice, defaultChoice, MODELS } from './models.ts';
 import { useAsync } from './useAsync.ts';
 
-type Exchange = { id: string; said: string; reply: ChatReply | null; discarded?: boolean };
+// `reply` is this run's; `outcome` is what a saved session recorded. A reopened
+// turn shows what it settled and nothing to press: the ticket it was offered
+// under is gone, and offering it again would be offering something else.
+type Exchange = {
+  id: string;
+  said: string;
+  reply?: ChatReply | null;
+  outcome?: string;
+  discarded?: boolean;
+};
 
 const Field = ({ label, value }: { label: string; value: string }) => (
   <div className="flex gap-2 text-sm">
@@ -190,6 +205,39 @@ const Reply = ({
   );
 };
 
+// The conversations there are, and which one this is. Aside puts a switcher
+// where a title would go; this one is only worth having because the transcripts
+// behind it are real.
+const Conversations = ({
+  sessions,
+  current,
+  onPick,
+  onFresh,
+  t,
+}: {
+  sessions: ChatSession[];
+  current: number | null;
+  onPick: (id: number) => void;
+  onFresh: () => void;
+  t: Strings;
+}) => (
+  <select
+    value={current === null ? '' : String(current)}
+    onChange={(event) =>
+      event.target.value === '' ? onFresh() : onPick(Number(event.target.value))
+    }
+    aria-label={t.chat.screenTitle}
+    className="no-drag -ml-1 max-w-[13rem] cursor-pointer truncate rounded-md border-0 bg-transparent py-0.5 pl-1 text-sm font-semibold text-foreground outline-none hover:bg-surface-muted"
+  >
+    <option value="">{t.chat.clear}</option>
+    {sessions.map((session) => (
+      <option key={session.id} value={session.id}>
+        {session.title}
+      </option>
+    ))}
+  </select>
+);
+
 export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const t = useT();
   const [params] = useSearchParams();
@@ -200,6 +248,28 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   // This conversation's model, started from the default. Changing it here does
   // not change what the next conversation starts on — that is the setting.
   const [choice, setChoice] = useState<Choice>(defaultChoice);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [round, setRound] = useState(0);
+  const { data: sessions } = useAsync(() => api.chatSessions(), `${round}`);
+
+  const startFresh = () => {
+    setExchanges([]);
+    setSessionId(null);
+    setChoice(defaultChoice());
+  };
+
+  const reopen = (id: number) => {
+    setSessionId(id);
+    setChoice(defaultChoice());
+    api
+      .chatSession(id)
+      .then((turns) =>
+        setExchanges(
+          turns.map((turn) => ({ id: `past-${turn.id}`, said: turn.said, outcome: turn.outcome })),
+        ),
+      )
+      .catch(() => setExchanges([]));
+  };
 
   const carriedNote = useAsync(
     () => (target?.kind === 'note' ? api.note(target.id) : Promise.resolve(null)),
@@ -225,9 +295,16 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
 
     // The conversation so far goes with the turn, so changing model between one
     // turn and the next costs nothing: no provider was holding it.
+    // The transcript lives on the server, so the turn carries only which
+    // conversation it belongs to. Changing model between turns costs nothing:
+    // no provider was holding it.
     api
-      .chat(message, target, id, choice, digest(exchanges))
-      .then((reply) => answer(at, reply))
+      .chat(message, target, id, choice, sessionId)
+      .then((reply) => {
+        setSessionId(reply.sessionId);
+        setRound((n) => n + 1);
+        answer(at, reply);
+      })
       .catch((cause: unknown) => {
         const { code, detail } = toFailure(cause);
         answer(at, { kind: 'failed', failure: code, remedy: 'retry', detail: detail ?? '' });
@@ -275,14 +352,17 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
     // a document you scroll to the end of.
     <div className="flex h-full min-h-0 flex-col">
       <div className="drag flex items-center justify-between gap-2 px-4 pt-4 pb-1">
-        <h2 className="text-sm font-semibold text-foreground">{t.chat.screenTitle}</h2>
+        <Conversations
+          sessions={sessions ?? []}
+          current={sessionId}
+          onPick={reopen}
+          onFresh={startFresh}
+          t={t}
+        />
         <div className="no-drag flex items-center gap-0.5">
           <button
             type="button"
-            onClick={() => {
-              setExchanges([]);
-              setChoice(defaultChoice());
-            }}
+            onClick={startFresh}
             disabled={exchanges.length === 0}
             aria-label={t.chat.clear}
             title={t.chat.clear}
@@ -314,9 +394,11 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
             {exchanges.map((exchange, at) => (
               <Card key={exchange.id} className="space-y-3">
                 <p className="text-sm font-medium">{exchange.said}</p>
-                {exchange.discarded ? (
+                {exchange.outcome !== undefined ? (
+                  <p className="text-xs text-muted">{exchange.outcome}</p>
+                ) : exchange.discarded ? (
                   <p className="text-xs text-muted">{t.chat.discarded}</p>
-                ) : exchange.reply === null ? (
+                ) : exchange.reply === null || exchange.reply === undefined ? (
                   <p className="text-xs text-muted">{t.chat.thinking}</p>
                 ) : (
                   <Reply

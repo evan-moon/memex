@@ -165,9 +165,9 @@ export const unresolvedLinksByNote = (client: MemexClient): Map<number, string[]
 
 export const unresolvedLinksFor = (client: MemexClient, noteId: number): string[] =>
   (
-    client.sqlite
-      .prepare(`${UNRESOLVED_WHERE} AND t.note_id = ? ORDER BY t.ord`)
-      .all(noteId) as { target: string }[]
+    client.sqlite.prepare(`${UNRESOLVED_WHERE} AND t.note_id = ? ORDER BY t.ord`).all(noteId) as {
+      target: string;
+    }[]
   ).map((row) => row.target);
 
 // The write paths keep both indexes current, so this exists for when they were
@@ -190,9 +190,10 @@ export const resyncLinkIndexes = (client: MemexClient) => {
   );
 
   const extracted = (
-    client.sqlite
-      .prepare('SELECT note_id AS noteId, target FROM note_link_targets')
-      .all() as { noteId: number; target: string }[]
+    client.sqlite.prepare('SELECT note_id AS noteId, target FROM note_link_targets').all() as {
+      noteId: number;
+      target: string;
+    }[]
   ).reduce((acc, row) => {
     const seen = acc.get(row.noteId) ?? new Set<string>();
     return acc.set(row.noteId, seen.add(row.target));

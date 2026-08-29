@@ -178,8 +178,8 @@ const en = {
   },
   chat: {
     screenTitle: 'Chat',
-    intro: 'Tell me what I got wrong. I show you the change before I make it.',
-    placeholder: 'Tell me what I got wrong…',
+    intro: 'Say what to keep or change. You see it before it happens.',
+    placeholder: 'What should I keep, or change?',
     send: 'Send',
     stop: 'Stop',
     thinking: 'Reading what is on record…',
@@ -675,8 +675,8 @@ const ko: typeof en = {
   },
   chat: {
     screenTitle: '대화',
-    intro: '제가 잘못 기억한 걸 말해 주세요. 바꾸기 전에 무엇이 바뀌는지 먼저 보여드려요.',
-    placeholder: '제가 잘못 기억한 걸 말해 주세요…',
+    intro: '남길 것과 고칠 것을 말해 주세요. 바뀌기 전에 먼저 보여드려요.',
+    placeholder: '무엇을 남기거나 고칠까요?',
     send: '보내기',
     stop: '그만두기',
     thinking: '기록을 읽고 있어요…',

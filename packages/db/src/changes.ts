@@ -19,8 +19,11 @@ export const recordNoteChange = (
 };
 
 export const changeHead = (client: MemexClient): number =>
-  (client.sqlite.prepare('SELECT MAX(id) AS head FROM note_changes').get() as { head: number | null })
-    .head ?? 0;
+  (
+    client.sqlite.prepare('SELECT MAX(id) AS head FROM note_changes').get() as {
+      head: number | null;
+    }
+  ).head ?? 0;
 
 // A watermark is the first change id a detector has not read yet, so an empty
 // log and a fully-read log are both "nothing to do" without colliding with
@@ -59,6 +62,8 @@ const KEEP_ROWS = 10_000;
 
 export const trimChangeLog = (client: MemexClient, floor: number) => {
   client.sqlite
-    .prepare('DELETE FROM note_changes WHERE id <= ? AND id <= (SELECT MAX(id) - ? FROM note_changes)')
+    .prepare(
+      'DELETE FROM note_changes WHERE id <= ? AND id <= (SELECT MAX(id) - ? FROM note_changes)',
+    )
     .run(floor, KEEP_ROWS);
 };

@@ -4,6 +4,16 @@ export {
   hasChangeFrom,
   recordNoteChange,
 } from './changes.ts';
+export type { ChatSession, ChatTurn } from './chat.ts';
+export {
+  deleteSession,
+  listSessions,
+  recordTurn,
+  restateTurn,
+  sessionExists,
+  sessionTurns,
+  startSession,
+} from './chat.ts';
 export {
   getNoteShape,
   indexTypeNoteIds,

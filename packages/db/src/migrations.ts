@@ -17,7 +17,12 @@ const columnNames = (sqlite: Database.Database, table: string) =>
     (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name),
   );
 
-const addColumnIfMissing = (sqlite: Database.Database, table: string, column: string, ddl: string) => {
+const addColumnIfMissing = (
+  sqlite: Database.Database,
+  table: string,
+  column: string,
+  ddl: string,
+) => {
   if (columnNames(sqlite, table).has(column)) return false;
   sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   return true;
@@ -56,8 +61,7 @@ const MIGRATIONS: readonly Migration[] = [
   {
     version: 2,
     name: 'notes.tags',
-    up: (sqlite) =>
-      addColumnIfMissing(sqlite, 'notes', 'tags', "tags TEXT NOT NULL DEFAULT '[]'"),
+    up: (sqlite) => addColumnIfMissing(sqlite, 'notes', 'tags', "tags TEXT NOT NULL DEFAULT '[]'"),
   },
   {
     version: 3,
@@ -239,6 +243,32 @@ const MIGRATIONS: readonly Migration[] = [
     up: (sqlite) => {
       if (!addColumnIfMissing(sqlite, 'notes', 'rule_status', 'rule_status TEXT')) return;
       sqlite.exec("UPDATE notes SET rule_status = 'canonical' WHERE layer = 'rule'");
+    },
+  },
+  {
+    // What a turn settled, not what the model said back. The change itself is
+    // already durable — a register event with a person's name on it, a note with
+    // `amends` — so this is the record of what was asked and what came of it,
+    // which is what the next turn reads and what a reader reopens.
+    version: 14,
+    name: 'chat sessions',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS chat_turns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id INTEGER NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+          said TEXT NOT NULL,
+          outcome TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS chat_turns_session ON chat_turns(session_id, id);
+      `);
     },
   },
 ];

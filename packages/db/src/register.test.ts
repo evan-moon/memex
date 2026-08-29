@@ -6,9 +6,9 @@ import { type MemexClient, openDb } from './client.ts';
 import {
   listRegisterSubjects,
   matchRegisterSubjects,
+  type RegisterScope,
   readRegister,
   registerHistory,
-  type RegisterScope,
   setRegister,
 } from './register.ts';
 
@@ -32,7 +32,9 @@ const tip = (subject: string, predicate: string, scope: RegisterScope = GLOBAL) 
     (entry) =>
       entry.predicate.toLowerCase() === predicate.toLowerCase() &&
       entry.scope.kind === scope.kind &&
-      (entry.scope.kind !== 'period' || scope.kind !== 'period' || entry.scope.start === scope.start),
+      (entry.scope.kind !== 'period' ||
+        scope.kind !== 'period' ||
+        entry.scope.start === scope.start),
   );
 
 beforeEach(() => {
