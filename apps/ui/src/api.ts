@@ -428,13 +428,10 @@ const chatQuery = (target: ChatTarget | null) => {
 };
 
 export const api = {
-  chat: (message: string, target: ChatTarget | null, signal?: AbortSignal) =>
-    request<ChatReply>(`/api/chat${chatQuery(target)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message }),
-      signal,
-    }),
+  chat: (message: string, target: ChatTarget | null, operationId: string) =>
+    post<ChatReply>(`/api/chat${chatQuery(target)}`, { message, operationId }),
+  cancelChat: (operationId: string) =>
+    post<{ stopped: boolean }>('/api/chat/cancel', { operationId }),
   applyChat: (ticket: string) => post<ChatReply>('/api/chat/apply', { ticket }),
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),

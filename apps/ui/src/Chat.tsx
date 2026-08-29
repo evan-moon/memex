@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type ChatPreview, type ChatReceipt, type ChatReply, toFailure } from './api.ts';
 import { Button, Card, Page } from './bits.tsx';
@@ -6,7 +6,7 @@ import { targetFrom } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
 import { useAsync } from './useAsync.ts';
 
-type Exchange = { said: string; reply: ChatReply | null; discarded?: boolean };
+type Exchange = { id: string; said: string; reply: ChatReply | null; discarded?: boolean };
 
 const Field = ({ label, value }: { label: string; value: string }) => (
   <div className="flex gap-2 text-sm">
@@ -194,7 +194,6 @@ export const ChatScreen = () => {
   const [draft, setDraft] = useState('');
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
-  const running = useRef<AbortController | null>(null);
 
   const carriedNote = useAsync(
     () => (target?.kind === 'note' ? api.note(target.id) : Promise.resolve(null)),
@@ -207,24 +206,30 @@ export const ChatScreen = () => {
   // The request is started beside the state update rather than inside it: an
   // updater is called twice under StrictMode, and a turn that asks Claude twice
   // is one the reader pays for twice.
+  //
+  // The id is the turn's name on both sides. Stopping is a request of its own,
+  // because neither the protocol handler nor an IPC invoke is told that the page
+  // stopped listening — so the answer to a stopped turn comes back the ordinary
+  // way, saying it was stopped.
   const ask = (message: string) => {
     const at = exchanges.length;
-    const controller = new AbortController();
-    running.current = controller;
+    const id = crypto.randomUUID();
     setBusy(true);
-    setExchanges((all) => [...all, { said: message, reply: null }]);
+    setExchanges((all) => [...all, { id, said: message, reply: null }]);
 
     api
-      .chat(message, target, controller.signal)
+      .chat(message, target, id)
       .then((reply) => answer(at, reply))
       .catch((cause: unknown) => {
         const { code, detail } = toFailure(cause);
         answer(at, { kind: 'failed', failure: code, remedy: 'retry', detail: detail ?? '' });
       })
-      .finally(() => {
-        running.current = null;
-        setBusy(false);
-      });
+      .finally(() => setBusy(false));
+  };
+
+  const stop = () => {
+    const waiting = exchanges.find((one) => one.reply === null);
+    if (waiting) api.cancelChat(waiting.id).catch(() => {});
   };
 
   const send = () => {
@@ -264,7 +269,7 @@ export const ChatScreen = () => {
 
       <div className="mt-5 space-y-4">
         {exchanges.map((exchange, at) => (
-          <Card key={`${at}-${exchange.said}`} className="space-y-3">
+          <Card key={exchange.id} className="space-y-3">
             <p className="text-sm font-medium">{exchange.said}</p>
             {exchange.discarded ? (
               <p className="text-xs text-muted">{t.chat.discarded}</p>
@@ -299,7 +304,7 @@ export const ChatScreen = () => {
           className="min-w-0 flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-line-strong"
         />
         {busy ? (
-          <Button tone="plain" onClick={() => running.current?.abort()}>
+          <Button tone="plain" onClick={stop}>
             {t.chat.stop}
           </Button>
         ) : (

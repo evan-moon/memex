@@ -1,13 +1,21 @@
-import { app, BrowserWindow, shell } from 'electron';
-import { startMemexHost } from '@evan-moon/memex/host';
+import { join } from 'node:path';
+import { createUiDeps } from '@evan-moon/memex/host';
+import { app, BrowserWindow, protocol, shell } from 'electron';
+import { PRIVILEGES, SCHEME, serve } from './serve.ts';
 
 const WINDOW = { width: 1200, height: 820, minWidth: 720, minHeight: 520 };
 
-let host: Awaited<ReturnType<typeof startMemexHost>> | null = null;
+const HOME = `${SCHEME}://app/`;
 
-// The renderer gets no Node. It is the same page the browser loads, and the
-// only reason it is in a window instead of a tab is that a person who does not
-// open a terminal cannot reach a tab either.
+// Registering the scheme has to happen before the app is ready, so it sits at
+// module scope rather than inside start().
+protocol.registerSchemesAsPrivileged(PRIVILEGES);
+
+let deps: ReturnType<typeof createUiDeps> | null = null;
+
+// The renderer gets no Node and no preload. Everything it can reach, it reaches
+// by asking `memex://` for it, which is the same handler that gave it its own
+// files — so the page has exactly one way in and nothing else.
 const createWindow = (url: string) => {
   const window = new BrowserWindow({
     ...WINDOW,
@@ -41,22 +49,23 @@ const createWindow = (url: string) => {
   return window;
 };
 
-const start = async () => {
-  // Port 0: the OS picks a free one. A packaged app cannot ask its reader to
-  // pass --port when 4321 is already taken.
-  host = await startMemexHost(0);
-  createWindow(host.url);
+const start = () => {
+  deps = createUiDeps();
+  protocol.handle(SCHEME, serve(deps, join(app.getAppPath(), 'dist/renderer')));
+  createWindow(HOME);
 };
 
-app.whenReady().then(() =>
-  start().catch((error: unknown) => {
+app.whenReady().then(() => {
+  try {
+    start();
+  } catch (error) {
     console.error('[memex] could not start:', error);
     app.quit();
-  }),
-);
+  }
+});
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0 && host !== null) createWindow(host.url);
+  if (BrowserWindow.getAllWindows().length === 0 && deps !== null) createWindow(HOME);
 });
 
 app.on('window-all-closed', () => {
@@ -64,6 +73,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  host?.client.sqlite.close();
-  host = null;
+  deps?.client.sqlite.close();
+  deps = null;
 });

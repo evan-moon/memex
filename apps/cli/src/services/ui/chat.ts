@@ -20,6 +20,12 @@ const PENDING_LIMIT = 20;
 
 export type Pending = Map<string, Plan>;
 
+// A turn owns an AbortController the whole time it runs, keyed by an id the
+// page made up. Neither transport carries a cancel of its own — a protocol
+// handler is not told the page stopped listening, and an IPC invoke cannot be
+// aborted either — so stopping has to be a request like any other.
+export type Running = Map<string, AbortController>;
+
 const remember = (pending: Pending, plan: Plan) => {
   const ticket = randomUUID();
   pending.set(ticket, plan);
@@ -36,12 +42,16 @@ const failed = (failure: ChatFailure | ApplyFailure, detail = ''): ChatReply => 
 
 export const startChat = async (
   deps: ChatDeps,
-  pending: Pending,
+  state: { pending: Pending; running: Running },
   message: string,
   carried: Carried | null,
-  signal?: AbortSignal,
+  operationId: string,
 ): Promise<ChatReply> => {
-  const turn = await planTurn(deps, message, carried, signal);
+  const stopper = new AbortController();
+  state.running.set(operationId, stopper);
+  const turn = await planTurn(deps, message, carried, stopper.signal).finally(() =>
+    state.running.delete(operationId),
+  );
 
   if (turn.kind === 'failed') return failed(turn.failure, turn.detail);
   if (turn.kind === 'unmapped') {
@@ -50,7 +60,7 @@ export const startChat = async (
 
   const preview = previewOf(turn.plan, turn.candidates);
   if (turn.confirmation === 'confirm') {
-    return { kind: 'confirm', ticket: remember(pending, turn.plan), preview };
+    return { kind: 'confirm', ticket: remember(state.pending, turn.plan), preview };
   }
 
   const applied = await applyPlan(deps, turn.plan);
@@ -68,6 +78,13 @@ export const applyTicket = async (
 
   const applied = await applyPlan(deps, plan);
   return applied.ok ? { kind: 'done', receipt: receiptOf(applied.wrote) } : failed(applied.reason);
+};
+
+// Aborting a turn nobody is running is not an error: the answer arrived first,
+// or the page asked twice. Either way there is nothing left to stop.
+export const cancelChat = (running: Running, operationId: string) => {
+  running.get(operationId)?.abort();
+  return running.delete(operationId);
 };
 
 export const carriedFrom = (params: URLSearchParams): Carried | null => {

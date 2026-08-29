@@ -5,21 +5,16 @@ import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/util
 import { guardEmbeddingModel } from '../embedding-guard.ts';
 import { getMcpBinPath } from '../mcp-clients/index.ts';
 import { createModelRunner } from './model.ts';
-import { startUiServer, type UiDeps } from './server.ts';
+import type { UiDeps } from './server.ts';
 import { createShapeFiller } from './shapes.ts';
-
-export type MemexHost = {
-  url: string;
-  client: MemexClient;
-};
 
 const openInBrowser = (target: string) => {
   spawn('open', [target], { stdio: 'ignore', detached: true }).unref();
 };
 
-// Both shells — the `ui` command and the desktop app — need the same vault, the
-// same embedder and the same idea of where this machine keeps things. Building
-// it twice is how the two drift into answering differently.
+// Everything the app needs to answer a request: the vault, the embedder, and
+// where this machine keeps things. The window reaches it through the app's own
+// `memex://` handler, so nothing here listens on anything.
 export const createUiDeps = (): UiDeps & { client: MemexClient } => {
   const client = openDb(CONFIG_DIR);
   guardEmbeddingModel(client);
@@ -39,10 +34,4 @@ export const createUiDeps = (): UiDeps & { client: MemexClient } => {
     model,
     fillShapes: createShapeFiller({ client }).fill,
   };
-};
-
-export const startMemexHost = async (port: number): Promise<MemexHost> => {
-  const deps = createUiDeps();
-  const url = await startUiServer(deps, port);
-  return { url, client: deps.client };
 };

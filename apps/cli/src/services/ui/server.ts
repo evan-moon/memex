@@ -1,4 +1,3 @@
-import { createServer, type IncomingMessage } from 'node:http';
 import {
   editNote,
   isEditRejection,
@@ -39,7 +38,14 @@ import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
-import { applyTicket, carriedFrom, type Pending, startChat } from './chat.ts';
+import {
+  applyTicket,
+  cancelChat,
+  carriedFrom,
+  type Pending,
+  type Running,
+  startChat,
+} from './chat.ts';
 import { buildChores } from './chores.ts';
 import type { ModelRunner } from './model.ts';
 import {
@@ -55,7 +61,6 @@ import {
   staleStateIds,
 } from './notes.ts';
 import { buildOverview } from './overview.ts';
-import { PAGE } from './page.ts';
 import {
   buildRegister,
   buildRegisterHistory,
@@ -166,6 +171,7 @@ export type ApiErrorCode =
   | 'empty-subject'
   | 'empty-predicate'
   | 'empty-message'
+  | 'missing-operation'
   | 'unknown-plan';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
@@ -192,13 +198,15 @@ export type UiDeps = {
 
 const runners = new WeakMap<UiDeps, ReturnType<typeof createLoginRunner>>();
 
-const pendingPlans = new WeakMap<UiDeps, Pending>();
+type ChatState = { pending: Pending; running: Running };
 
-const pendingFor = (deps: UiDeps): Pending => {
-  const existing = pendingPlans.get(deps);
+const chatStates = new WeakMap<UiDeps, ChatState>();
+
+const chatStateFor = (deps: UiDeps): ChatState => {
+  const existing = chatStates.get(deps);
   if (existing) return existing;
-  const created: Pending = new Map();
-  pendingPlans.set(deps, created);
+  const created: ChatState = { pending: new Map(), running: new Map() };
+  chatStates.set(deps, created);
   return created;
 };
 
@@ -257,15 +265,9 @@ export const route = async (
   method: string,
   url: URL,
   payload: unknown,
-  signal?: AbortSignal,
 ): Promise<Reply> => {
   const { client, vaultPath } = deps;
 
-  // Every non-API path serves the app, so a deep link like /note/1694 survives
-  // a reload instead of 404ing the way a static file server would.
-  if (method === 'GET' && !url.pathname.startsWith('/api/')) {
-    return { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body: PAGE };
-  }
   if (method === 'GET' && url.pathname === '/api/sidebar') {
     return json({
       counts: layerCounts(client),
@@ -331,14 +333,21 @@ export const route = async (
   if (method === 'POST' && url.pathname === '/api/chat') {
     const asked = asRecord(payload);
     const message = typeof asked?.message === 'string' ? asked.message.trim() : '';
+    const operationId = typeof asked?.operationId === 'string' ? asked.operationId : '';
     if (message === '') return bad(400, 'empty-message');
+    if (operationId === '') return bad(400, 'missing-operation');
     const carried = carriedFrom(new URLSearchParams(url.search));
-    return json(await startChat(deps, pendingFor(deps), message, carried, signal));
+    return json(await startChat(deps, chatStateFor(deps), message, carried, operationId));
+  }
+  if (method === 'POST' && url.pathname === '/api/chat/cancel') {
+    const operationId = asRecord(payload)?.operationId;
+    if (typeof operationId !== 'string') return bad(400, 'missing-operation');
+    return json({ stopped: cancelChat(chatStateFor(deps).running, operationId) });
   }
   if (method === 'POST' && url.pathname === '/api/chat/apply') {
     const ticket = asRecord(payload)?.ticket;
     if (typeof ticket !== 'string') return bad(400, 'unknown-plan');
-    const applied = await applyTicket(deps, pendingFor(deps), ticket);
+    const applied = await applyTicket(deps, chatStateFor(deps).pending, ticket);
     // A ticket the server does not hold is a plan it never showed, or one the
     // reader already pressed. Either way there is nothing here to apply.
     return applied === null ? bad(410, 'unknown-plan') : json(applied);
@@ -656,71 +665,3 @@ export const route = async (
   }
   return notFound;
 };
-
-const readJson = (req: IncomingMessage): Promise<unknown> =>
-  new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch {
-        resolve(null);
-      }
-    });
-  });
-
-// Binding to loopback keeps other machines out, but not other pages on this
-// one: any site the browser visits can POST to 127.0.0.1. Reads were harmless;
-// writes are not. A same-origin check costs nothing and closes it.
-const sameOrigin = (origin: string | undefined, host: string | undefined) => {
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-};
-
-export const startUiServer = (deps: UiDeps, port: number): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      const url = new URL(req.url ?? '/', 'http://localhost');
-      const method = req.method ?? 'GET';
-
-      if (method !== 'GET' && !sameOrigin(req.headers.origin, req.headers.host)) {
-        res.writeHead(403, { 'content-type': 'text/plain' });
-        res.end('cross-origin write refused');
-        return;
-      }
-
-      // A reader who stops waiting stops the work: without this the fetch is
-      // abandoned while `claude` runs on to the end for an answer nobody reads.
-      const abandoned = new AbortController();
-      res.on('close', () => {
-        if (!res.writableEnded) abandoned.abort();
-      });
-
-      (method === 'GET' ? Promise.resolve(null) : readJson(req))
-        .then((payload) => route(deps, method, url, payload, abandoned.signal))
-        .then(({ status, headers, body }) => {
-          res.writeHead(status, headers);
-          res.end(body);
-        })
-        .catch((error: unknown) => {
-          res.writeHead(500, { 'content-type': 'text/plain' });
-          res.end(error instanceof Error ? error.message : 'error');
-        });
-    });
-    // Loopback only: this serves a personal vault and has no auth.
-    server.on('error', reject);
-    // The bound port is read back rather than echoed: port 0 asks the OS for a
-    // free one, which is what a packaged app must do — 4321 belongs to whoever
-    // took it first, and a desktop app cannot ask its reader to pick another.
-    server.listen(port, '127.0.0.1', () => {
-      const bound = server.address();
-      resolve(
-        `http://127.0.0.1:${typeof bound === 'object' && bound !== null ? bound.port : port}`,
-      );
-    });
-  });

@@ -1,15 +1,15 @@
 import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { viteSingleFile } from 'vite-plugin-singlefile';
 
-// One self-contained HTML file: the CLI embeds it as a string, so the npm
-// package stays a handful of JS files with no asset paths to resolve.
+// A plain asset directory. The Electron app serves it through its own
+// `memex://` protocol handler, so there is no bundle for a page to travel
+// inside any more.
 const API_ORIGIN = `http://127.0.0.1:${process.env.MEMEX_API_PORT ?? 4321}`;
 
 export default defineConfig({
-  plugins: [react(), tailwind(), viteSingleFile()],
-  build: { outDir: 'dist', emptyOutDir: true, assetsInlineLimit: 100_000_000 },
+  plugins: [react(), tailwind()],
+  build: { outDir: 'dist', emptyOutDir: true },
   // Dev only: the page reloads itself while the API keeps its own process, so
   // the proxy is what lets them share an origin. MEMEX_API_PORT follows
   // whatever port scripts/dev-ui.mjs handed the CLI.

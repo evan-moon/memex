@@ -8,8 +8,10 @@ Evan's second brain — semantic search over personal notes, powered by SQLite +
 
 ```
 apps/
-├── cli/    # memex CLI — the safety net (see surface policy below)
-└── mcp/    # MCP server — exposes memex tools to Claude
+├── cli/     # memex CLI — the safety net (see surface policy below)
+├── desktop/ # The Electron app — the only way a person reaches the screen
+├── mcp/     # MCP server — exposes memex tools to Claude
+└── ui/      # The React screens, served by the app's own `memex://` handler
 packages/
 ├── core/   # Note service shared by cli/mcp (save/edit/search/delete)
 ├── db/     # SQLite client, schema, repository (drizzle + sqlite-vec)
@@ -22,7 +24,18 @@ DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
 ## Working on the UI
 
-`yarn dev:ui` runs the page and the API as two processes against your real vault: Vite hot-swaps a component without losing where you were, and `tsx watch` restarts the API when `services/ui` changes. Open the Vite URL (5173), not 4321 — 4321 serves the page that was built into `apps/cli/src/services/ui/page.ts`, so it only changes when you run `yarn build`. Pass `--port` to point the pair at a different API port, and set `MEMEX_POLL=1` where filesystem events do not arrive (containers, network volumes, some sandboxes).
+`yarn desktop` swaps the native module to Electron's ABI, builds, and runs the app against your
+real vault. There is no dev server and no HMR: a UI change means running it again. Swap back with
+`yarn native:node` before running the tests, or they die with `ERR_DLOPEN_FAILED`.
+
+There is no browser path and no port. The window loads `memex://app/`, and
+`apps/desktop/src/serve.ts` answers every request — `/api/*` by handing it to `route()` unchanged,
+everything else by reading `dist/renderer` off disk, with any path that is not a file falling back
+to the page so a deep link survives a reload. `serve()` takes no Electron import, so it is tested
+directly in `serve.test.ts` rather than through a window.
+
+Neither a protocol handler nor an IPC invoke is told that the page stopped listening, so stopping
+a turn is a request of its own (`/api/chat/cancel`) rather than a dropped connection.
 
 Keep pure helpers out of files that export components. React Fast Refresh gives up on a module that mixes them and invalidates everything downstream, which costs you the state you were trying to keep. That is why `time.ts` and `drafts.ts` sit beside `bits.tsx` and `editing.tsx`.
 
@@ -56,7 +69,12 @@ before. Existing commands stay in these groups (mirrored in `memex --help`):
 - **Verify** (inspect what landed in the DB; `tags tidy` is the one write, and it proposes before it applies): `search`, `list`, `show`, `related`, `tags` (+ `tags tidy`)
 - **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
 - **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`, `stats flashback`), `schedule`
-- **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, and in a finite daily session that empties. Never as a standing backlog counter. The same screen is where an app gets connected to memex (`/connect`), because the non-developer cannot type `memex mcp install`
+
+**Read** is no longer a CLI group. The one screen is the Electron app: browse by topic and see what
+a later note corrected, fix what was remembered wrong by saying it (`/chat`), and connect an app to
+memex (`/connect`), because the non-developer cannot type `memex mcp install`. Signals appear there
+as annotations in context, and in a finite daily session that empties — never as a standing backlog
+counter.
 
 Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`).
 

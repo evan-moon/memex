@@ -39,6 +39,10 @@ const call = (path: string, payload: unknown) =>
     body: JSON.parse(String(reply.body)),
   }));
 
+// Every turn carries the name the page gave it, which is also how it is stopped.
+const say = (message: string, path = '/api/chat', operationId = 'turn-1') =>
+  call(path, { message, operationId });
+
 const setValue = (value: string) =>
   setRegister(client, {
     subject: 'opula',
@@ -81,7 +85,7 @@ describe('a turn through the API', () => {
   it('writes and says so when the value was already on screen', async () => {
     setValue('14일');
 
-    const { body } = await call('/api/chat?subject=opula', { message: '30일이야' });
+    const { body } = await say('30일이야', '/api/chat?subject=opula');
 
     expect(body).toMatchObject({
       kind: 'done',
@@ -93,17 +97,49 @@ describe('a turn through the API', () => {
   it('asks first when the model picked the subject, and writes nothing yet', async () => {
     setValue('14일');
 
-    const { body } = await call('/api/chat', { message: 'opula 30일이야' });
+    const { body } = await say('opula 30일이야');
 
     expect(body.kind).toBe('confirm');
     expect(body.preview).toMatchObject({ from: ['14일'], to: '30일' });
     expect(valueNow()).toEqual(['14일']);
   });
 
-  it('refuses a message with nothing in it', async () => {
-    const { status } = await call('/api/chat', { message: '   ' });
+  it('refuses a turn with no name, because a nameless turn cannot be stopped', async () => {
+    const { status } = await call('/api/chat', { message: '30일이야' });
 
     expect(status).toBe(400);
+  });
+
+  it('refuses a message with nothing in it', async () => {
+    const { status } = await say('   ');
+
+    expect(status).toBe(400);
+  });
+});
+
+describe('stopping a turn', () => {
+  // Neither transport tells the handler that the page stopped listening, so the
+  // stop is a request of its own and the stopped turn answers the ordinary way.
+  const waiting: LlmProvider = ({ signal }) =>
+    new Promise((resolve) => {
+      signal?.addEventListener('abort', () => resolve({ error: 'Stopped', code: 'cancelled' }));
+    });
+
+  it('stops the turn the page named, and says that is what happened', async () => {
+    host = deps(waiting);
+    const turn = say('30일이야', '/api/chat', 'turn-abc');
+
+    await new Promise((r) => setTimeout(r, 20));
+    const { body: stop } = await call('/api/chat/cancel', { operationId: 'turn-abc' });
+
+    expect(stop).toEqual({ stopped: true });
+    expect((await turn).body).toMatchObject({ kind: 'failed', failure: 'cancelled' });
+  });
+
+  it('says nothing was stopped when the turn had already answered', async () => {
+    const { body } = await call('/api/chat/cancel', { operationId: 'never-ran' });
+
+    expect(body).toEqual({ stopped: false });
   });
 });
 
@@ -113,7 +149,7 @@ describe('pressing the button', () => {
   // to change it.
   it('applies the plan the ticket stands for', async () => {
     setValue('14일');
-    const { body: shown } = await call('/api/chat', { message: 'opula 30일이야' });
+    const { body: shown } = await say('opula 30일이야');
 
     const { body: applied } = await call('/api/chat/apply', { ticket: shown.ticket });
 
@@ -130,7 +166,7 @@ describe('pressing the button', () => {
 
   it('refuses the same ticket twice, so a double press writes once', async () => {
     setValue('14일');
-    const { body: shown } = await call('/api/chat', { message: 'opula 30일이야' });
+    const { body: shown } = await say('opula 30일이야');
 
     await call('/api/chat/apply', { ticket: shown.ticket });
     const { status } = await call('/api/chat/apply', { ticket: shown.ticket });
