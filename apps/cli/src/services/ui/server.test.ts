@@ -179,7 +179,7 @@ describe('declared sources', () => {
     setNoteEvidence(client, plan.id, [source.id]);
 
     const fix = addNote('[Amendment] what happened', 'past');
-    linkAmendment(client, fix.id, source.id);
+    linkAmendment(client, fix.id, source.id, 'corrects');
 
     const note = await detail(plan.id);
     expect(note.stale.newer).toMatchObject([{ id: fix.id }]);

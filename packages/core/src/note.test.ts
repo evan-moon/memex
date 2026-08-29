@@ -475,14 +475,43 @@ describe('saveNote — amendments', () => {
     rmSync(vaultDir, { recursive: true, force: true });
   });
 
-  const save = (title: string, amends?: number) =>
+  const save = (title: string, amends?: number, amendKind?: 'corrects' | 'continues') =>
     saveNote(client, stubEmbedder, vaultDir, {
       title,
       content: 'body',
       source: 'manual',
       layer: 'past',
       amends,
+      amendKind,
     });
+
+  const edgeBetween = (from: number, to: number) =>
+    (
+      client.sqlite
+        .prepare('SELECT source FROM note_links WHERE source_id = ? AND target_id = ?')
+        .get(from, to) as { source: string } | undefined
+    )?.source;
+
+  // A caller that does not say gets the weaker of the two claims. Calling a note
+  // wrong because nobody said otherwise is the failure the split exists to end:
+  // a count of 74 pairs found 58% were continuations shown as corrections.
+  it('continues by default rather than corrects', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const later = await save('more about it', original.note.id);
+    if (isSaveRejection(later)) throw new Error('unexpected rejection');
+
+    expect(edgeBetween(later.note.id, original.note.id)).toBe('continues');
+  });
+
+  it('writes a correction when the caller says it is one', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const fix = await save('what it actually was', original.note.id, 'corrects');
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(edgeBetween(fix.note.id, original.note.id)).toBe('corrects');
+  });
 
   it('links the amendment to what it corrects', async () => {
     const original = await save('original');

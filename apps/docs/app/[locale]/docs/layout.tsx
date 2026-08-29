@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { LocaleProvider } from '@/app/_components/LocaleContext';
 import { isLocale, type Locale } from '@/app/_components/locale';
-import DocsSidebar from './_sidebar';
 import DocsMobileControls from './_mobile-controls';
+import DocsSidebar from './_sidebar';
 
 export default async function LocaleDocsLayout({
   children,

@@ -1,7 +1,7 @@
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
 import { listNotes } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 export const registerListNotes = (server: McpServer, client: MemexClient) => {
   server.tool(

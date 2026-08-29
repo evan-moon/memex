@@ -1,5 +1,6 @@
 export type NoteStatus =
   | { kind: 'amended'; by: { id: number; title: string } }
+  | { kind: 'continued'; by: { id: number; title: string } }
   | { kind: 'piled-up'; count: number }
   | { kind: 'recent' };
 

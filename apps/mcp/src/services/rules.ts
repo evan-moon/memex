@@ -15,7 +15,8 @@ const dropNotice = (count: number) =>
 // Only what a person approved is read back. A rule the agent wrote is stored
 // but waits, because injecting it would close the loop between what the agent
 // writes and what the next agent is told.
-const APPROVED = "SELECT title, content FROM notes WHERE layer = 'rule' AND rule_status = 'canonical' ORDER BY id ASC";
+const APPROVED =
+  "SELECT title, content FROM notes WHERE layer = 'rule' AND rule_status = 'canonical' ORDER BY id ASC";
 
 // The six notes that are actually behaviour guidance come to 9,761 characters in
 // this vault, so a budget under that silently drops a real rule no matter how the

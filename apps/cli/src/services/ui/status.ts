@@ -2,28 +2,41 @@ import { listSignals, type MemexClient } from '@memex/db';
 
 export type NoteStatus =
   | { kind: 'amended'; by: { id: number; title: string } }
+  | { kind: 'continued'; by: { id: number; title: string } }
   | { kind: 'piled-up'; count: number }
   | { kind: 'recent' };
 
 // A note is out of date for one of two reasons the vault already records: a
 // later note corrected it, or it claims to be a current plan while newer
 // records piled up behind it.
+//
+// A later note that only continues this one is neither. It used to be counted as
+// a correction because both were the same edge, which is how 37 notes came to be
+// labelled "no longer true" while still being true. Edges written before the
+// split say nothing about which they are, so they are read as the weaker claim.
 export const amendedStatuses = (client: MemexClient, ids: number[]): Map<number, NoteStatus> => {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(', ');
   const rows = client.sqlite
     .prepare(
-      `SELECT l.target_id AS id, n.id AS fixId, n.title AS fixTitle,
+      `SELECT l.target_id AS id, n.id AS fixId, n.title AS fixTitle, l.source AS edge,
               COALESCE(n.authored_at, n.created_at) AS at
        FROM note_links l JOIN notes n ON n.id = l.source_id
-       WHERE l.source = 'amends' AND l.target_id IN (${placeholders})
+       WHERE l.source IN ('amends', 'corrects', 'continues')
+         AND l.target_id IN (${placeholders})
        ORDER BY at`,
     )
-    .all(...ids) as { id: number; fixId: number; fixTitle: string }[];
-  return rows.reduce(
-    (acc, r) => acc.set(r.id, { kind: 'amended', by: { id: r.fixId, title: r.fixTitle } }),
-    new Map<number, NoteStatus>(),
-  );
+    .all(...ids) as { id: number; fixId: number; fixTitle: string; edge: string }[];
+  return rows.reduce((acc, r) => {
+    const by = { id: r.fixId, title: r.fixTitle };
+    // A correction wins over a continuation: once something here is wrong, that
+    // is the thing a reader has to know first.
+    if (r.edge !== 'corrects' && acc.get(r.id)?.kind === 'amended') return acc;
+    return acc.set(
+      r.id,
+      r.edge === 'corrects' ? { kind: 'amended', by } : { kind: 'continued', by },
+    );
+  }, new Map<number, NoteStatus>());
 };
 
 export const piledUpStatuses = (client: MemexClient): Map<number, NoteStatus> =>

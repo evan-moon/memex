@@ -246,7 +246,7 @@ export const noteDetail = (
       .prepare(
         `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt
          FROM note_links l JOIN notes n ON n.id = l.target_id
-         WHERE l.source_id = ? AND l.source = 'amends'`,
+         WHERE l.source_id = ? AND l.source IN ('amends', 'corrects', 'continues')`,
       )
       .all(id) as RawNote[]
   ).map(toRef);

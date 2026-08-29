@@ -18,9 +18,9 @@ import {
   type NoteSource,
   parseAuthoredAt,
   parseTags,
+  proactiveSignalFor,
   type RetrievalSurface,
   RRF_K,
-  proactiveSignalFor,
   type SearchResult,
   type Signal,
   type SimilarNote,
@@ -145,6 +145,7 @@ export const saveNote = async (
     tags?: string[];
     actor?: WriteActor;
     amends?: number;
+    amendKind?: 'corrects' | 'continues';
   },
 ): Promise<
   | {
@@ -185,7 +186,7 @@ export const saveNote = async (
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const { actor: _actor, amends: _amends, ...noteParams } = params;
+  const { actor: _actor, amends: _amends, amendKind: _amendKind, ...noteParams } = params;
   const note = insertNote(client, {
     ...noteParams,
     filePath,
@@ -204,7 +205,9 @@ export const saveNote = async (
   syncLinks(client, note.id, params.content);
 
   const amended = params.amends === undefined ? undefined : getNote(client, params.amends);
-  if (amended) linkAmendment(client, note.id, amended.id);
+  // Default `continues`, not `corrects`: the safe half of the claim. Saying a
+  // note is wrong when nobody said so is the failure this split exists to end.
+  if (amended) linkAmendment(client, note.id, amended.id, params.amendKind ?? 'continues');
 
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);

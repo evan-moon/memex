@@ -41,7 +41,7 @@ describe('statusesFor', () => {
   it('names the note that corrected this one', () => {
     const plan = addNote('plan', 'state');
     const fix = addNote('[Amendment] plan');
-    linkAmendment(client, fix.id, plan.id);
+    linkAmendment(client, fix.id, plan.id, 'corrects');
 
     expect(statusesFor(client, [plan.id, fix.id]).get(plan.id)).toEqual({
       kind: 'amended',
@@ -64,7 +64,7 @@ describe('statusesFor', () => {
   it('prefers a correction over a pile, since the pile is already answered', () => {
     const plan = addNote('plan', 'state');
     const fix = addNote('[Amendment] plan');
-    linkAmendment(client, fix.id, plan.id);
+    linkAmendment(client, fix.id, plan.id, 'corrects');
     upsertSignal(client, {
       type: 'stale_state',
       evidenceIds: [plan.id, fix.id],
@@ -77,5 +77,52 @@ describe('statusesFor', () => {
   it('says nothing about a note that still holds', () => {
     const note = addNote('fine', 'state');
     expect(statusesFor(client, [note.id]).has(note.id)).toBe(false);
+  });
+});
+
+describe('what a later note did to an earlier one', () => {
+  // 74 pairs were counted and 58% of them continued the earlier note rather than
+  // correcting it. Both were the same edge, so 37 notes were shown as "no longer
+  // true" while still being true.
+  it('does not call a continuation a correction', () => {
+    const older = addNote('what was recorded');
+    const newer = addNote('more about it');
+    linkAmendment(client, newer.id, older.id, 'continues');
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toEqual({
+      kind: 'continued',
+      by: { id: newer.id, title: 'more about it' },
+    });
+  });
+
+  it('still says so when a note really was corrected', () => {
+    const older = addNote('what was recorded');
+    const newer = addNote('what it actually was');
+    linkAmendment(client, newer.id, older.id, 'corrects');
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'amended' });
+  });
+
+  // Edges written before the split state nothing. Reading them as corrections is
+  // what produced the false labels; reading them as the weaker claim is the only
+  // thing that is true of all of them.
+  it('reads an edge that never said which it was as the weaker claim', () => {
+    const older = addNote('what was recorded');
+    const newer = addNote('something later');
+    client.sqlite
+      .prepare("INSERT INTO note_links(source_id, target_id, source) VALUES (?, ?, 'amends')")
+      .run(newer.id, older.id);
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'continued' });
+  });
+
+  it('leads with the correction when a note was both continued and corrected', () => {
+    const older = addNote('what was recorded');
+    const carried = addNote('more about it');
+    const fixed = addNote('what it actually was');
+    linkAmendment(client, carried.id, older.id, 'continues');
+    linkAmendment(client, fixed.id, older.id, 'corrects');
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'amended' });
   });
 });

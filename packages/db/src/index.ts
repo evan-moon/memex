@@ -114,6 +114,7 @@ export {
   setRegister,
 } from './register.ts';
 export type {
+  AmendKind,
   EmbeddedChunk,
   Flashback,
   FlashbackOptions,

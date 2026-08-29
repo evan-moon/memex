@@ -1,6 +1,6 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemexClient } from '@memex/db';
 import { listAllFolders } from '@memex/db';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 export const registerListFolders = (server: McpServer, client: MemexClient) => {
   server.tool(

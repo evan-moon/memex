@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import DocsSidebar from './_sidebar';
 
 export default function DocsMobileControls() {

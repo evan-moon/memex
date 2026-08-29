@@ -53,7 +53,7 @@ describe('buildTopic', () => {
     const plan = addNote('plan', ['t'], base, 'state');
     const stillGood = addNote('other plan', ['t'], base + DAY, 'state');
     const fix = addNote('[Amendment] plan', ['t'], base + 2 * DAY);
-    linkAmendment(client, fix.id, plan.id);
+    linkAmendment(client, fix.id, plan.id, 'corrects');
 
     const topic = buildTopic(client, 't', base + 3 * DAY);
     expect(topic?.current.map((n) => n.id)).toEqual([stillGood.id]);
@@ -132,7 +132,8 @@ describe('buildTopics', () => {
     for (let i = 0; i < 20; i += 1) addNote(`clean ${i}`, ['clean'], base + i * DAY);
     for (let i = 0; i < 20; i += 1) {
       const n = addNote(`messy ${i}`, ['messy'], base + i * DAY, 'state');
-      if (i < 3) linkAmendment(client, addNote(`fix ${i}`, ['messy'], base + 30 * DAY).id, n.id);
+      if (i < 3)
+        linkAmendment(client, addNote(`fix ${i}`, ['messy'], base + 30 * DAY).id, n.id, 'corrects');
     }
     expect(buildTopics(client, base + 40 * DAY)[0].tag).toBe('messy');
   });

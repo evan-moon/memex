@@ -110,6 +110,11 @@ Folder convention — **subject first, never note type.** What kind of note it i
 
 Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
 
-Correction convention — a `past` note can never be edited, so corrections are new notes. Always pass `amends: <id>` when saving one: search marks the older note superseded and points at the newest correction. Without it the correction is invisible to what it corrects, and search keeps returning the claim you already fixed.
+Correction convention — a `past` note can never be edited, so corrections are new notes. Pass `amends: <id>` whenever you write about something already recorded, and say which of the two things you are doing with `amends_kind`:
+
+- `corrects` — something in the earlier note is no longer true. Search stops returning it on its own and points at the correction.
+- `continues` (the default) — the earlier note still holds and this carries it forward.
+
+Both used to be one edge. A count of 74 pairs found 58% were continuations, which is how 37 notes came to be labelled "no longer true" while still being true. Choosing `corrects` when you only meant to add more puts that label back.
 
 Link convention — a note's filename is its title, so `[[Exact Note Title]]` is the only form that links. Search first and copy the title verbatim; `[[Title|display text]]` when the sentence needs other wording. Never `[[Title]](#1234)`, `[[1234]]`, `[label](path/note.md)`, or `[[some-memory-key]]` — those render as dead text. Reference an id in prose as plain `#1234`. `save_note`/`update_note` report links that resolve to nothing.

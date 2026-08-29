@@ -56,7 +56,7 @@ describe('detectConflictPairs', () => {
   it('does not reopen a pair the author already reconciled with a correction', () => {
     const older = addNote('rule a', 'rule');
     const newer = addNote('rule b', 'rule');
-    linkAmendment(client, newer.id, older.id);
+    linkAmendment(client, newer.id, older.id, 'corrects');
 
     expect(pairsOf()).toEqual([]);
   });

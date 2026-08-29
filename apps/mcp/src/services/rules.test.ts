@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { insertNote, type MemexClient, openDb } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { insertNote, openDb, type MemexClient } from '@memex/db';
 import { buildRuleInstructions } from './rules.ts';
 
 describe('buildRuleInstructions', () => {
@@ -152,7 +152,7 @@ describe('buildRuleInstructions', () => {
         filePath: join(dbDir, `l${n}.md`),
         source: 'manual',
         layer: 'rule',
-      ruleStatus: 'canonical',
+        ruleStatus: 'canonical',
       });
     }
 
@@ -169,7 +169,7 @@ describe('buildRuleInstructions', () => {
         filePath: join(dbDir, `r${n}.md`),
         source: 'manual',
         layer: 'rule',
-      ruleStatus: 'canonical',
+        ruleStatus: 'canonical',
       });
     }
 

@@ -69,7 +69,14 @@ The response may include "Flashback" lines pointing to older notes from a differ
         .int()
         .optional()
         .describe(
-          'Id of a note this one corrects or supersedes. Always pass it when saving an [Amendment] — it is what makes search warn that the older note was corrected, instead of returning the superseded claim on its own.',
+          'Id of an earlier note this one is about. Pass it whenever you are writing about something already recorded, so the two are read together instead of separately.',
+        ),
+      amends_kind: z
+        .enum(['corrects', 'continues'])
+        .optional()
+        .default('continues')
+        .describe(
+          'What this note does to the one in `amends`. "corrects" means the earlier note is now wrong and search should stop returning it on its own. "continues" means it still holds and this adds to it. Choose "corrects" only when something in the earlier note is no longer true — a later note that carries the story forward is "continues".',
         ),
       layer: z
         .enum(['past', 'state', 'rule'])
@@ -77,7 +84,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
           'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
         ),
     },
-    async ({ title, content, folder, tags, source, layer, amends }) => {
+    async ({ title, content, folder, tags, source, layer, amends, amends_kind }) => {
       const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
@@ -86,6 +93,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
         source: source as NoteSource,
         layer,
         amends,
+        amendKind: amends_kind,
       });
       if (isSaveRejection(result)) {
         return { content: [{ type: 'text', text: result.message }], isError: true };

@@ -35,8 +35,8 @@ describe('buildThread', () => {
     const first = addNote('a plan', DAY);
     const second = addNote('[Amendment] a better plan', 2 * DAY);
     const third = addNote('[Amendment 2] the plan that stuck', 3 * DAY);
-    linkAmendment(client, second.id, first.id);
-    linkAmendment(client, third.id, second.id);
+    linkAmendment(client, second.id, first.id, 'corrects');
+    linkAmendment(client, third.id, second.id, 'corrects');
 
     const fromTheEnd = buildThread(client, third.id);
 
@@ -48,7 +48,7 @@ describe('buildThread', () => {
   it('drops the amendment prefix the tree already says', () => {
     const first = addNote('a plan', DAY);
     const second = addNote('[Amendment 2] a better plan', 2 * DAY);
-    linkAmendment(client, second.id, first.id);
+    linkAmendment(client, second.id, first.id, 'corrects');
 
     expect(buildThread(client, first.id)?.root.children[0].title).toBe('a better plan');
   });
@@ -57,8 +57,8 @@ describe('buildThread', () => {
     const first = addNote('a plan', DAY);
     const left = addNote('one way out', 2 * DAY);
     const right = addNote('another way out', 3 * DAY);
-    linkAmendment(client, left.id, first.id);
-    linkAmendment(client, right.id, first.id);
+    linkAmendment(client, left.id, first.id, 'corrects');
+    linkAmendment(client, right.id, first.id, 'corrects');
 
     const thread = buildThread(client, first.id);
 
@@ -76,11 +76,11 @@ describe('listThreads', () => {
   it('puts the thread that moved most recently first', () => {
     const oldRoot = addNote('settled long ago', DAY);
     const oldTip = addNote('[Amendment] settled', 2 * DAY);
-    linkAmendment(client, oldTip.id, oldRoot.id);
+    linkAmendment(client, oldTip.id, oldRoot.id, 'corrects');
 
     const liveRoot = addNote('still being argued', 3 * DAY);
     const liveTip = addNote('[Amendment] argued again', 9 * DAY);
-    linkAmendment(client, liveTip.id, liveRoot.id);
+    linkAmendment(client, liveTip.id, liveRoot.id, 'corrects');
 
     expect(listThreads(client).map((t) => t.rootId)).toEqual([liveRoot.id, oldRoot.id]);
   });
@@ -89,8 +89,8 @@ describe('listThreads', () => {
     const first = addNote('a plan', DAY);
     const second = addNote('[Amendment] a better plan', 2 * DAY);
     const third = addNote('[Amendment 2] the plan that stuck', 3 * DAY);
-    linkAmendment(client, second.id, first.id);
-    linkAmendment(client, third.id, second.id);
+    linkAmendment(client, second.id, first.id, 'corrects');
+    linkAmendment(client, third.id, second.id, 'corrects');
 
     expect(listThreads(client)).toHaveLength(1);
     expect(listThreads(client)[0].rootId).toBe(first.id);
@@ -101,7 +101,7 @@ describe('stepTitle', () => {
   it('drops the date the row shows in its own column', () => {
     const first = addNote('a plan', DAY);
     const second = addNote('[Amendment] a better plan (2026-07-06)', 2 * DAY);
-    linkAmendment(client, second.id, first.id);
+    linkAmendment(client, second.id, first.id, 'corrects');
 
     expect(buildThread(client, first.id)?.root.children[0].title).toBe('a better plan');
   });
@@ -109,7 +109,7 @@ describe('stepTitle', () => {
   it('keeps a title that is nothing but its date', () => {
     const first = addNote('a plan', DAY);
     const second = addNote('(2026-07-06)', 2 * DAY);
-    linkAmendment(client, second.id, first.id);
+    linkAmendment(client, second.id, first.id, 'corrects');
 
     expect(buildThread(client, first.id)?.root.children[0].title).toBe('(2026-07-06)');
   });

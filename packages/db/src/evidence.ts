@@ -115,7 +115,7 @@ export const evidenceFor = (client: MemexClient, noteId: number): EvidenceEdge[]
     const amendment = client.sqlite
       .prepare(
         `SELECT n.id, n.title FROM note_links l JOIN notes n ON n.id = l.source_id
-         WHERE l.source = 'amends' AND l.target_id = ?
+         WHERE l.source IN ('amends', 'corrects', 'continues') AND l.target_id = ?
          ORDER BY COALESCE(n.authored_at, n.created_at) DESC LIMIT 1`,
       )
       .get(evidence.sourceId) as { id: number; title: string } | undefined;

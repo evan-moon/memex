@@ -516,19 +516,38 @@ export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
     )
     .all(targetId) as Note[];
 
+// Two things a later note can do to an earlier one, and they are not the same
+// claim. `corrects` says the earlier note is wrong now; `continues` says it is
+// still right and there is more. They were one edge until a count of 74 pairs
+// found 58% of them were continuations being shown as corrections.
+//
+// `amends` is what those 74 still are: linked, kind not stated. Nothing guesses
+// which — a guess at 71% precision writes the same lie more confidently.
+export type AmendKind = 'corrects' | 'continues' | 'unknown';
+
+const EDGE: Record<AmendKind, string> = {
+  corrects: 'corrects',
+  continues: 'continues',
+  unknown: 'amends',
+};
+
 export const linkAmendment = (
   client: MemexClient,
   amendmentId: number,
   amendedId: number,
+  kind: Exclude<AmendKind, 'unknown'>,
 ): void => {
   client.sqlite
-    .prepare(
-      "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'amends')",
-    )
-    .run(amendmentId, amendedId);
+    .prepare('INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, ?)')
+    .run(amendmentId, amendedId, EDGE[kind]);
 };
 
-export type Amendment = { id: number; title: string; authoredAt: number };
+export const kindOfEdge = (source: string): AmendKind =>
+  source === 'corrects' ? 'corrects' : source === 'continues' ? 'continues' : 'unknown';
+
+export const AMEND_EDGES = ["'amends'", "'corrects'", "'continues'"].join(', ');
+
+export type Amendment = { id: number; title: string; authoredAt: number; kind: AmendKind };
 
 // Amendments chain: [Amendment 2] usually corrects [Amendment 1], not the
 // original, so a note is stale if anything downstream of it corrected it —
@@ -538,17 +557,20 @@ const AMENDMENT_CHAIN = `
   WITH RECURSIVE chain(origin, id) AS (
     SELECT l.target_id, l.source_id
     FROM note_links l
-    WHERE l.source = 'amends' AND l.target_id IN (SELECT value FROM json_each(?))
+    WHERE l.source IN ('amends', 'corrects', 'continues')
+      AND l.target_id IN (SELECT value FROM json_each(?))
     UNION
     SELECT c.origin, l.source_id
     FROM note_links l
     JOIN chain c ON c.id = l.target_id
-    WHERE l.source = 'amends'
+    WHERE l.source IN ('amends', 'corrects', 'continues')
   )
-  SELECT c.origin AS amendedId, n.id, n.title,
+  SELECT c.origin AS amendedId, n.id, n.title, l.source AS edge,
          COALESCE(n.authored_at, n.created_at) AS authoredAt
   FROM chain c
   JOIN notes n ON n.id = c.id
+  JOIN note_links l ON l.source_id = c.id
+   AND l.source IN ('amends', 'corrects', 'continues')
   ORDER BY authoredAt, n.id`;
 
 export const getAmendmentsFor = (
@@ -556,11 +578,15 @@ export const getAmendmentsFor = (
   amendedIds: number[],
 ): Map<number, Amendment[]> => {
   if (amendedIds.length === 0) return new Map();
-  const rows = client.sqlite
-    .prepare(AMENDMENT_CHAIN)
-    .all(JSON.stringify(amendedIds)) as (Amendment & { amendedId: number })[];
-  return rows.reduce((acc, { amendedId, ...amendment }) => {
-    acc.set(amendedId, [...(acc.get(amendedId) ?? []), amendment]);
+  const rows = client.sqlite.prepare(AMENDMENT_CHAIN).all(JSON.stringify(amendedIds)) as (Omit<
+    Amendment,
+    'kind'
+  > & {
+    amendedId: number;
+    edge: string;
+  })[];
+  return rows.reduce((acc, { amendedId, edge, ...amendment }) => {
+    acc.set(amendedId, [...(acc.get(amendedId) ?? []), { ...amendment, kind: kindOfEdge(edge) }]);
     return acc;
   }, new Map<number, Amendment[]>());
 };

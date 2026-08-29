@@ -45,7 +45,9 @@ const notesById = (client: MemexClient) =>
 
 const amendEdges = (client: MemexClient) => {
   const rows = client.sqlite
-    .prepare("SELECT source_id, target_id FROM note_links WHERE source = 'amends'")
+    .prepare(
+      `SELECT source_id, target_id FROM note_links WHERE source IN ('amends', 'corrects', 'continues')`,
+    )
     .all() as { source_id: number; target_id: number }[];
 
   return rows.reduce(

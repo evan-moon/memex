@@ -362,7 +362,9 @@ const reconciledPairs = (client: MemexClient): Set<string> =>
   new Set(
     (
       client.sqlite
-        .prepare("SELECT source_id, target_id FROM note_links WHERE source = 'amends'")
+        .prepare(
+          `SELECT source_id, target_id FROM note_links WHERE source IN ('amends', 'corrects', 'continues')`,
+        )
         .all() as { source_id: number; target_id: number }[]
     ).map((row) => pairKey(row.source_id, row.target_id)),
   );

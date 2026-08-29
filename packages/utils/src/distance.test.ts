@@ -60,9 +60,7 @@ describe('findNearest', () => {
   it('never rejects a pair the exact measure would accept', () => {
     const alphabet = [...'ab근거x '];
     const words = alphabet.flatMap((a) =>
-      alphabet.flatMap((b) =>
-        alphabet.flatMap((c) => alphabet.map((d) => `${a}${b}${c}${d}단어`)),
-      ),
+      alphabet.flatMap((b) => alphabet.flatMap((c) => alphabet.map((d) => `${a}${b}${c}${d}단어`))),
     );
 
     for (const max of [1, 2]) {

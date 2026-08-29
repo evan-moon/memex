@@ -1,8 +1,8 @@
 import type { MemexClient } from '@memex/db';
 import { getAmendments, getBacklinks, getNote } from '@memex/db';
-import { ownWorkHint, stamp } from './search-notes.ts';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { ownWorkHint, stamp } from './search-notes.ts';
 
 export const registerGetNote = (server: McpServer, client: MemexClient) => {
   server.tool(

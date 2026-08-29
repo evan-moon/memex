@@ -1,12 +1,12 @@
-import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type EvaluateOptions, evaluate } from '@mdx-js/mdx';
 import matter from 'gray-matter';
-import { evaluate, type EvaluateOptions } from '@mdx-js/mdx';
-import remarkGfm from 'remark-gfm';
-import * as runtime from 'react/jsx-runtime';
 import type { MDXComponents } from 'mdx/types';
 import type { ReactElement } from 'react';
+import * as runtime from 'react/jsx-runtime';
+import remarkGfm from 'remark-gfm';
 import type { Locale } from '@/app/_components/locale';
 
 const CONTENT_ROOT = join(process.cwd(), 'content', 'docs');

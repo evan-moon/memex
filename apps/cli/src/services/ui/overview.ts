@@ -58,7 +58,9 @@ export const buildOverview = (client: MemexClient, now = Date.now()): Overview =
     chunks: countChunks(client),
     links: {
       wiki: links.find((l) => l.source === 'wiki')?.c ?? 0,
-      amends: links.find((l) => l.source === 'amends')?.c ?? 0,
+      amends: links
+        .filter((l) => l.source === 'amends' || l.source === 'corrects' || l.source === 'continues')
+        .reduce((n, l) => n + l.c, 0),
     },
     topics: topics.length,
     changed: topics.reduce((acc, t) => acc + t.changedCount, 0),

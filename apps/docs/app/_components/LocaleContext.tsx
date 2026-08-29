@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 import { DEFAULT_LOCALE, type Locale } from './locale';
 
 const LocaleContext = createContext<Locale>(DEFAULT_LOCALE);

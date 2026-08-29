@@ -36,10 +36,12 @@ const en = {
   },
   status: (status: NoteStatus) =>
     status.kind === 'amended'
-      ? `Superseded by #${status.by.id} “${status.by.title}”`
-      : status.kind === 'piled-up'
-        ? `${status.count} newer notes have piled up since — check whether this still holds`
-        : 'Recent record',
+      ? `Corrected by #${status.by.id} “${status.by.title}”`
+      : status.kind === 'continued'
+        ? `Continued in #${status.by.id} “${status.by.title}”`
+        : status.kind === 'piled-up'
+          ? `${status.count} newer notes have piled up since — check whether this still holds`
+          : 'Recent record',
   error: (failure: ApiFailure) => {
     const messages: Record<string, string> = {
       'not-found': 'That note does not exist.',
@@ -359,6 +361,7 @@ const en = {
     sourceMissing: 'The index has this note, but nothing sits at that path.',
     agent: 'agent',
     correctedBy: (n: number) => `⚠ Corrected by ${n} later ${n === 1 ? 'note' : 'notes'}`,
+    continuedBy: (n: number) => `Continued in ${n} later ${n === 1 ? 'note' : 'notes'}`,
     newest: (title: string) => `Newest: ${title}`,
     corrects: 'What this note corrects',
     emptyBody: 'This note has no body — only a title and tags.',
@@ -540,10 +543,12 @@ const ko: typeof en = {
   },
   status: (status) =>
     status.kind === 'amended'
-      ? `#${status.by.id} "${status.by.title}" 에서 이야기가 바뀌었어요`
-      : status.kind === 'piled-up'
-        ? `이 뒤로 관련 기록이 ${status.count}개 쌓였어요 — 아직 맞는지 확인해 보세요`
-        : '최근 기록',
+      ? `#${status.by.id} 「${status.by.title}」에서 바로잡혔어요`
+      : status.kind === 'continued'
+        ? `#${status.by.id} 「${status.by.title}」로 이어져요`
+        : status.kind === 'piled-up'
+          ? `이 뒤로 관련 기록이 ${status.count}개 쌓였어요 — 아직 맞는지 확인해 보세요`
+          : '최근 기록',
   error: (failure) => {
     const messages: Record<string, string> = {
       'not-found': '없는 노트예요.',
@@ -851,7 +856,8 @@ const ko: typeof en = {
     hideSource: '원본 닫기',
     sourceMissing: '색인에는 있는데 그 경로에 파일이 없어요.',
     agent: '에이전트',
-    correctedBy: (n) => `⚠ 이후 ${n}개 노트에서 정정됐어요`,
+    correctedBy: (n) => `⚠ 이후 ${n}개 노트에서 바로잡혔어요`,
+    continuedBy: (n) => `이후 ${n}개 노트로 이어져요`,
     newest: (title) => `최신: ${title}`,
     corrects: '이 노트가 정정하는 것',
     emptyBody: '본문이 없는 노트예요 — 제목과 태그만 있어요.',

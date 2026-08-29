@@ -95,7 +95,7 @@ describe('evidenceStaleness', () => {
     setNoteEvidence(client, plan.id, [source.id]);
 
     const fix = addNote('[Amendment] what happened', 'we moved to sessions');
-    linkAmendment(client, fix.id, source.id);
+    linkAmendment(client, fix.id, source.id, 'corrects');
 
     const staleness = evidenceStaleness(client, plan.id);
     expect(isStale(staleness)).toBe(true);

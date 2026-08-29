@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { isLocale } from '@/app/_components/locale';
 import { mdxComponents } from '@/app/_components/mdx-components';
 import { loadDoc } from '@/lib/mdx';

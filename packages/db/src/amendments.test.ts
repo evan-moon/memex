@@ -40,7 +40,7 @@ describe('amendment edges', () => {
   it('reports the correction on the note it corrects', () => {
     const original = addNote('original');
     const fix = addNote('[Amendment] original');
-    linkAmendment(client, fix.id, original.id);
+    linkAmendment(client, fix.id, original.id, 'corrects');
 
     expect(getAmendments(client, original.id).map((a) => a.id)).toEqual([fix.id]);
   });
@@ -48,7 +48,7 @@ describe('amendment edges', () => {
   it('does not report the corrected note as an amendment of its correction', () => {
     const original = addNote('original');
     const fix = addNote('[Amendment] original');
-    linkAmendment(client, fix.id, original.id);
+    linkAmendment(client, fix.id, original.id, 'corrects');
 
     expect(getAmendments(client, fix.id)).toEqual([]);
   });
@@ -57,8 +57,8 @@ describe('amendment edges', () => {
     const original = addNote('original');
     const first = addNote('[Amendment] original');
     const second = addNote('[Amendment 2] original');
-    linkAmendment(client, second.id, original.id);
-    linkAmendment(client, first.id, original.id);
+    linkAmendment(client, second.id, original.id, 'corrects');
+    linkAmendment(client, first.id, original.id, 'corrects');
 
     expect(getAmendments(client, original.id).map((a) => a.id)).toEqual([first.id, second.id]);
   });
@@ -66,7 +66,7 @@ describe('amendment edges', () => {
   it('survives a content edit that rewrites the wiki links', () => {
     const original = addNote('original');
     const fix = addNote('[Amendment] original', 'links to [[original]]');
-    linkAmendment(client, fix.id, original.id);
+    linkAmendment(client, fix.id, original.id, 'corrects');
     syncLinks(client, fix.id, 'no links at all any more');
 
     expect(getAmendments(client, original.id)).toHaveLength(1);
@@ -76,8 +76,8 @@ describe('amendment edges', () => {
     const original = addNote('original');
     const first = addNote('[Amendment] original');
     const second = addNote('[Amendment 2] original');
-    linkAmendment(client, first.id, original.id);
-    linkAmendment(client, second.id, first.id);
+    linkAmendment(client, first.id, original.id, 'corrects');
+    linkAmendment(client, second.id, first.id, 'corrects');
 
     expect(getAmendments(client, original.id).map((a) => a.id)).toEqual([first.id, second.id]);
   });
@@ -85,8 +85,8 @@ describe('amendment edges', () => {
   it('does not loop forever if two notes amend each other', () => {
     const a = addNote('a');
     const b = addNote('b');
-    linkAmendment(client, a.id, b.id);
-    linkAmendment(client, b.id, a.id);
+    linkAmendment(client, a.id, b.id, 'corrects');
+    linkAmendment(client, b.id, a.id, 'corrects');
 
     expect(
       getAmendments(client, a.id)
@@ -98,7 +98,7 @@ describe('amendment edges', () => {
   it('goes away with the amendment note', () => {
     const original = addNote('original');
     const fix = addNote('[Amendment] original');
-    linkAmendment(client, fix.id, original.id);
+    linkAmendment(client, fix.id, original.id, 'corrects');
     deleteNote(client, fix.id);
 
     expect(getAmendments(client, original.id)).toEqual([]);
@@ -118,8 +118,8 @@ describe('amendment edges', () => {
     addNote('c');
     const fixA = addNote('[Amendment] a');
     const fixB = addNote('[Amendment] b');
-    linkAmendment(client, fixA.id, a.id);
-    linkAmendment(client, fixB.id, b.id);
+    linkAmendment(client, fixA.id, a.id, 'corrects');
+    linkAmendment(client, fixB.id, b.id, 'corrects');
 
     const map = getAmendmentsFor(client, [a.id, b.id]);
     expect(map.get(a.id)?.[0].id).toBe(fixA.id);
