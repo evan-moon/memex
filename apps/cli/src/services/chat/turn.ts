@@ -16,6 +16,7 @@ import type { Embedder } from '@memex/embed';
 import { claudeCode, isLlmFailure, type LlmModel, type LlmProvider } from '@memex/llm';
 import { tagKey } from '@memex/utils';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
+import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
   type Carried,
   type Confirmation,
@@ -57,12 +58,10 @@ export type Candidates = {
   searchable: boolean;
 };
 
-export type TurnError = 'no-claude' | 'llm-failed' | 'unreadable-plan';
-
 export type Turn =
   | { kind: 'plan'; plan: Plan; confirmation: Confirmation; candidates: Candidates }
   | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; candidates: Candidates }
-  | { kind: 'failed'; error: TurnError; detail: string };
+  | { kind: 'failed'; failure: ChatFailure; detail: string };
 
 const snippet = (note: Note, chars = SNIPPET_CHARS) =>
   plainSnippet(bodyOf(note.content, note.title)).slice(0, chars);
@@ -233,27 +232,26 @@ export const planTurn = async (
   deps: ChatDeps,
   message: string,
   carried: Carried | null = null,
+  signal?: AbortSignal,
 ): Promise<Turn> => {
   const candidates = await gatherCandidates(deps, carried, message);
   const answer = await (deps.ask ?? claudeCode)({
     prompt: buildPrompt(message, candidates),
     model: CHAT_MODEL,
+    signal,
   });
 
   if (isLlmFailure(answer)) {
-    // Everything else the CLI can report — signed out, refused, rate limited —
-    // arrives as one string, because that is all the provider keeps. Telling
-    // them apart is what errors.ts will need the provider to start returning.
-    return {
-      kind: 'failed',
-      error: answer.code === 'not-installed' ? 'no-claude' : 'llm-failed',
-      detail: answer.error,
-    };
+    return { kind: 'failed', failure: failureOf(answer), detail: answer.error };
   }
 
   const draft = parsePlanDraft(answer.text);
   if (draft === null) {
-    return { kind: 'failed', error: 'unreadable-plan', detail: answer.text.slice(0, DETAIL_CHARS) };
+    return {
+      kind: 'failed',
+      failure: 'unreadable-plan',
+      detail: answer.text.slice(0, DETAIL_CHARS),
+    };
   }
 
   const plan = resolve(draft, deps, candidates);
@@ -281,12 +279,18 @@ export type Wrote =
       newPredicate: boolean;
       similar: string[];
     }
-  | { kind: 'note'; note: Note; amended: Note | null }
+  | {
+      kind: 'note';
+      note: Note;
+      amended: Note | null;
+      // Set only when the note was saved and the correction did not attach.
+      // saveNote reports a missing amends after writing, so this is the one
+      // shape where something landed and something did not.
+      amendsMissing: number | null;
+    }
   | { kind: 'rule'; note: Note; decision: 'approve' | 'decline' };
 
-export type ApplyRejection = 'register-rejected' | 'save-rejected' | 'target-missing';
-
-export type ApplyResult = { ok: true; wrote: Wrote } | { ok: false; reason: ApplyRejection };
+export type ApplyResult = { ok: true; wrote: Wrote } | { ok: false; reason: ApplyFailure };
 
 const applyRegister = (
   deps: ChatDeps,
@@ -331,6 +335,14 @@ const applyNote = async (
     amends?: number;
   },
 ): Promise<ApplyResult> => {
+  // Checked before saving, not after. saveNote reports an amends id it could
+  // not find only once the note is written, and a correction that corrects
+  // nothing is the shape this must not leave behind — search would go on
+  // returning the claim it was meant to replace.
+  if (params.amends !== undefined && getNote(deps.client, params.amends) === undefined) {
+    return { ok: false, reason: 'target-missing' };
+  }
+
   const saved = await saveNote(deps.client, deps.embedder, deps.vaultPath, {
     ...params,
     source: 'manual',
@@ -338,12 +350,18 @@ const applyNote = async (
   });
 
   if (isSaveRejection(saved)) return { ok: false, reason: 'save-rejected' };
-  // saveNote reports an amends id it could not find rather than refusing, and a
-  // correction that corrects nothing is the one shape this must not leave
-  // behind: search would go on returning the claim it was meant to replace.
-  if (saved.amendsMissing !== undefined) return { ok: false, reason: 'target-missing' };
 
-  return { ok: true, wrote: { kind: 'note', note: saved.note, amended: saved.amended ?? null } };
+  return {
+    ok: true,
+    wrote: {
+      kind: 'note',
+      note: saved.note,
+      amended: saved.amended ?? null,
+      // The target can still go away between the check and the save. Then the
+      // note exists and the link does not, and the receipt has to say both.
+      amendsMissing: saved.amendsMissing ?? null,
+    },
+  };
 };
 
 export const applyPlan = async (deps: ChatDeps, plan: Plan): Promise<ApplyResult> => {

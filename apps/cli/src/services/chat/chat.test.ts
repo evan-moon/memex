@@ -273,14 +273,14 @@ describe('a turn', () => {
 
     expect(await planTurn(deps(missing), 'anything')).toMatchObject({
       kind: 'failed',
-      error: 'no-claude',
+      failure: 'not-installed',
     });
   });
 
   it('says it understood nothing rather than writing half a plan', async () => {
     const turn = await planTurn(deps(answering('I think you mean the trial length?')), 'x');
 
-    expect(turn).toMatchObject({ kind: 'failed', error: 'unreadable-plan' });
+    expect(turn).toMatchObject({ kind: 'failed', failure: 'unreadable-plan' });
   });
 });
 
