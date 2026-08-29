@@ -17,6 +17,13 @@
     "memex-mcp": "./dist/mcp.js",
     "memex-recall": "./dist/recall.js"
   },
+  "exports": {
+    ".": "./dist/index.js",
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "default": "./dist/host.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",

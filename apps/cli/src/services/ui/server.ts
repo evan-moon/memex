@@ -666,5 +666,11 @@ export const startUiServer = (deps: UiDeps, port: number): Promise<string> =>
     });
     // Loopback only: this serves a personal vault and has no auth.
     server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => resolve(`http://127.0.0.1:${port}`));
+    // The bound port is read back rather than echoed: port 0 asks the OS for a
+    // free one, which is what a packaged app must do — 4321 belongs to whoever
+    // took it first, and a desktop app cannot ask its reader to pick another.
+    server.listen(port, '127.0.0.1', () => {
+      const bound = server.address();
+      resolve(`http://127.0.0.1:${typeof bound === 'object' && bound !== null ? bound.port : port}`);
+    });
   });

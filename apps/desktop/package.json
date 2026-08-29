@@ -1,0 +1,21 @@
+{
+  "name": "@memex/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsup",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@evan-moon/memex": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "electron": "^33.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  }
+}

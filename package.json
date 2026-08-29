@@ -15,7 +15,10 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "native:node": "node scripts/native-abi.mjs node",
+    "native:electron": "node scripts/native-abi.mjs electron",
+    "desktop": "yarn native:electron && yarn workspace @memex/desktop build && yarn workspace @memex/desktop start"
   },
   "packageManager": "yarn@4.14.1",
   "devDependencies": {
