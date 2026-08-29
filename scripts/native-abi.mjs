@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
@@ -42,5 +43,12 @@ if (process.platform === 'darwin') {
     join(moduleDir, 'build/Release/better_sqlite3.node'),
   ]);
 }
+
+// @electron/rebuild records the ABI it last built for and skips the work when
+// the record matches. Swapping the binary underneath leaves that record
+// claiming an ABI the file no longer has, so the next `electron-builder` run
+// trusts it, rebuilds nothing, and packages an app that dies on launch.
+// Removing the record is what keeps the two from disagreeing.
+rmSync(join(moduleDir, 'build/Release/.forge-meta'), { force: true });
 
 console.log(`${MODULE} is now built for ${target}`);
