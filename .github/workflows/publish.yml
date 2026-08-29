@@ -7,6 +7,10 @@ on:
 jobs:
   ci:
     name: ubuntu-latest / Node 22
+    # A desktop release is a dmg, not a new CLI. Without this guard, tagging the
+    # app would publish the npm package too — with whatever version happened to
+    # be in apps/cli at the time.
+    if: ${{ !startsWith(github.event.release.tag_name, 'desktop-v') }}
     runs-on: ubuntu-latest
 
     steps:

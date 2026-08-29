@@ -370,7 +370,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron/notarize@npm:2.5.0":
+"@electron/notarize@npm:2.5.0, @electron/notarize@npm:^2.5.0":
   version: 2.5.0
   resolution: "@electron/notarize@npm:2.5.0"
   dependencies:
@@ -1303,6 +1303,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@memex/desktop@workspace:apps/desktop"
   dependencies:
+    "@electron/notarize": "npm:^2.5.0"
     "@evan-moon/memex": "workspace:*"
     "@huggingface/transformers": "npm:^3.5.1"
     "@types/node": "npm:^22"

@@ -17,6 +17,7 @@
     "sqlite-vec": "^0.1.6"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@evan-moon/memex": "workspace:*",
     "@types/node": "^22",
     "electron": "33.4.11",
@@ -50,11 +51,13 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false
     },
     "npmRebuild": true,
     "electronVersion": "33.4.11",
-    "asar": false
+    "asar": false,
+    "afterSign": "scripts/notarize.mjs"
   },
   "description": "memex — a second brain an AI writes and you correct",
   "author": "Evan Moon <bboydart91@gmail.com>"

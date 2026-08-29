@@ -1,0 +1,91 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'desktop-v*.*.*'
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Type check
+        run: yarn typecheck
+
+      - name: Run unit tests
+        run: yarn test
+
+  build:
+    name: Sign and notarize
+    needs: test
+    # macos-14 is arm64, which is what the app is built for. An x64 runner would
+    # produce a dmg nobody asked for and rebuild the native modules for the
+    # wrong architecture.
+    runs-on: macos-14
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build workspaces
+        run: yarn build
+
+      - name: Package
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: yarn electron-builder --mac
+
+      # Gatekeeper is the only judge that matters here: a dmg that builds and
+      # signs but was never notarized installs with a warning nobody should be
+      # asked to click through. Failing the release is better than shipping it.
+      - name: Verify the notarized app
+        working-directory: apps/desktop
+        run: |
+          APP="release/mac-arm64/memex.app"
+          codesign --verify --deep --strict --verbose=1 "$APP"
+          spctl -a -vv "$APP"
+
+      - name: Publish the release
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#desktop-v}"
+          BUILT=$(ls release/*.dmg | head -1)
+          VERSIONED="release/memex-${VERSION}-arm64.dmg"
+          [ "$BUILT" = "$VERSIONED" ] || mv "$BUILT" "$VERSIONED"
+          gh release create "$TAG" \
+            --title "memex desktop ${VERSION}" \
+            --generate-notes \
+            "$VERSIONED"
