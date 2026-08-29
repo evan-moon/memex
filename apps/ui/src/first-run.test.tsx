@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import type { ClaudeCodeState, Overview as OverviewData } from './api.ts';
+import type { ClaudeCodeState, Overview as OverviewData, Topic } from './api.ts';
 import { gateFrom } from './first-run.ts';
 import { dictionaries, setLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
@@ -17,11 +17,13 @@ const emptyVault: OverviewData = {
   staleness: [],
 };
 
+const topics: Topic[] = [];
+
 const render = (data: OverviewData) => {
   setLocale('en');
   return renderToStaticMarkup(
     <MemoryRouter>
-      <Overview data={data} />
+      <Overview data={data} topics={topics} />
     </MemoryRouter>,
   );
 };
@@ -83,15 +85,15 @@ describe('an empty vault', () => {
     // The daily card is what says "All done.", and it only says it because the
     // rest of the screen renders around it. Nothing here has started, so none
     // of that scaffolding is built.
-    expect(html).not.toContain(t.overview.activityTitle);
-    expect(html).not.toContain(t.overview.stalenessTitle);
+    expect(html).not.toContain(t.overview.arrived);
+    expect(html).not.toContain(t.overview.topics);
   });
 
   it('still builds the whole screen once something has been written', () => {
     const t = dictionaries.en;
     const html = render({ ...emptyVault, notes: 1 });
 
-    expect(html).toContain(t.overview.activityTitle);
+    expect(html).toContain(t.overview.arrived);
     expect(html).not.toContain(t.overview.emptyTitle);
   });
 });

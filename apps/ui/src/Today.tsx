@@ -119,7 +119,21 @@ export const TodayCard = ({ data }: { data: Data }) => {
   );
 };
 
-export const Today = () => {
+// Its own screen rather than a panel on the home. What it points at arrives a
+// few times a month, so a reader who is not looking for it should not have to
+// walk past it.
+export const TodayScreen = () => {
+  const t = useT();
   const { data } = useAsync<Data>(() => api.today(), 'today');
-  return data ? <TodayCard data={data} /> : null;
+
+  return (
+    <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
+      <h1 className="text-xl font-semibold tracking-tight">{t.today.screenTitle}</h1>
+      {data ? (
+        <TodayCard data={data} />
+      ) : (
+        <p className="mt-4 text-sm text-muted">{t.common.loading}</p>
+      )}
+    </div>
+  );
 };

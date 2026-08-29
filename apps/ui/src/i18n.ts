@@ -9,6 +9,7 @@ const en = {
   switchLanguage: '한국어',
   app: {
     menu: 'Menu',
+    sidebar: 'Sidebar',
     overview: 'Overview',
     searchPlaceholder: 'Search  (⌘K)',
     theme: 'Theme',
@@ -85,6 +86,7 @@ const en = {
     home: 'Back to the overview',
   },
   today: {
+    screenTitle: 'To look at',
     title: (n: number) => `${n} to do today`,
     lead: 'Finish these and today is done.',
     empty: 'Nothing to do today.',
@@ -311,7 +313,9 @@ const en = {
       'memex fills as you talk with Claude. Connect an app, and what an agent decides is worth keeping lands here.',
     emptyAction: 'Connect an app',
     title: 'Overview',
-    subtitle: 'What is waiting, and what came in',
+    kept: (notes: number, topics: number) =>
+      `${notes.toLocaleString()} notes across ${topics} topics`,
+    arrived: 'What came in',
     notes: 'Notes',
     passages: (n: number) => `${n} passages`,
     links: 'Links',
@@ -507,6 +511,7 @@ const ko: typeof en = {
   switchLanguage: 'English',
   app: {
     menu: '메뉴',
+    sidebar: '사이드바',
     overview: '개요',
     searchPlaceholder: '검색  (⌘K)',
     theme: '테마',
@@ -583,6 +588,7 @@ const ko: typeof en = {
     home: '전체 보기로 돌아가기',
   },
   today: {
+    screenTitle: '볼 것',
     title: (n) => `오늘 할 일 ${n}개`,
     lead: '이것만 하면 오늘은 끝이에요.',
     empty: '오늘 할 일이 없어요.',
@@ -800,7 +806,8 @@ const ko: typeof en = {
       'Claude와 이야기하면 memex가 채워져요. 앱을 연결하면 남길 만하다고 판단한 것이 여기에 쌓여요.',
     emptyAction: '앱 연결하기',
     title: '개요',
-    subtitle: '기다리는 것과 새로 들어온 것',
+    kept: (notes, topics) => `${notes.toLocaleString()}개의 기록, ${topics}개의 주제`,
+    arrived: '새로 들어온 것',
     notes: '노트',
     passages: (n) => `${n} 패시지`,
     links: '연결',

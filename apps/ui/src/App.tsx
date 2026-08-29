@@ -1,4 +1,4 @@
-import { LayoutDashboard, Menu, MessageSquare, Search, X } from 'lucide-react';
+import { LayoutDashboard, Menu, MessageSquare, PanelLeft, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   Navigate,
@@ -21,6 +21,7 @@ import { HypothesisScreen } from './Hypothesis.tsx';
 import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
 import { Palette } from './Palette.tsx';
+import { railShown, rememberRail } from './panels.ts';
 import { RegisterScreen, RegisterSubjectsScreen } from './Register.tsx';
 import { RepairScreen } from './Repair.tsx';
 import { RulesScreen } from './Rules.tsx';
@@ -29,6 +30,7 @@ import { Sidebar } from './Sidebar.tsx';
 import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
+import { TodayScreen } from './Today.tsx';
 import './theme.ts';
 import { useAsync } from './useAsync.ts';
 
@@ -41,6 +43,12 @@ export const App = () => {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [palette, setPalette] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [rail, setRail] = useState(railShown);
+
+  const toggleRail = () => {
+    setRail(!rail);
+    rememberRail(!rail);
+  };
   const [settled, setSettled] = useState(firstRunSettled);
   const [params, setParams] = useSearchParams();
 
@@ -113,8 +121,16 @@ export const App = () => {
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-64 shrink-0 border-r border-glass-line lg:block">
-        <Sidebar data={sidebar} topics={topics} />
+      {/* The width is what moves; the panel inside keeps its own, so the text
+          slides out of view rather than reflowing narrower on the way. */}
+      <aside
+        className={`hidden shrink-0 overflow-hidden border-r border-glass-line transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block ${
+          rail ? 'w-64' : 'w-0 border-r-0'
+        }`}
+      >
+        <div className="h-full w-64">
+          <Sidebar data={sidebar} topics={topics} />
+        </div>
       </aside>
 
       {drawer ? (
@@ -145,6 +161,17 @@ export const App = () => {
           </button>
           <button
             type="button"
+            className={`no-drag hidden rounded-md p-2 hover:bg-surface lg:block ${
+              rail ? 'text-foreground' : 'text-muted'
+            }`}
+            onClick={toggleRail}
+            aria-label={t.app.sidebar}
+            title={t.app.sidebar}
+          >
+            <PanelLeft size={16} />
+          </button>
+          <button
+            type="button"
             className="no-drag rounded-md p-2 text-muted hover:bg-surface"
             onClick={() => navigate('/')}
             aria-label={t.app.overview}
@@ -161,7 +188,7 @@ export const App = () => {
           </button>
           <button
             type="button"
-            className={`no-drag rounded-md p-2 hover:bg-surface ${
+            className={`no-drag ml-auto rounded-md p-2 hover:bg-surface ${
               chatOpen ? 'text-foreground' : 'text-muted'
             }`}
             onClick={toggleChat}
@@ -181,12 +208,13 @@ export const App = () => {
                   gate === 'needed' ? (
                     <Navigate to="/settings" replace />
                   ) : gate === 'clear' ? (
-                    <Overview data={overview} />
+                    <Overview data={overview} topics={topics} />
                   ) : (
                     <div className="p-10 text-sm text-muted">{t.common.loading}</div>
                   )
                 }
               />
+              <Route path="/today" element={<TodayScreen />} />
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />
@@ -208,11 +236,17 @@ export const App = () => {
         </main>
       </div>
 
-      {chatOpen ? (
-        <aside className="hidden w-96 shrink-0 border-l border-glass-line md:block">
+      {/* Mounted whether or not it is showing: folding the panel away should not
+          throw away what was being said in it. */}
+      <aside
+        className={`hidden shrink-0 overflow-hidden border-l border-glass-line transition-[width] duration-200 ease-out motion-reduce:transition-none md:block ${
+          chatOpen ? 'w-96' : 'w-0 border-l-0'
+        }`}
+      >
+        <div className="h-full w-96">
           <ChatPanel onClose={toggleChat} />
-        </aside>
-      ) : null}
+        </div>
+      </aside>
     </div>
   );
 };
