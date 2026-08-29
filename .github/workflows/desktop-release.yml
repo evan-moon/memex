@@ -115,6 +115,20 @@ jobs:
       # the native module under Electron's own runtime needs no display, so it
       # is the one check a headless runner can make on behalf of a reader who
       # would otherwise be the first to find out.
+      # A packaged app whose renderer never got copied opens a window, serves
+      # nothing, and passes every other check — the same shape as the native
+      # module problem: the failure only exists at launch, and nothing before
+      # this looks for it.
+      - name: Verify the app ships the screen it opens
+        working-directory: apps/desktop
+        run: |
+          PAGE="release/mac-arm64/memex.app/Contents/Resources/app/dist/renderer/index.html"
+          if [ ! -f "$PAGE" ]; then
+            echo "The packaged app has no renderer at $PAGE." >&2
+            echo "apps/desktop's build copies apps/ui/dist there; it did not run, or the UI was never built." >&2
+            exit 1
+          fi
+
       - name: Verify the app can load its native modules
         working-directory: apps/desktop
         run: |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { titleScore } from './Palette.tsx';
+import { titleScore } from './title-score.ts';
 
 describe('titleScore', () => {
   it('puts a title that starts with what you typed first', () => {
