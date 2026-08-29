@@ -10,6 +10,9 @@ const en = {
   app: {
     menu: 'Menu',
     sidebar: 'Sidebar',
+    back: 'Back',
+    forward: 'Forward',
+    refresh: 'Reload',
     overview: 'Overview',
     searchPlaceholder: 'Search  (⌘K)',
     theme: 'Theme',
@@ -512,6 +515,9 @@ const ko: typeof en = {
   app: {
     menu: '메뉴',
     sidebar: '사이드바',
+    back: '뒤로',
+    forward: '앞으로',
+    refresh: '새로고침',
     overview: '개요',
     searchPlaceholder: '검색  (⌘K)',
     theme: '테마',

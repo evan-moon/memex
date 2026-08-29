@@ -1,4 +1,14 @@
-import { LayoutDashboard, Menu, MessageSquare, PanelLeft, Search, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  LayoutDashboard,
+  Menu,
+  MessageSquare,
+  PanelLeft,
+  RotateCw,
+  Search,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   Navigate,
@@ -18,6 +28,7 @@ import { ChatPanel } from './Chat.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { firstRunSettled, gateFrom, settleFirstRun } from './first-run.ts';
 import { HypothesisScreen } from './Hypothesis.tsx';
+import { goBack, goForward, useHistory } from './history.ts';
 import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
 import { Palette } from './Palette.tsx';
@@ -44,6 +55,7 @@ export const App = () => {
   const [palette, setPalette] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [rail, setRail] = useState(railShown);
+  const { canGoBack, canGoForward } = useHistory();
 
   const toggleRail = () => {
     setRail(!rail);
@@ -106,9 +118,20 @@ export const App = () => {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === 'k') {
         e.preventDefault();
         setPalette(true);
+      }
+      // What every macOS app binds these to. The mouse's own back and forward
+      // buttons are handled by the window without asking.
+      if (e.key === '[') {
+        e.preventDefault();
+        goBack();
+      }
+      if (e.key === ']') {
+        e.preventDefault();
+        goForward();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -170,6 +193,41 @@ export const App = () => {
           >
             <PanelLeft size={16} />
           </button>
+          <div className="no-drag flex items-center">
+            <button
+              type="button"
+              disabled={!canGoBack}
+              onClick={goBack}
+              aria-label={t.app.back}
+              title={t.app.back}
+              className="rounded-md p-2 text-muted hover:bg-surface disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              disabled={!canGoForward}
+              onClick={goForward}
+              aria-label={t.app.forward}
+              title={t.app.forward}
+              className="rounded-md p-2 text-muted hover:bg-surface disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <ChevronRight size={16} />
+            </button>
+            {/* The vault changes underneath an open window: the agent writes to
+                it through MCP while this is on screen. The URL carries what is
+                open, and the conversation is on disk, so reloading loses
+                nothing and picks all of it up. */}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              aria-label={t.app.refresh}
+              title={t.app.refresh}
+              className="rounded-md p-2 text-muted hover:bg-surface"
+            >
+              <RotateCw size={15} />
+            </button>
+          </div>
           <button
             type="button"
             className="no-drag rounded-md p-2 text-muted hover:bg-surface"
