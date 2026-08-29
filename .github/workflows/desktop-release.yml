@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'desktop-v*.*.*'
+  # Same build, no release. A pipeline whose first green run is also its first
+  # public download has been debugged in front of an audience.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -75,7 +78,15 @@ jobs:
           codesign --verify --deep --strict --verbose=1 "$APP"
           spctl -a -vv "$APP"
 
+      - name: Keep the dmg where only this repo can see it
+        uses: actions/upload-artifact@v4
+        with:
+          name: memex-arm64-dmg
+          path: apps/desktop/release/*.dmg
+          retention-days: 7
+
       - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ github.token }}
