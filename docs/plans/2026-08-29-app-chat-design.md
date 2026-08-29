@@ -156,7 +156,31 @@ apps/desktop/chat/
 화면에서 값을 보며 "이거 30일이야"라고 하는 것은 모호하지 않다. 빈 대화창에 같은 문장을
 치는 것은 모호하다. **같은 문장이라도 맥락이 확인 여부를 정한다.**
 
-## 5. Electron 셸 — 얇은 래퍼가 아니다
+## 5. Electron 셸 — 얇은 래퍼가 아니다 (2026-08-29 구현·패키징 완료)
+
+> 아래 목록은 예측이었고, 실제로 걸린 것은 **전부 네이티브 모듈 경로**였다. 기록해 둔다.
+>
+> 1. **`better-sqlite3`는 V8 ABI로 빌드된다**(Node-API가 아니다). 하나의 빌드가 두 런타임을
+>    섬길 수 없어 CLI·테스트(Node 127)와 창(Electron 130)이 충돌한다.
+>    `yarn native:node` / `yarn native:electron`으로 스왑한다. **`electron-builder`가
+>    `@electron/rebuild`를 돌려 공유 `node_modules`를 Electron ABI로 바꿔 놓으므로,
+>    패키징 뒤에는 테스트가 391개 깨진다.** `yarn package:mac`이 끝나고 되돌린다
+> 2. **arm64 macOS는 서명 안 된 `.node`를 메시지 없이 SIGKILL한다.** 로그에 남는 것은
+>    `exited with signal SIGKILL` 한 줄뿐이다. `codesign --force --sign -`이 답이고
+>    `scripts/native-abi.mjs`가 대신 한다
+> 3. **asar 안의 `.dylib`는 dlopen할 수 없다.** `sqlite-vec`가 `import.meta.url`로 경로를
+>    만들어 네이티브 호출에 넘기므로 `asarUnpack`으로도 해결되지 않는다. `asar: false`로 갔다.
+>    onnxruntime까지 얹은 앱에서 이 계열을 계속 쫓는 것보다 싸다
+>
+> **개발 실행에서는 셋 다 안 나오고 패키징에서만 난다.** 패키징된 앱을 실제로 띄워
+> 확인해야 하는 이유다 — `libonnxruntime.dylib`와 `vec0.dylib`가 로드되는 것까지 봤다.
+>
+> 산출물: `memex-0.0.1-arm64.dmg` 173MB (앱 507MB). Developer ID 서명됨, **공증 안 됨** —
+> `spctl`이 `rejected · Unnotarized Developer ID`로 정확히 그 사유를 낸다.
+> `APPLE_ID` · `APPLE_APP_SPECIFIC_PASSWORD` · `APPLE_TEAM_ID`를 환경변수로 주면
+> electron-builder가 공증까지 한다. **아이콘은 아직 없다** — 기본 Electron 아이콘이다.
+
+
 
 `apps/ui`가 Vite 앱인 건 맞지만, 배포 UI는 **`page.ts`로 CLI 빌드에 임베드되어 loopback
 HTTP 서버가 서빙한다**(`server.ts:603`, `commands/ui.ts:13`). Electron이 져야 하는 것:

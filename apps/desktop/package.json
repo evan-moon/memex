@@ -7,15 +7,55 @@
   "scripts": {
     "build": "tsup",
     "start": "electron .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "yarn build && electron-builder --mac",
+    "package:dir": "yarn build && electron-builder --mac --dir"
   },
   "dependencies": {
-    "@evan-moon/memex": "workspace:*"
+    "@huggingface/transformers": "^3.5.1",
+    "better-sqlite3": "^12.9.0",
+    "sqlite-vec": "^0.1.6"
   },
   "devDependencies": {
+    "@evan-moon/memex": "workspace:*",
     "@types/node": "^22",
-    "electron": "^33.0.0",
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"
-  }
+  },
+  "build": {
+    "appId": "com.evanmoon.memex",
+    "productName": "memex",
+    "copyright": "Copyright © 2026 Evan Moon",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "!**/*.map",
+      "!**/.turbo/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "npmRebuild": true,
+    "electronVersion": "33.4.11",
+    "asar": false
+  },
+  "description": "memex — a second brain an AI writes and you correct",
+  "author": "Evan Moon <bboydart91@gmail.com>"
 }
