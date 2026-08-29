@@ -10,6 +10,15 @@ import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
 
+// Without this the agent reports "saved your rule" and the user reasonably reads
+// that as "in effect". It is stored; it is not doing anything yet, and only the
+// agent is in a position to say so at the moment it happens.
+export const proposalLine = (ruleStatus: string | null): string =>
+  ruleStatus === 'provisional'
+    ? '\n\n📋 Saved as a proposal — it is NOT in effect. It stays inert until the user approves ' +
+      'it under Guidance in the memex app. Tell them it is waiting there.'
+    : '';
+
 export const registerSaveNote = (
   server: McpServer,
   client: MemexClient,
@@ -121,7 +130,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
               .join('\n')}`
           : '';
 
-      const text = `Saved note #${note.id}: "${note.title}"${amendSection}${warning}${flashbackSection}${linkSection}${signalSection}`;
+      const text = `Saved note #${note.id}: "${note.title}"${proposalLine(note.ruleStatus)}${amendSection}${warning}${flashbackSection}${linkSection}${signalSection}`;
 
       return { content: [{ type: 'text', text }] };
     },
