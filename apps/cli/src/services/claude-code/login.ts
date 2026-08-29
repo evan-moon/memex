@@ -11,7 +11,12 @@ const URL_GRACE_MS = 4000;
 
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
-const URL_PATTERN = /https:\/\/[^\s"'<>]+/;
+// The CLI prints the sign-in URL inside an OSC 8 terminal hyperlink, which
+// wraps it in escape bytes and then repeats it as the link text. Excluding
+// control characters is what ends the match at the BEL instead of swallowing
+// the escape and the second copy — `open` is handed one URL, not two glued
+// together.
+const URL_PATTERN = /https:\/\/[^\s"'<>\p{Cc}]+/u;
 
 export type LoginRunner = {
   start: (binary: string, method: LoginMethod) => Promise<LoginState>;
@@ -56,9 +61,18 @@ export const createLoginRunner = (openUrl: (url: string) => void = () => {}): Lo
       };
       const grace = setTimeout(settle, URL_GRACE_MS);
 
+      // Chunks arrive at pipe boundaries, not line boundaries, so a URL can be
+      // split across two of them. Matching the accumulated output instead of
+      // each chunk is what keeps a half-URL from being opened.
+      const buffer = { seen: '' };
       const sawOutput = (chunk: unknown) => {
-        const found = URL_PATTERN.exec(String(chunk));
-        if (!found || session.opened) return;
+        if (session.opened) return;
+        buffer.seen += String(chunk);
+        const found = URL_PATTERN.exec(buffer.seen);
+        // A match that runs to the end of what has arrived may still be
+        // growing. Waiting for the character that ends it — the BEL of the
+        // hyperlink, or a newline — is what tells a whole URL from half of one.
+        if (!found || found.index + found[0].length === buffer.seen.length) return;
         session.opened = true;
         session.state = { kind: 'waiting', url: found[0] };
         openUrl(found[0]);

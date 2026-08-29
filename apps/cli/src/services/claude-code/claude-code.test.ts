@@ -134,6 +134,40 @@ describe('the login runner', () => {
     runner.cancel();
   });
 
+  it('opens one URL when the CLI wraps it in a terminal hyperlink', async () => {
+    const url = 'https://claude.ai/oauth/authorize?code=abc';
+    const binary = putBinary(
+      join(home, '.local/bin/claude'),
+      `printf 'visit: \\033]8;;%s\\a%s\\033]8;;\\a\\n' '${url}' '${url}'; sleep 0.2`,
+    );
+    const opened: string[] = [];
+    const runner = createLoginRunner((seen) => opened.push(seen));
+
+    const state = await runner.start(binary, 'claudeai');
+
+    expect(state).toEqual({ kind: 'waiting', url });
+    expect(opened).toEqual([url]);
+    runner.cancel();
+  });
+
+  it('waits for the end of a URL that arrives in two pieces', async () => {
+    const binary = putBinary(
+      join(home, '.local/bin/claude'),
+      `printf 'visit: https://claude.ai/oauth/auth'; sleep 0.3; printf 'orize?code=abc\\n'; sleep 0.2`,
+    );
+    const opened: string[] = [];
+    const runner = createLoginRunner((seen) => opened.push(seen));
+
+    const state = await runner.start(binary, 'claudeai');
+
+    expect(state).toEqual({
+      kind: 'waiting',
+      url: 'https://claude.ai/oauth/authorize?code=abc',
+    });
+    expect(opened).toEqual(['https://claude.ai/oauth/authorize?code=abc']);
+    runner.cancel();
+  });
+
   it('reports a binary that will not start instead of waiting on it', async () => {
     const runner = createLoginRunner();
 
