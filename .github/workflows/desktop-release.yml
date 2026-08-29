@@ -82,6 +82,13 @@ jobs:
           echo "certificate decodes to $(wc -c < /tmp/cert-probe.p12 | tr -d ' ') bytes"
           rm -f /tmp/cert-probe.p12
 
+      # `yarn install` fetches better-sqlite3's prebuilt for Node's ABI, and the
+      # app runs on Electron's. Packaging without this swap produces a signed,
+      # notarized dmg that dies on launch with ERR_DLOPEN_FAILED — every check
+      # after this one passes on it, because none of them start the app.
+      - name: Build the native module for Electron
+        run: yarn native:electron
+
       - name: Package
         working-directory: apps/desktop
         env:
@@ -101,6 +108,24 @@ jobs:
           APP="release/mac-arm64/memex.app"
           codesign --verify --deep --strict --verbose=1 "$APP"
           spctl -a -vv "$APP"
+
+      # Gatekeeper says the app is trustworthy, not that it runs. Every check
+      # before this one passed on a build whose better-sqlite3 was compiled for
+      # Node's ABI, which the app only discovers at launch — by dying. Loading
+      # the native module under Electron's own runtime needs no display, so it
+      # is the one check a headless runner can make on behalf of a reader who
+      # would otherwise be the first to find out.
+      - name: Verify the app can load its native modules
+        working-directory: apps/desktop
+        run: |
+          APP="release/mac-arm64/memex.app"
+          NATIVE="$APP/Contents/Resources/app/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+          if ! ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/memex" \
+               -e "process.dlopen({ exports: {} }, process.argv[1])" "$NATIVE" 2>/dev/null; then
+            echo "The packaged better-sqlite3 does not load under Electron." >&2
+            echo "It was built for Node's ABI; run 'yarn native:electron' before packaging." >&2
+            exit 1
+          fi
 
       - name: Keep the dmg where only this repo can see it
         uses: actions/upload-artifact@v4
