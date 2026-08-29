@@ -126,6 +126,7 @@ export type RuleCard = {
   id: number;
   title: string;
   content: string;
+  truncated: boolean;
   author: string;
   source: string;
   createdAt: number;

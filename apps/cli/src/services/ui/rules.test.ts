@@ -49,9 +49,73 @@ describe('buildRules', () => {
     expect(screen.active.map((r) => r.title)).toEqual(['approved']);
   });
 
-  it('carries the body, so a proposal can be judged without leaving the screen', () => {
+  it('carries a short body whole, so a real rule can be judged on the card', () => {
     addRule('proposed', 'provisional');
-    expect(buildRules(client).waiting[0].content).toBe('body of proposed');
+
+    const card = buildRules(client).waiting[0];
+    expect(card.content).toBe('body of proposed');
+    expect(card.truncated).toBe(false);
+  });
+
+  it('drops a heading that only repeats the title the card already shows', () => {
+    insertNote(client, {
+      title: 'short rule',
+      content: '---\ntitle: short rule\n---\n\n# short rule\n\nthe rule itself.',
+      filePath: join(dbDir, 'short.md'),
+      source: 'claude-code',
+      layer: 'rule',
+      ruleStatus: 'provisional',
+    });
+
+    const card = buildRules(client).waiting.find((r) => r.title === 'short rule');
+    expect(card?.content).toBe('the rule itself.');
+  });
+
+  it('drops the title even when the body carries it twice', () => {
+    insertNote(client, {
+      title: 'doubled',
+      content: '---\ntitle: doubled\n---\n\n# doubled\n\n# doubled\n\nthe rule itself.',
+      filePath: join(dbDir, 'doubled.md'),
+      source: 'claude-code',
+      layer: 'rule',
+      ruleStatus: 'provisional',
+    });
+
+    expect(buildRules(client).waiting.find((r) => r.title === 'doubled')?.content).toBe(
+      'the rule itself.',
+    );
+  });
+
+  it('keeps a heading that is not the title', () => {
+    insertNote(client, {
+      title: 'kept',
+      content: '---\ntitle: kept\n---\n\n# kept\n\n## Core Values\n\nbody.',
+      filePath: join(dbDir, 'kept.md'),
+      source: 'claude-code',
+      layer: 'rule',
+      ruleStatus: 'provisional',
+    });
+
+    expect(buildRules(client).waiting.find((r) => r.title === 'kept')?.content).toBe(
+      '## Core Values\n\nbody.',
+    );
+  });
+
+  it('cuts a long body down and says so, rather than making the card unscrollable', () => {
+    insertNote(client, {
+      title: 'a work order',
+      content: `---\ntitle: a work order\n---\n\n# a work order\n\n${'가'.repeat(2000)}`,
+      filePath: join(dbDir, 'long.md'),
+      source: 'claude-code',
+      layer: 'rule',
+      ruleStatus: 'provisional',
+    });
+
+    const card = buildRules(client).waiting.find((r) => r.title === 'a work order');
+    expect(card?.truncated).toBe(true);
+    expect(card?.content.length).toBeLessThan(600);
+    // The frontmatter and the repeated heading are both gone.
+    expect(card?.content.startsWith('가')).toBe(true);
   });
 
   it('says nothing is waiting on a vault with no proposals', () => {

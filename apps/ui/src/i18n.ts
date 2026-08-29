@@ -114,6 +114,7 @@ const en = {
     asState: 'something I believe',
     cancel: 'Next time',
     wroteBy: (source: string) => `written by ${source}`,
+    readWhole: 'Read the whole note →',
   },
   sidebar: {
     state: 'What I believe now',
@@ -441,6 +442,7 @@ const ko: typeof en = {
     asState: '지금 믿는 것으로',
     cancel: '다음에',
     wroteBy: (source) => `${source}가 작성`,
+    readWhole: '전문 보기 →',
   },
   sidebar: {
     state: '지금 믿는 것',

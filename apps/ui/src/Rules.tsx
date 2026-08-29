@@ -1,16 +1,37 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, type RuleCard, toFailure } from './api.ts';
 import { Button, Card, Page } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { useAsync } from './useAsync.ts';
 
+// A long note cannot be judged inside a card, so the id is the way out to it.
 const Meta = ({ rule }: { rule: RuleCard }) => {
   const t = useT();
   return (
     <p className="text-[11px] text-muted">
-      #{rule.id} · {t.rules.wroteBy(rule.source)}
+      <Link to={`/note/${rule.id}`} className="hover:underline">
+        #{rule.id}
+      </Link>{' '}
+      · {t.rules.wroteBy(rule.source)}
     </p>
+  );
+};
+
+// No inner scrollbar: a card the page cannot scroll past is a trap, and the
+// whole note is one link away.
+const Body = ({ rule }: { rule: RuleCard }) => {
+  const t = useT();
+  return (
+    <div className="text-xs">
+      <Markdown>{rule.content}</Markdown>
+      {rule.truncated && (
+        <Link to={`/note/${rule.id}`} className="mt-1 inline-block text-[11px] text-primary hover:underline">
+          {t.rules.readWhole}
+        </Link>
+      )}
+    </div>
   );
 };
 
@@ -35,9 +56,7 @@ const Waiting = ({ rule, onDone }: { rule: RuleCard; onDone: () => void }) => {
         <h3 className="text-sm font-semibold text-foreground">{rule.title}</h3>
         <Meta rule={rule} />
       </div>
-      <div className="max-h-64 overflow-y-auto text-xs">
-        <Markdown>{rule.content}</Markdown>
-      </div>
+      <Body rule={rule} />
       {error !== null && <p className="text-xs text-danger">{error}</p>}
       {choosing ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -75,9 +94,7 @@ const Active = ({ rule }: { rule: RuleCard }) => (
   <Card className="space-y-2">
     <h3 className="text-sm font-semibold text-foreground">{rule.title}</h3>
     <Meta rule={rule} />
-    <div className="max-h-40 overflow-y-auto text-xs">
-      <Markdown>{rule.content}</Markdown>
-    </div>
+    <Body rule={rule} />
   </Card>
 );
 

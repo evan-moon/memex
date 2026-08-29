@@ -1,12 +1,41 @@
 import { type MemexClient, listRules } from '@memex/db';
+import { stripFrontmatter } from '@memex/utils';
 
 export type RuleCard = {
   id: number;
   title: string;
   content: string;
+  truncated: boolean;
   author: string;
   source: string;
   createdAt: number;
+};
+
+const PREVIEW_CHARS = 500;
+
+const headingText = (line: string) => {
+  const heading = /^#{1,6}\s+(.*)$/.exec(line);
+  return heading === null ? null : heading[1].trim();
+};
+
+// Writing a note to a file puts its title at the head of the body, and a few
+// older ones carry it twice. The card already shows the title, so every leading
+// repeat of it goes.
+const dropRepeatedTitle = (body: string, title: string): string => {
+  const [first, ...rest] = body.split('\n');
+  return headingText(first) === title.trim()
+    ? dropRepeatedTitle(rest.join('\n').trimStart(), title)
+    : body;
+};
+
+// The question this screen asks is "is this a rule", and the opening answers it.
+// Putting a whole note in the card meant scrolling all 16,000 characters of one
+// just to reach the next card — the card's own scrollbar swallowed the page's.
+const preview = (content: string, title: string) => {
+  const body = dropRepeatedTitle(stripFrontmatter(content).trim(), title).trim();
+  return body.length <= PREVIEW_CHARS
+    ? { content: body, truncated: false }
+    : { content: `${body.slice(0, PREVIEW_CHARS).trimEnd()}…`, truncated: true };
 };
 
 export type RulesScreen = {
@@ -24,7 +53,7 @@ const toCard = (note: {
 }): RuleCard => ({
   id: note.id,
   title: note.title,
-  content: note.content,
+  ...preview(note.content, note.title),
   author: note.author,
   source: note.source,
   createdAt: note.createdAt,
