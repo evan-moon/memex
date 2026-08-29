@@ -58,6 +58,30 @@ jobs:
       - name: Build workspaces
         run: yarn build
 
+      # electron-builder reads CSC_LINK as base64 OR as a path, and decides by
+      # looking at it. A value with newlines in it — which is what `base64`
+      # produces by default — fails the base64 read, gets tried as a path, and
+      # dies as `apps/desktop not a file`, which names neither the secret nor
+      # the problem. Say it here instead.
+      - name: Check the certificate secret before it becomes a riddle
+        env:
+          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "CERTIFICATE_BASE64 is empty. Re-set it with:"
+            echo "  base64 -i cert.p12 | tr -d '\n' | gh secret set CERTIFICATE_BASE64 --repo evan-moon/memex"
+            exit 1
+          fi
+          if [ "$(printf '%s' "$CSC_LINK" | wc -l | tr -d ' ')" != "0" ]; then
+            echo "CERTIFICATE_BASE64 contains newlines; electron-builder needs one line. Re-set it with:"
+            echo "  base64 -i cert.p12 | tr -d '\n' | gh secret set CERTIFICATE_BASE64 --repo evan-moon/memex"
+            exit 1
+          fi
+          printf '%s' "$CSC_LINK" | base64 -d > /tmp/cert-probe.p12 2>/dev/null || {
+            echo "CERTIFICATE_BASE64 is not valid base64."; exit 1; }
+          echo "certificate decodes to $(wc -c < /tmp/cert-probe.p12 | tr -d ' ') bytes"
+          rm -f /tmp/cert-probe.p12
+
       - name: Package
         working-directory: apps/desktop
         env:
