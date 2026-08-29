@@ -357,6 +357,9 @@ export const SearchScreen = () => {
   const filters = filtersFrom(params);
   const { data, failure } = useAsync<SearchPage>(() => api.search(q, filters), params.toString());
   const facets = useAsync<Facets>(() => api.facets(), 'facets');
+  // Without the weights a search still answers, by keyword alone. Saying so is
+  // the difference between a narrower answer and an app that looks broken.
+  const model = useAsync(() => api.model(), 'model');
 
   const replace = (mutate: (next: URLSearchParams) => void) => {
     const next = new URLSearchParams(params);
@@ -379,6 +382,15 @@ export const SearchScreen = () => {
     <Page>
       <h1 className="text-xl font-semibold tracking-tight">{t.search.title}</h1>
       <p className="mt-1 text-sm text-muted">{t.search.summary(q, data?.results.length ?? 0)}</p>
+
+      {model.data !== null && model.data.kind !== 'ready' && (
+        <p className="mt-3 rounded-card border border-line bg-surface px-3 py-2 text-xs text-muted">
+          {model.data.kind === 'downloading' ? t.search.modelComing : t.search.modelMissing}{' '}
+          <Link to="/connect" className="text-primary hover:underline">
+            {t.search.modelWhere}
+          </Link>
+        </p>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Choice value={params.get('layer') ?? ''} onChange={(v) => setFilter('layer', v)}>

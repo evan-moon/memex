@@ -333,6 +333,12 @@ export const scopeParams = (scope: RegisterScope): Record<string, string> =>
     ? { scope: 'global' }
     : { scope: 'period', start: scope.start, end: scope.end };
 
+export type ModelState =
+  | { kind: 'ready' }
+  | { kind: 'absent' }
+  | { kind: 'downloading'; loaded: number; total: number }
+  | { kind: 'failed'; error: string };
+
 export type ClaudeCodeState =
   | { kind: 'missing' }
   | { kind: 'unreadable'; binary: string; reason: string }
@@ -424,6 +430,8 @@ export const api = {
       value: entry.value,
       ...scopeParams(entry.scope),
     }),
+  model: () => request<ModelState>('/api/model'),
+  downloadModel: () => post<ModelState>('/api/model'),
   claude: () => request<ClaudeCodeState>('/api/claude'),
   installClaude: () => post<ClaudeCodeState>('/api/claude/install'),
   loginClaude: (method: 'claudeai' | 'console') =>

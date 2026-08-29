@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, type McpClient, type McpClientId, type McpConnections, toFailure } from './api.ts';
 import { Button, Card, Page } from './bits.tsx';
 import { useT } from './i18n.ts';
+import { ModelCard } from './ModelCard.tsx';
 import { ClaudeCodeSetup } from './Setup.tsx';
 import { useAsync } from './useAsync.ts';
 
@@ -101,7 +102,8 @@ export const ConnectScreen = () => {
       <h1 className="text-lg font-semibold text-foreground">{t.connect.screenTitle}</h1>
       <p className="mt-1 text-xs text-muted">{t.connect.intro}</p>
 
-      <div className="mt-5">
+      <div className="mt-5 space-y-3">
+        <ModelCard />
         <ClaudeCodeSetup connections={connections} onConnected={setWritten} />
       </div>
 

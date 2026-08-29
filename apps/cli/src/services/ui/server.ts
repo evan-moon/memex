@@ -39,6 +39,7 @@ import { redraftInference } from '../inference-draft.ts';
 import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { buildChores } from './chores.ts';
+import type { ModelRunner } from './model.ts';
 import {
   bodyOf,
   layerCounts,
@@ -178,6 +179,7 @@ export type UiDeps = {
   mcp: { home: string; serverPath: string };
   pathEnv: string;
   openUrl: (url: string) => void;
+  model: ModelRunner;
   fillShapes?: () => Promise<void>;
 };
 
@@ -281,6 +283,12 @@ export const route = async (
       return declined ? json({ ok: true }) : bad(404, 'not-found');
     }
     return bad(404, 'not-found');
+  }
+  if (method === 'GET' && url.pathname === '/api/model') {
+    return json(deps.model.read());
+  }
+  if (method === 'POST' && url.pathname === '/api/model') {
+    return json(deps.model.start());
   }
   if (method === 'GET' && url.pathname === '/api/claude') {
     return json(await readClaudeCode(deps.mcp.home, deps.pathEnv));
@@ -671,6 +679,8 @@ export const startUiServer = (deps: UiDeps, port: number): Promise<string> =>
     // took it first, and a desktop app cannot ask its reader to pick another.
     server.listen(port, '127.0.0.1', () => {
       const bound = server.address();
-      resolve(`http://127.0.0.1:${typeof bound === 'object' && bound !== null ? bound.port : port}`);
+      resolve(
+        `http://127.0.0.1:${typeof bound === 'object' && bound !== null ? bound.port : port}`,
+      );
     });
   });

@@ -37,6 +37,11 @@ beforeEach(() => {
     mcp: { home: mcpHome, serverPath: '/repo/apps/mcp/dist/index.js' },
     pathEnv: '',
     openUrl: () => {},
+    model: {
+      read: () => ({ kind: 'ready' as const }),
+      start: () => ({ kind: 'ready' as const }),
+      embed: stubEmbedder,
+    },
   };
 });
 
@@ -615,7 +620,9 @@ describe('a key measured by period', () => {
 
     const screen = body(
       await route(deps, 'GET', new URL('/api/register/opula', 'http://localhost'), null),
-    ) as { keys: { predicate: string; entries: { scope: { start?: string }; changes: number }[] }[] };
+    ) as {
+      keys: { predicate: string; entries: { scope: { start?: string }; changes: number }[] }[];
+    };
 
     expect(screen.keys).toHaveLength(1);
     expect(screen.keys[0].entries.map((e) => e.scope.start)).toEqual(['2026-06-01', '2026-05-01']);
@@ -650,5 +657,21 @@ describe('claude code onboarding', () => {
 
     expect(reply.status).toBe(400);
     expect(body(reply)).toMatchObject({ error: { code: 'claude-not-installed' } });
+  });
+});
+
+describe('the embedding model', () => {
+  it('reports readiness through the same runner both shells share', async () => {
+    const reply = await route(deps, 'GET', new URL('/api/model', 'http://localhost'), null);
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toEqual({ kind: 'ready' });
+  });
+
+  it('answers a download request with the state rather than waiting for the bytes', async () => {
+    const reply = await post('/api/model', {});
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toEqual({ kind: 'ready' });
   });
 });

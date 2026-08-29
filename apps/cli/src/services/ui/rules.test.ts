@@ -40,6 +40,11 @@ const call = (method: string, path: string, payload: unknown = null) =>
       mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
       pathEnv: '',
       openUrl: () => {},
+      model: {
+        read: () => ({ kind: 'ready' as const }),
+        start: () => ({ kind: 'ready' as const }),
+        embed: stubEmbedder,
+      },
     },
     method,
     new URL(path, 'http://localhost'),

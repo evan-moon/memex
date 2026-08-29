@@ -143,6 +143,17 @@ const en = {
     showHistory: (n: number) => `changed ${n} times →`,
     hideHistory: 'hide history',
   },
+  model: {
+    title: 'Search needs one download',
+    detail:
+      'A 282MB model that reads your notes by meaning. It stays on this machine and runs offline afterwards.',
+    download: 'Download it',
+    retry: 'Try again',
+    starting: 'Starting…',
+    progress: (done: number, total: number) => `${done} of ${total} MB`,
+    ready: 'Search is ready.',
+    meanwhile: 'You can correct what memex remembers while this downloads. Only search waits.',
+  },
   setup: {
     installTitle: 'Claude Code',
     installDetail: 'The part that does the thinking. memex installs it for you.',
@@ -357,6 +368,10 @@ const en = {
   },
   search: {
     title: 'Search',
+    modelMissing:
+      'These are keyword matches — the model that reads by meaning is not downloaded yet.',
+    modelComing: 'These are keyword matches while the model downloads.',
+    modelWhere: 'Get it →',
     summary: (query: string, n: number) => `${query} · ${n} results`,
     filters: 'Filters',
     anyLayer: 'Any layer',
@@ -533,6 +548,17 @@ const ko: typeof en = {
     forked: (n) => `지금 답이 ${n}개예요. 맞는 걸 고르거나 새로 적어 주세요.`,
     showHistory: (n) => `${n}번 바뀌었어요 →`,
     hideHistory: '기록 접기',
+  },
+  model: {
+    title: '검색을 켜려면 한 번 받아야 해요',
+    detail:
+      '노트를 뜻으로 읽는 282MB짜리 모델이에요. 이 컴퓨터에 남고, 받은 뒤로는 인터넷 없이 동작해요.',
+    download: '받기',
+    retry: '다시 시도',
+    starting: '시작하는 중…',
+    progress: (done, total) => `${total}MB 중 ${done}MB`,
+    ready: '검색 준비됐어요.',
+    meanwhile: '받는 동안에도 잘못 기억한 건 고칠 수 있어요. 기다리는 건 검색뿐이에요.',
   },
   setup: {
     installTitle: 'Claude Code',
@@ -745,6 +771,9 @@ const ko: typeof en = {
   },
   search: {
     title: '검색',
+    modelMissing: '검색에 필요한 모델을 아직 안 받았어요.',
+    modelComing: '모델을 다 받으면 검색이 답해요.',
+    modelWhere: '진행 상황 보기 →',
     summary: (query, n) => `${query} · ${n}건`,
     filters: '필터',
     anyLayer: '레이어 전체',
