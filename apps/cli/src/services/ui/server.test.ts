@@ -19,6 +19,7 @@ import { route, type UiDeps } from './server.ts';
 
 let dbDir: string;
 let vaultDir: string;
+let mcpHome: string;
 let client: MemexClient;
 let deps: UiDeps;
 
@@ -27,14 +28,21 @@ const stubEmbedder = async () => new Array(EMBEDDING_DIM).fill(0.1);
 beforeEach(() => {
   dbDir = mkdtempSync(join(tmpdir(), 'memex-route-db-'));
   vaultDir = mkdtempSync(join(tmpdir(), 'memex-route-vault-'));
+  mcpHome = mkdtempSync(join(tmpdir(), 'memex-route-home-'));
   client = openDb(dbDir);
-  deps = { client, embedder: stubEmbedder, vaultPath: vaultDir };
+  deps = {
+    client,
+    embedder: stubEmbedder,
+    vaultPath: vaultDir,
+    mcp: { home: mcpHome, serverPath: '/repo/apps/mcp/dist/index.js' },
+  };
 });
 
 afterEach(() => {
   client.sqlite.close();
   rmSync(dbDir, { recursive: true, force: true });
   rmSync(vaultDir, { recursive: true, force: true });
+  rmSync(mcpHome, { recursive: true, force: true });
 });
 
 const post = (path: string, payload: unknown) =>
@@ -503,5 +511,30 @@ describe('POST /api/dangling/dismiss', () => {
     });
 
     expect(reply.status).toBe(400);
+  });
+});
+
+describe('mcp connections', () => {
+  const get = () => route(deps, 'GET', new URL('/api/mcp', 'http://localhost'), null);
+
+  it('reports which clients this machine has and which already point here', async () => {
+    const before = body(await get());
+
+    expect(before.serverPath).toBe('/repo/apps/mcp/dist/index.js');
+    expect(before.clients).toHaveLength(4);
+
+    const reply = await post('/api/mcp/connect', { client: 'cursor' });
+    const after = body(reply) as { clients: { id: string; registration: { kind: string } }[] };
+
+    expect(reply.status).toBe(200);
+    expect(after.clients.find((c) => c.id === 'cursor')?.registration).toEqual({ kind: 'current' });
+    expect(after.clients.find((c) => c.id === 'codex')?.registration).toEqual({ kind: 'absent' });
+  });
+
+  it('refuses a client it does not know', async () => {
+    const reply = await post('/api/mcp/connect', { client: 'notepad' });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'unknown-client' } });
   });
 });

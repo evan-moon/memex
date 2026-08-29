@@ -176,6 +176,16 @@ export const Sidebar = ({
         >
           {t.rules.screenTitle}
         </NavLink>
+        <NavLink
+          to="/connect"
+          className={({ isActive }) =>
+            `block rounded-md px-2 py-2 text-sm ${
+              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
+            }`
+          }
+        >
+          {t.connect.screenTitle}
+        </NavLink>
       </div>
       <p className="mt-3 px-4 text-[11px] leading-5 text-muted">
         {t.sidebar.recordsElsewhere(data.counts.past ?? 0)}

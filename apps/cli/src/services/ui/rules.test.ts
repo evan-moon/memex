@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { insertNote, type MemexClient, openDb } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { route } from './server.ts';
 import { buildRules } from './rules.ts';
+import { route } from './server.ts';
 
 let dbDir: string;
 let client: MemexClient;
@@ -33,7 +33,12 @@ const stubEmbedder = async () => new Array(768).fill(0);
 
 const call = (method: string, path: string, payload: unknown = null) =>
   route(
-    { client, embedder: stubEmbedder, vaultPath: dbDir },
+    {
+      client,
+      embedder: stubEmbedder,
+      vaultPath: dbDir,
+      mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
+    },
     method,
     new URL(path, 'http://localhost'),
     payload,

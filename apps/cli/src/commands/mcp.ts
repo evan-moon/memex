@@ -1,55 +1,20 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import {
+  connectMcpClient,
+  getMcpBinPath,
+  type McpClientState,
+  readMcpConnections,
+} from '../services/mcp-clients/index.ts';
 
-export const getMcpBinPath = (): string => {
-  const cliDir = dirname(fileURLToPath(import.meta.url));
-  const workspaceMcpPaths = [
-    join(cliDir, '../../mcp/dist/index.js'),
-    join(cliDir, '../../../mcp/dist/index.js'),
-  ];
-  const workspaceMcpPath = workspaceMcpPaths.find((path) => existsSync(path));
-  if (workspaceMcpPath) return workspaceMcpPath;
-
-  return join(cliDir, 'mcp.js');
-};
-
-type McpClient = 'claude' | 'codex';
-type RunClient = (client: McpClient, args: string[]) => void;
-
-type McpInstallResult = {
-  failures: Array<{ client: McpClient; error: unknown }>;
-};
-
-const runClient: RunClient = (client, args) => {
-  execFileSync(client, args, { stdio: 'inherit' });
-};
-
-export const installMcpClients = (
-  mcpPath: string,
-  run: RunClient = runClient,
-): McpInstallResult => {
-  const failures: McpInstallResult['failures'] = [];
-  const args = ['mcp', 'add', 'memex', '--', 'node', mcpPath];
-
+const connected = (home: string, serverPath: string, client: McpClientState) => {
   try {
-    run('claude', ['mcp', 'remove', 'memex', '-s', 'local']);
+    return connectMcpClient(home, serverPath, client.id) !== null;
   } catch {
-    // `remove` fails when this is the first installation; that is expected.
+    return false;
   }
-
-  for (const client of ['claude', 'codex'] as const) {
-    try {
-      run(client, args);
-    } catch (error) {
-      failures.push({ client, error });
-    }
-  }
-
-  return { failures };
 };
 
 export const registerMcp = (program: Command) => {
@@ -57,35 +22,47 @@ export const registerMcp = (program: Command) => {
 
   mcp
     .command('install')
-    .description('Register memex MCP server with Claude Code and Codex')
+    .description('Register the memex MCP server with every client on this machine')
     .action(() => {
-      const mcpPath = getMcpBinPath();
+      const serverPath = getMcpBinPath();
 
-      if (!existsSync(mcpPath)) {
-        console.error(pc.red(`MCP binary not found at: ${mcpPath}`));
-        console.error(pc.dim('Run `memex build` or reinstall the package.'));
+      if (!existsSync(serverPath)) {
+        console.error(pc.red(`MCP binary not found at: ${serverPath}`));
+        console.error(pc.dim('Run `yarn build` or reinstall the package.'));
         process.exit(1);
       }
 
-      const { failures } = installMcpClients(mcpPath);
+      const home = homedir();
+      const targets = readMcpConnections(home, serverPath).clients.filter(
+        (client) => client.installed,
+      );
 
+      if (targets.length === 0) {
+        console.error(pc.red('No MCP client found on this machine.'));
+        console.error(pc.dim('Install Claude, Claude Code, Codex, or Cursor first.'));
+        process.exit(1);
+      }
+
+      const outcomes = targets.map((client) => ({
+        client,
+        ok: connected(home, serverPath, client),
+      }));
+
+      for (const { client } of outcomes.filter(({ ok }) => ok)) {
+        console.log(`${pc.green('✓')} ${client.name} ${pc.dim(client.configPath)}`);
+      }
+
+      const failures = outcomes.filter(({ ok }) => !ok);
       if (failures.length > 0) {
         console.error(
           pc.red(
-            `Failed to register MCP server with: ${failures.map(({ client }) => client).join(', ')}.`,
+            `Could not write config for: ${failures.map(({ client }) => client.name).join(', ')}.`,
           ),
         );
-        for (const { client } of failures) {
-          console.error(
-            pc.dim(`Run manually: ${client} mcp add memex -- node ${JSON.stringify(mcpPath)}`),
-          );
-        }
         process.exit(1);
       }
 
-      console.log(
-        pc.green('\nDone. Restart Claude Code and Codex to activate the memex MCP server.'),
-      );
+      console.log(pc.green('\nDone. Restart those clients to activate the memex MCP server.'));
     });
 
   mcp

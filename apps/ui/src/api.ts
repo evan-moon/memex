@@ -304,6 +304,23 @@ export type RepairCard = {
 
 export type RepairBatch = { remaining: number; cards: RepairCard[] };
 
+export type McpClientId = 'claude-desktop' | 'claude-code' | 'codex' | 'cursor';
+
+export type McpRegistration =
+  | { kind: 'absent' }
+  | { kind: 'current' }
+  | { kind: 'elsewhere'; command: string };
+
+export type McpClient = {
+  id: McpClientId;
+  name: string;
+  configPath: string;
+  installed: boolean;
+  registration: McpRegistration;
+};
+
+export type McpConnections = { serverPath: string; clients: McpClient[] };
+
 export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
@@ -348,4 +365,6 @@ export const api = {
   approveRule: (id: number) => post<{ ok: true }>(`/api/rule/${id}/approve`),
   declineRule: (id: number, layer: 'past' | 'state') =>
     post<{ ok: true }>(`/api/rule/${id}/decline`, { layer }),
+  mcp: () => request<McpConnections>('/api/mcp'),
+  connectMcp: (client: McpClientId) => post<McpConnections>('/api/mcp/connect', { client }),
 };

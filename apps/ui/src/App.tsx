@@ -7,14 +7,15 @@ import {
   type Sidebar as SidebarData,
   type Topic,
 } from './api.ts';
+import { ConnectScreen } from './Connect.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { HypothesisScreen } from './Hypothesis.tsx';
 import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
 import { Palette } from './Palette.tsx';
 import { RepairScreen } from './Repair.tsx';
-import { Sidebar } from './Sidebar.tsx';
 import { RulesScreen } from './Rules.tsx';
+import { Sidebar } from './Sidebar.tsx';
 import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
@@ -140,6 +141,7 @@ export const App = () => {
               <Route path="/repair/evidence" element={<RepairScreen />} />
               <Route path="/tags" element={<TagsScreen />} />
               <Route path="/rules" element={<RulesScreen />} />
+              <Route path="/connect" element={<ConnectScreen />} />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Routes>

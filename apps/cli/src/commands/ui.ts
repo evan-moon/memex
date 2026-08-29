@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
+import { homedir } from 'node:os';
 import { openDb } from '@memex/db';
 import { createLazyEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
+import { getMcpBinPath } from '../services/mcp-clients/index.ts';
 import { startUiServer } from '../services/ui/server.ts';
 import { createShapeFiller } from '../services/ui/shapes.ts';
 
@@ -26,7 +28,13 @@ export const registerUi = (program: Command) => {
       try {
         const shapes = createShapeFiller({ client });
         const url = await startUiServer(
-          { client, embedder, vaultPath, fillShapes: shapes.fill },
+          {
+            client,
+            embedder,
+            vaultPath,
+            mcp: { home: homedir(), serverPath: getMcpBinPath() },
+            fillShapes: shapes.fill,
+          },
           Number(opts.port),
         );
         console.log(`${pc.green('✓')} memex at ${pc.bold(url)}  ${pc.dim('(ctrl-c to stop)')}`);

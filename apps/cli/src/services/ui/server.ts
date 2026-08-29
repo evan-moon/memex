@@ -16,18 +16,19 @@ import {
   getInference,
   getNote,
   listSignals,
+  type MemexClient,
   refreshInferenceStaleness,
   restampInference,
   rewriteInference,
   setInferenceStatus,
   setNoteEvidence,
   setSignalStatus,
-  type MemexClient,
 } from '@memex/db';
 import { writeDerivesFrom } from '@memex/utils';
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
+import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { buildChores } from './chores.ts';
 import {
@@ -45,9 +46,9 @@ import {
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
 import { evidenceBatch } from './repair.ts';
+import { buildRules } from './rules.ts';
 import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
-import { buildRules } from './rules.ts';
 import { buildToday } from './today.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
 
@@ -137,7 +138,9 @@ export type ApiErrorCode =
   | 'draft-no-claude'
   | 'empty-body'
   | 'edit-rejected'
-  | 'invalid-note-id';
+  | 'invalid-note-id'
+  | 'unknown-client'
+  | 'config-write-failed';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
@@ -151,6 +154,7 @@ export type UiDeps = {
   client: MemexClient;
   embedder: Embedder;
   vaultPath: string;
+  mcp: { home: string; serverPath: string };
   fillShapes?: () => Promise<void>;
 };
 
@@ -244,6 +248,19 @@ export const route = async (
       return declined ? json({ ok: true }) : bad(404, 'not-found');
     }
     return bad(404, 'not-found');
+  }
+  if (method === 'GET' && url.pathname === '/api/mcp') {
+    return json(readMcpConnections(deps.mcp.home, deps.mcp.serverPath));
+  }
+  if (method === 'POST' && url.pathname === '/api/mcp/connect') {
+    const target = asRecord(payload)?.client;
+    if (!isMcpClientId(target)) return bad(400, 'unknown-client');
+    try {
+      const connections = connectMcpClient(deps.mcp.home, deps.mcp.serverPath, target);
+      return connections === null ? bad(400, 'unknown-client') : json(connections);
+    } catch (error) {
+      return bad(500, 'config-write-failed', error instanceof Error ? error.message : undefined);
+    }
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));

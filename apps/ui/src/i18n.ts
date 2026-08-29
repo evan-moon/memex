@@ -44,6 +44,8 @@ const en = {
       'draft-no-evidence': 'There is nothing newer to reconcile this against.',
       'draft-no-claude': 'Could not find the claude CLI. Drafting needs Claude Code on your PATH.',
       'empty-body': 'The body is empty.',
+      'unknown-client': 'memex does not know that app.',
+      'config-write-failed': 'Could not write that app’s config file.',
       unreachable: 'Cannot reach memex — is `memex ui` still running?',
     };
     return messages[failure.code] ?? failure.detail ?? 'Something went wrong.';
@@ -115,6 +117,20 @@ const en = {
     cancel: 'Next time',
     wroteBy: (source: string) => `written by ${source}`,
     readWhole: 'Read the whole note →',
+  },
+  connect: {
+    screenTitle: 'Connect',
+    intro: 'memex is where I keep what I remember. These are the apps that can reach it.',
+    connected: 'Connected',
+    connect: 'Connect',
+    repoint: 'Point it here',
+    restart: (name: string) => `Restart ${name} to finish.`,
+    notInstalled: 'Not on this machine.',
+    absent: 'This app cannot reach memex yet.',
+    current: 'Reads and writes memex.',
+    elsewhere: (command: string) => `Runs ${command} instead.`,
+    none: 'No app on this machine can reach memex yet.',
+    serverPath: 'Apps talk to memex through',
   },
   sidebar: {
     state: 'What I believe now',
@@ -373,6 +389,8 @@ const ko: typeof en = {
       'draft-no-claude':
         'claude CLI를 찾을 수 없어요. 초안을 만들려면 Claude Code가 PATH에 있어야 해요.',
       'empty-body': '본문이 비었어요.',
+      'unknown-client': 'memex가 모르는 앱이에요.',
+      'config-write-failed': '그 앱의 설정 파일을 쓰지 못했어요.',
       unreachable: 'memex에 연결할 수 없어요 — `memex ui`가 아직 켜져 있나요?',
     };
     return messages[failure.code] ?? failure.detail ?? '뭔가 잘못됐어요.';
@@ -430,7 +448,8 @@ const ko: typeof en = {
   rules: {
     screenTitle: '지침',
     waiting: '확인이 필요해요',
-    waitingHint: '제가 스스로 지킬 규칙으로 적어 둔 것들이에요. 승인하기 전까지는 저에게 전달되지 않아요.',
+    waitingHint:
+      '제가 스스로 지킬 규칙으로 적어 둔 것들이에요. 승인하기 전까지는 저에게 전달되지 않아요.',
     active: '적용 중',
     activeHint: '대화를 시작할 때마다 저에게 전달되는 내용이에요.',
     none: '확인할 것이 없어요. 새로 제안하면 여기에 올려 둘게요.',
@@ -443,6 +462,20 @@ const ko: typeof en = {
     cancel: '다음에',
     wroteBy: (source) => `${source}가 작성`,
     readWhole: '전문 보기 →',
+  },
+  connect: {
+    screenTitle: '연결',
+    intro: 'memex는 제가 기억을 두는 곳이에요. 여기에 닿을 수 있는 앱들이에요.',
+    connected: '연결됨',
+    connect: '연결하기',
+    repoint: '여기로 맞추기',
+    restart: (name) => `${name}를 다시 켜면 적용돼요.`,
+    notInstalled: '이 컴퓨터에 없어요.',
+    absent: '아직 memex에 닿지 못해요.',
+    current: 'memex를 읽고 쓰고 있어요.',
+    elsewhere: (command) => `${command}를 대신 실행하고 있어요.`,
+    none: '아직 memex에 연결할 수 있는 앱이 없어요.',
+    serverPath: '앱이 memex와 이야기하는 경로',
   },
   sidebar: {
     state: '지금 믿는 것',
