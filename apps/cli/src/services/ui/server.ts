@@ -27,6 +27,12 @@ import {
   setSignalStatus,
 } from '@memex/db';
 import { writeDerivesFrom } from '@memex/utils';
+import {
+  createLoginRunner,
+  installClaudeCode,
+  type LoginMethod,
+  readClaudeCode,
+} from '../claude-code/index.ts';
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
@@ -149,6 +155,9 @@ export type ApiErrorCode =
   | 'invalid-note-id'
   | 'unknown-client'
   | 'config-write-failed'
+  | 'claude-not-installed'
+  | 'install-failed'
+  | 'login-failed'
   | 'invalid-scope'
   | 'empty-value'
   | 'empty-subject'
@@ -167,7 +176,19 @@ export type UiDeps = {
   embedder: Embedder;
   vaultPath: string;
   mcp: { home: string; serverPath: string };
+  pathEnv: string;
+  openUrl: (url: string) => void;
   fillShapes?: () => Promise<void>;
+};
+
+const runners = new WeakMap<UiDeps, ReturnType<typeof createLoginRunner>>();
+
+const loginRunner = (deps: UiDeps) => {
+  const existing = runners.get(deps);
+  if (existing) return existing;
+  const created = createLoginRunner(deps.openUrl);
+  runners.set(deps, created);
+  return created;
 };
 
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
@@ -260,6 +281,26 @@ export const route = async (
       return declined ? json({ ok: true }) : bad(404, 'not-found');
     }
     return bad(404, 'not-found');
+  }
+  if (method === 'GET' && url.pathname === '/api/claude') {
+    return json(await readClaudeCode(deps.mcp.home, deps.pathEnv));
+  }
+  if (method === 'POST' && url.pathname === '/api/claude/install') {
+    const outcome = await installClaudeCode();
+    return outcome.ok
+      ? json(await readClaudeCode(deps.mcp.home, deps.pathEnv))
+      : bad(502, 'install-failed', outcome.error);
+  }
+  if (method === 'POST' && url.pathname === '/api/claude/login') {
+    const state = await readClaudeCode(deps.mcp.home, deps.pathEnv);
+    if (state.kind === 'missing') return bad(400, 'claude-not-installed');
+
+    const asked = asRecord(payload)?.method;
+    const how: LoginMethod = asked === 'console' ? 'console' : 'claudeai';
+    const started = await loginRunner(deps).start(state.binary, how);
+    return started.kind === 'failed'
+      ? bad(502, 'login-failed', started.error)
+      : json({ login: started, claude: await readClaudeCode(deps.mcp.home, deps.pathEnv) });
   }
   if (method === 'GET' && url.pathname === '/api/register') {
     return json(buildRegisterSubjects(client));

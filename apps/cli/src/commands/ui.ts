@@ -33,6 +33,9 @@ export const registerUi = (program: Command) => {
             embedder,
             vaultPath,
             mcp: { home: homedir(), serverPath: getMcpBinPath() },
+            pathEnv: process.env.PATH ?? '',
+            openUrl: (target) =>
+              spawn('open', [target], { stdio: 'ignore', detached: true }).unref(),
             fillShapes: shapes.fill,
           },
           Number(opts.port),

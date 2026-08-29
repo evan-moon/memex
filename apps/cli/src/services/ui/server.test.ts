@@ -35,6 +35,8 @@ beforeEach(() => {
     embedder: stubEmbedder,
     vaultPath: vaultDir,
     mcp: { home: mcpHome, serverPath: '/repo/apps/mcp/dist/index.js' },
+    pathEnv: '',
+    openUrl: () => {},
   };
 });
 
@@ -632,5 +634,21 @@ describe('a key measured by period', () => {
       changes: 1,
       heads: [{ value: '1,250' }],
     });
+  });
+});
+
+describe('claude code onboarding', () => {
+  it('reports a machine that has no Claude Code, without guessing why', async () => {
+    const reply = await route(deps, 'GET', new URL('/api/claude', 'http://localhost'), null);
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toEqual({ kind: 'missing' });
+  });
+
+  it('refuses to start a sign-in there is nothing to sign in to', async () => {
+    const reply = await post('/api/claude/login', { method: 'claudeai' });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'claude-not-installed' } });
   });
 });

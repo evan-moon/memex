@@ -38,6 +38,8 @@ const call = (method: string, path: string, payload: unknown = null) =>
       embedder: stubEmbedder,
       vaultPath: dbDir,
       mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
+      pathEnv: '',
+      openUrl: () => {},
     },
     method,
     new URL(path, 'http://localhost'),

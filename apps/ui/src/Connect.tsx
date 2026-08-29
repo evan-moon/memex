@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, type McpClient, type McpClientId, type McpConnections, toFailure } from './api.ts';
 import { Button, Card, Page } from './bits.tsx';
 import { useT } from './i18n.ts';
+import { ClaudeCodeSetup } from './Setup.tsx';
 import { useAsync } from './useAsync.ts';
 
 const Detail = ({ client }: { client: McpClient }) => {
@@ -88,13 +89,23 @@ export const ConnectScreen = () => {
       </Page>
     );
 
-  const here = connections.clients.filter((client) => client.installed);
-  const elsewhere = connections.clients.filter((client) => !client.installed);
+  // Claude Code is what the three steps above are about. Listing it here too
+  // put the same app on screen twice saying two different things, and offered
+  // to write a config for something that was not installed yet.
+  const others = connections.clients.filter((client) => client.id !== 'claude-code');
+  const here = others.filter((client) => client.installed);
+  const elsewhere = others.filter((client) => !client.installed);
 
   return (
     <Page>
       <h1 className="text-lg font-semibold text-foreground">{t.connect.screenTitle}</h1>
       <p className="mt-1 text-xs text-muted">{t.connect.intro}</p>
+
+      <div className="mt-5">
+        <ClaudeCodeSetup connections={connections} onConnected={setWritten} />
+      </div>
+
+      <h2 className="mt-8 text-sm font-semibold text-foreground">{t.connect.appsTitle}</h2>
 
       {error !== null && <p className="mt-3 text-xs text-danger">{error}</p>}
 

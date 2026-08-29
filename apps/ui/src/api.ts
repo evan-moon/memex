@@ -333,6 +333,17 @@ export const scopeParams = (scope: RegisterScope): Record<string, string> =>
     ? { scope: 'global' }
     : { scope: 'period', start: scope.start, end: scope.end };
 
+export type ClaudeCodeState =
+  | { kind: 'missing' }
+  | { kind: 'unreadable'; binary: string; reason: string }
+  | { kind: 'logged-out'; binary: string }
+  | { kind: 'ready'; binary: string; method: string | null; plan: string | null };
+
+export type LoginState =
+  | { kind: 'idle' }
+  | { kind: 'waiting'; url: string | null }
+  | { kind: 'failed'; error: string };
+
 export type McpClientId = 'claude-desktop' | 'claude-code' | 'codex' | 'cursor';
 
 export type McpRegistration =
@@ -413,6 +424,10 @@ export const api = {
       value: entry.value,
       ...scopeParams(entry.scope),
     }),
+  claude: () => request<ClaudeCodeState>('/api/claude'),
+  installClaude: () => post<ClaudeCodeState>('/api/claude/install'),
+  loginClaude: (method: 'claudeai' | 'console') =>
+    post<{ login: LoginState; claude: ClaudeCodeState }>('/api/claude/login', { method }),
   mcp: () => request<McpConnections>('/api/mcp'),
   connectMcp: (client: McpClientId) => post<McpConnections>('/api/mcp/connect', { client }),
 };
