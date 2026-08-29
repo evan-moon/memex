@@ -23,7 +23,12 @@ const createWindow = (url: string) => {
     ...WINDOW,
     title: 'memex',
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#f6f7f9',
+    // The whole window is vibrant and the page paints over the part that should
+    // not be. An opaque backgroundColor would sit in front of the material and
+    // there would be nothing to see through.
+    vibrancy: 'sidebar',
+    visualEffectState: 'active',
+    backgroundColor: '#00000000',
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -37,7 +42,13 @@ const createWindow = (url: string) => {
   if (DEV_SERVER !== undefined) {
     window.webContents.on('console-message', (_event, _level, message) => console.log(message));
   }
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    window.show();
+    // Started from a terminal, the window otherwise opens behind whatever was
+    // in front. Only in development: a packaged app is launched by the reader,
+    // and an app that pushes itself forward on its own is a rude one.
+    if (DEV_SERVER !== undefined) app.focus({ steal: true });
+  });
   window.loadURL(url);
 
   // A link to somewhere else is somewhere else: it opens in the browser rather

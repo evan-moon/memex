@@ -117,11 +117,11 @@ export const Sidebar = ({
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: closing the mobile drawer on tap
     <nav className="h-full overflow-y-auto pb-10" onClick={onNavigate}>
-      <div className="px-4 py-4">
-        <NavLink to="/" className="text-[15px] font-bold tracking-tight">
-          memex
-        </NavLink>
-      </div>
+      {/* Clearance for the traffic lights, which sit over the sidebar because
+          the title bar is hidden. Nothing goes here: the app's name is on the
+          window and in the menu bar, and saying it a third time earns nothing.
+          Home is the button in the header. */}
+      <div className="h-13" />
       <Section label={t.sidebar.topics} count={topics.length}>
         <TopicRows topics={topics} />
       </Section>

@@ -52,7 +52,16 @@ const payloadOf = async (request: Request) => {
 // can be swapped without restarting the app. `/api` still goes through here,
 // which is what keeps the two halves on one origin the way they were.
 const fromDevServer = (devServer: string, url: URL) =>
-  fetch(new URL(`${url.pathname}${url.search}`, devServer));
+  fetch(new URL(`${url.pathname}${url.search}`, devServer)).catch(
+    (error: unknown) =>
+      // A dev server that is not up yet, or has been restarted, otherwise
+      // rejects here and takes the whole window down with ERR_UNEXPECTED. Saying
+      // which server did not answer beats a blank window with a code in it.
+      new Response(`memex: ${devServer} did not answer.\n\n${String(error)}`, {
+        status: 502,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      }),
+  );
 
 export const serve = (deps: UiDeps, rendererRoot: string, devServer?: string) => {
   const index = () => {

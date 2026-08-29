@@ -102,7 +102,7 @@ export const App = () => {
             className="absolute inset-0 bg-black/50"
             onClick={() => setDrawer(false)}
           />
-          <div className="absolute inset-y-0 left-0 w-72 border-r border-line bg-background">
+          <div className="pane absolute inset-y-0 left-0 w-72 border-r border-line">
             <Sidebar data={sidebar} topics={topics} onNavigate={() => setDrawer(false)} />
           </div>
         </div>
@@ -110,7 +110,7 @@ export const App = () => {
 
       <Palette open={palette} onClose={() => setPalette(false)} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="pane flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-line px-3 py-2 sm:px-5">
           <button
             type="button"
