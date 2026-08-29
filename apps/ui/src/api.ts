@@ -208,6 +208,7 @@ export type NewNote = {
   folder?: string;
   tags?: string[];
   amends?: number;
+  amendsKind?: 'corrects' | 'continues';
 };
 
 export type MergeCandidate = {

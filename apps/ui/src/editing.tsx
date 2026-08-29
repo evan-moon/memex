@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { Button, Card } from './bits.tsx';
+import { DiffView } from './DiffView.tsx';
 import type { Draft } from './drafts.ts';
 import { useT } from './i18n.ts';
 import { MarkdownInput } from './MarkdownInput.tsx';
@@ -42,6 +43,17 @@ const useWriter = <T,>(run: (value: T) => Promise<void>) => {
   };
 
   return { failure, busy, submit };
+};
+
+// The draft opens with a link line and the quoted paragraph above the cursor.
+// The diff should compare what the reader is writing, not the scaffolding.
+const bodyBelowQuote = (body: string): string => {
+  const lines = body.split('\n');
+  const lastQuote = lines.reduce((at, line, i) => (line.startsWith('> ') ? i : at), -1);
+  return lines
+    .slice(lastQuote + 1)
+    .join('\n')
+    .trim();
 };
 
 const parseTags = (value: string): string[] =>
@@ -133,10 +145,12 @@ export const NoteEditor = ({
 export const Composer = ({
   draft,
   note,
+  quoted,
   onCancel,
 }: {
   draft: Draft;
   note: NoteDetail;
+  quoted?: string;
   onCancel: () => void;
 }) => {
   const t = useT();
@@ -152,14 +166,23 @@ export const Composer = ({
       folder: note.folder ?? undefined,
       tags: note.tags,
       amends: draft.amends,
+      // A person writing here has said the earlier note is wrong. That is the
+      // one case where `corrects` is not a guess.
+      amendsKind: draft.amends === undefined ? undefined : 'corrects',
     });
     navigate(`/note/${created.id}`);
   });
 
+  // What the paragraph said against what it will say. The old text is not gone
+  // — a `past` note is never edited — so this is what the correction claims,
+  // not what replaces it.
+  const said = quoted === undefined ? null : bodyBelowQuote(body);
+
   return (
-    <Card className="mt-4">
+    <Card className="mt-4 mb-4">
       <h2 className="text-sm font-semibold">{draft.heading}</h2>
       {draft.explain ? <p className="mt-1 text-xs text-muted">{draft.explain}</p> : null}
+      {quoted !== undefined && said ? <DiffView before={quoted} after={said} /> : null}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
         <Field label={t.edit.title}>

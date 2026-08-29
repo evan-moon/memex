@@ -11,7 +11,22 @@ import {
   upsertSignal,
 } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { route, type UiDeps } from './server.ts';
 import { statusesFor } from './status.ts';
+
+const host = (): UiDeps => ({
+  client,
+  embedder: async () => new Array(768).fill(0),
+  vaultPath: dbDir,
+  mcp: { home: dbDir, serverPath: '/repo/apps/mcp/dist/index.js' },
+  pathEnv: '',
+  openUrl: () => {},
+  model: {
+    read: () => ({ kind: 'ready' as const }),
+    start: () => ({ kind: 'ready' as const }),
+    embed: async () => new Array(768).fill(0),
+  },
+});
 
 let dbDir: string;
 let client: MemexClient;
@@ -124,5 +139,37 @@ describe('what a later note did to an earlier one', () => {
     linkAmendment(client, fixed.id, older.id, 'corrects');
 
     expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'amended' });
+  });
+});
+
+describe('a correction written in the app', () => {
+  // The person clicked the paragraph and said it was wrong. That is the one
+  // caller allowed to write the stronger edge, and the endpoint is where it is
+  // decided — an agent posting the same body gets `continues` like everyone else.
+  it('is the one write that says corrects', async () => {
+    const older = addNote('what was recorded');
+
+    await route(host(), 'POST', new URL('http://x/api/notes'), {
+      title: 'what it actually was',
+      content: 'the trial is 30 days',
+      layer: 'past',
+      amends: older.id,
+      amendsKind: 'corrects',
+    });
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'amended' });
+  });
+
+  it('is a continuation when nobody said it was a correction', async () => {
+    const older = addNote('what was recorded');
+
+    await route(host(), 'POST', new URL('http://x/api/notes'), {
+      title: 'more about it',
+      content: 'and the plan is monthly',
+      layer: 'past',
+      amends: older.id,
+    });
+
+    expect(statusesFor(client, [older.id]).get(older.id)).toMatchObject({ kind: 'continued' });
   });
 });

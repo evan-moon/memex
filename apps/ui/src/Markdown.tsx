@@ -20,6 +20,7 @@ const componentsFor = (
   targets: Map<string, number>,
   t: Strings,
   onPick?: (text: string) => void,
+  slot?: Slot,
 ): Components => ({
   h1: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h2: ({ children }) => <h2 className="doc-h2">{children}</h2>,
@@ -27,18 +28,34 @@ const componentsFor = (
   h4: ({ children }) => <h4 className="doc-h4">{children}</h4>,
   h5: ({ children }) => <h4 className="doc-h4">{children}</h4>,
   h6: ({ children }) => <h4 className="doc-h4">{children}</h4>,
-  p: ({ children }) =>
-    onPick === undefined ? (
-      <p className="doc-body">{children}</p>
+  p: ({ children }) => {
+    const text = textOf(children);
+    // Matched by what it says rather than by position: the source is re-parsed
+    // on every keystroke in the draft below, and an index would slide out from
+    // under the reader as they type.
+    const here = slot !== undefined && slot.after === text;
+    const body =
+      onPick === undefined || here ? (
+        <p className="doc-body">{children}</p>
+      ) : (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the paragraph is the target, and the button in the header does the same thing for a keyboard
+        <p
+          className="doc-body -mx-2 cursor-text rounded px-2 hover:bg-surface-muted"
+          onClick={() => onPick(text)}
+        >
+          {children}
+        </p>
+      );
+
+    return here ? (
+      <>
+        <span className="block rounded bg-accent-soft/60 px-2 -mx-2">{body}</span>
+        {slot?.node}
+      </>
     ) : (
-      // biome-ignore lint/a11y/noStaticElementInteractions: the paragraph is the target, and the button beside it does the same thing for a keyboard
-      <p
-        className="doc-body -mx-2 cursor-text rounded px-2 hover:bg-surface-muted"
-        onClick={() => onPick(textOf(children))}
-      >
-        {children}
-      </p>
-    ),
+      body
+    );
+  },
   ul: ({ children }) => <ul className="doc-ul">{children}</ul>,
   ol: ({ children }) => <ol className="doc-ol">{children}</ol>,
   li: ({ children, className }) => (
@@ -85,14 +102,21 @@ const componentsFor = (
   },
 });
 
+// What to put under one paragraph, and which. This is how writing happens where
+// the reader was looking instead of at the top of a fifteen-thousand character
+// note they then have to scroll back down.
+export type Slot = { after: string; node: React.ReactNode };
+
 export const Markdown = ({
   children,
   links = [],
   onPick,
+  slot,
 }: {
   children: string;
   links?: { title: string; id: number }[];
   onPick?: (text: string) => void;
+  slot?: Slot;
 }) => {
   const t = useT();
   const targets = new Map(links.map((l) => [l.title.toLowerCase(), l.id]));
@@ -100,7 +124,7 @@ export const Markdown = ({
     <div className="doc">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkWikiLinks]}
-        components={componentsFor(targets, t, onPick)}
+        components={componentsFor(targets, t, onPick, slot)}
         urlTransform={(url) => (url.startsWith('wiki:') ? url : defaultUrlTransform(url))}
       >
         {children}

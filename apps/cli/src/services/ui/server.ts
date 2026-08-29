@@ -620,6 +620,9 @@ export const route = async (
     if (!title) return bad(400, 'empty-title');
     if (!content) return bad(400, 'empty-body');
     if (!isLayer(layer)) return bad(400, 'invalid-layer');
+    // Only a person writing in the app says a note is wrong. Anything that does
+    // not say gets the weaker edge, the same as every other caller.
+    const amendKind = fields?.amendsKind === 'corrects' ? 'corrects' : undefined;
 
     const result = await saveNote(client, deps.embedder, vaultPath, {
       title,
@@ -629,6 +632,7 @@ export const route = async (
       folder: text(fields?.folder),
       tags: words(fields?.tags),
       amends: positiveInt(fields?.amends),
+      amendKind,
       actor: 'user',
     });
     if (isSaveRejection(result)) return bad(409, 'save-rejected', result.message);

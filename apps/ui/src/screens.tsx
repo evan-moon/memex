@@ -157,6 +157,8 @@ export const NoteScreen = () => {
   const [edited, setEdited] = useState<NoteDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // The paragraph the draft is about, and where it opens.
+  const [at, setAt] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const note = edited?.id === Number(id) ? edited : data;
 
@@ -164,6 +166,7 @@ export const NoteScreen = () => {
     if (data) rememberVisit({ id: data.id, title: data.title });
     setEditing(false);
     setDraft(null);
+    setAt(null);
     setShowSource(false);
     setDismissed(false);
   }, [data]);
@@ -217,40 +220,61 @@ export const NoteScreen = () => {
           </Link>
         </Card>
       ) : null}
-      {editing ? (
-        <NoteEditor
-          note={note}
-          onSaved={(next) => {
-            setEdited(next);
-            setEditing(false);
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      ) : null}
-      {draft ? <Composer draft={draft} note={note} onCancel={() => setDraft(null)} /> : null}
-
-      <Evidence note={note} onSaved={setEdited} />
-
-      <StalePanel
-        note={note}
-        onSaved={setEdited}
-        onDismissed={() => setEdited({ ...note, stale: null })}
-      />
-      {/* The layer decides what a click on the body means. 1,149 of these notes
-          cannot be edited at all, so an editor that opens on them would be a
-          promise the vault breaks; the same gesture opens a correction instead,
-          already quoting the paragraph it is about. state and rule open where
-          the reader is looking. */}
+      {/* Out of the way while writing. Sources and staleness are worth reading
+          and are noise to write past. */}
+      {editing || draft ? null : (
+        <>
+          <Evidence note={note} onSaved={setEdited} />
+          <StalePanel
+            note={note}
+            onSaved={setEdited}
+            onDismissed={() => setEdited({ ...note, stale: null })}
+          />
+        </>
+      )}
       <article className="reading mt-7 rounded-card p-5 sm:p-7">
-        {note.content.trim() ? (
+        {editing ? (
+          // state and rule are the document. The editor takes its place rather
+          // than opening above it, so the reader is not looking at the old text
+          // and the new text at the same time.
+          <NoteEditor
+            note={note}
+            onSaved={(next) => {
+              setEdited(next);
+              setEditing(false);
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : note.content.trim() ? (
           <Markdown
             links={note.wikiLinks}
             onPick={
-              editing || draft
+              draft
                 ? undefined
                 : note.layer === 'past'
-                  ? (quoted) => setDraft(correctionDraft(note, t, quoted))
+                  ? (quoted) => {
+                      setAt(quoted);
+                      setDraft(correctionDraft(note, t, quoted));
+                    }
                   : () => setEditing(true)
+            }
+            slot={
+              draft && at
+                ? {
+                    after: at,
+                    node: (
+                      <Composer
+                        draft={draft}
+                        note={note}
+                        quoted={at}
+                        onCancel={() => {
+                          setDraft(null);
+                          setAt(null);
+                        }}
+                      />
+                    ),
+                  }
+                : undefined
             }
           >
             {note.content}
@@ -260,6 +284,10 @@ export const NoteScreen = () => {
           // article reads as the screen having failed to load.
           <p className="text-sm text-muted">{t.note.emptyBody}</p>
         )}
+        {/* Started from the header button, which names no paragraph. */}
+        {draft && !at ? (
+          <Composer draft={draft} note={note} onCancel={() => setDraft(null)} />
+        ) : null}
       </article>
       <HypothesisLinks
         heading={t.hypothesis.onNote}
