@@ -1,4 +1,5 @@
-import { listSignals, type MemexClient } from '@memex/db';
+import { inferencesOverNotes, listSignals, type MemexClient } from '@memex/db';
+import { amendedStatuses, type NoteStatus, piledUpStatuses } from './status.ts';
 
 const MIN_USES = 20;
 const DORMANT_DAYS = 90;
@@ -12,10 +13,10 @@ export type TopicNoteRef = {
   title: string;
   layer: string;
   at: number;
-  reason: string | null;
+  status: NoteStatus | null;
 };
 
-export type Arc = { reasoning: string; noteIds: number[] };
+export type Arc = { reasoning: string | null; noteIds: number[] };
 
 export type Companion = {
   tag: string;
@@ -40,6 +41,7 @@ export type Topic = {
   outdated: TopicNoteRef[];
   companions: Companion[];
   arcs: Arc[];
+  hypotheses: { id: number; title: string; status: string; shared: number }[];
 };
 
 type Row = { id: number; title: string; layer: string; at: number };
@@ -54,42 +56,10 @@ const notesForTag = (client: MemexClient, tag: string): Row[] =>
     )
     .all(tag) as Row[];
 
-// A note is out of date for one of two reasons the vault already records: a
-// later note corrected it, or it claims to be a current plan while newer
-// records piled up behind it.
-const supersededBy = (client: MemexClient, ids: number[]): Map<number, string> => {
-  if (ids.length === 0) return new Map();
-  const placeholders = ids.map(() => '?').join(', ');
-  const rows = client.sqlite
-    .prepare(
-      `SELECT l.target_id AS id, n.id AS fixId, n.title AS fixTitle,
-              COALESCE(n.authored_at, n.created_at) AS at
-       FROM note_links l JOIN notes n ON n.id = l.source_id
-       WHERE l.source = 'amends' AND l.target_id IN (${placeholders})
-       ORDER BY at`,
-    )
-    .all(...ids) as { id: number; fixId: number; fixTitle: string }[];
-  return rows.reduce(
-    (acc, r) => acc.set(r.id, `#${r.fixId} "${r.fixTitle}" 에서 이야기가 바뀌었어`),
-    new Map<number, string>(),
-  );
-};
-
-const staleReasons = (client: MemexClient): Map<number, string> =>
-  listSignals(client, { type: 'stale_state', status: 'new' }).reduce((acc, s) => {
-    const [stateNote, ...newer] = s.evidenceIds;
-    return stateNote === undefined
-      ? acc
-      : acc.set(
-          stateNote,
-          `이 뒤로 관련 기록이 ${newer.length}개 쌓였어 — 아직 맞는 얘긴지 확인해봐`,
-        );
-  }, new Map<number, string>());
-
 const arcsFor = (client: MemexClient, ids: Set<number>): Arc[] =>
   listSignals(client, { type: 'hidden_arc', status: 'new' })
     .filter((s) => s.evidenceIds.filter((id) => ids.has(id)).length >= 2)
-    .map((s) => ({ reasoning: s.reasoning ?? '아직 엮이지 않은 흐름', noteIds: s.evidenceIds }));
+    .map((s) => ({ reasoning: s.reasoning, noteIds: s.evidenceIds }));
 
 // Every topic is bucketed over the same absolute window, the way a repository
 // list does it: the same x position is the same week on every row, so a flat
@@ -147,13 +117,13 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
   if (notes.length === 0) return null;
 
   const ids = notes.map((n) => n.id);
-  const fixed = supersededBy(client, ids);
-  const stale = staleReasons(client);
+  const fixed = amendedStatuses(client, ids);
+  const stale = piledUpStatuses(client);
 
-  const reasonFor = (n: Row) => fixed.get(n.id) ?? stale.get(n.id) ?? null;
+  const statusFor = (n: Row) => fixed.get(n.id) ?? stale.get(n.id) ?? null;
   const outdated = notes
-    .filter((n) => reasonFor(n) !== null)
-    .map((n) => ({ ...n, reason: reasonFor(n), changed: fixed.has(n.id) }));
+    .filter((n) => statusFor(n) !== null)
+    .map((n) => ({ ...n, status: statusFor(n), changed: fixed.has(n.id) }));
 
   const outdatedIds = new Set(outdated.map((n) => n.id));
   const believed = notes.filter((n) => n.layer === 'state' && !outdatedIds.has(n.id));
@@ -162,8 +132,10 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
   // answer there is its latest entries, not an empty column.
   const current =
     believed.length > 0
-      ? believed.map((n) => ({ ...n, reason: null }))
-      : notes.filter((n) => !outdatedIds.has(n.id)).map((n) => ({ ...n, reason: '최근 기록' }));
+      ? believed.map((n) => ({ ...n, status: null }))
+      : notes
+          .filter((n) => !outdatedIds.has(n.id))
+          .map((n) => ({ ...n, status: { kind: 'recent' as const } }));
 
   return {
     tag,
@@ -178,6 +150,7 @@ export const buildTopic = (client: MemexClient, tag: string, now = Date.now()): 
     outdated: outdated.slice(0, PREVIEW),
     companions: companionsFor(client, tag),
     arcs: arcsFor(client, new Set(ids)),
+    hypotheses: inferencesOverNotes(client, ids),
   };
 };
 

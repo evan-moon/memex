@@ -7,6 +7,7 @@ export default function DocsMobileControls() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the path is the trigger, not an input — dropping it would leave the menu open across navigation
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);

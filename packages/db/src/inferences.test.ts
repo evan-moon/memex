@@ -54,17 +54,17 @@ describe('mintInference', () => {
     expect(inf.status).toBe('active');
     expect(inf.confidence).toBe(0.7);
 
-    const found = getInference(client, inf.id)!;
-    expect(found.evidence).toHaveLength(2);
-    expect(found.evidence.every((e) => !e.changed && !e.missing)).toBe(true);
-    expect(found.evidence.find((e) => e.noteId === b.id)?.role).toBe('supports');
+    const found = getInference(client, inf.id);
+    expect(found?.evidence).toHaveLength(2);
+    expect(found?.evidence.every((e) => !e.changed && !e.missing)).toBe(true);
+    expect(found?.evidence.find((e) => e.noteId === b.id)?.role).toBe('supports');
   });
 
   it('stores the mint-time prompt snapshot and keeps it after sources drift', () => {
     const a = addNote('A', 'alpha');
     const bundle = buildEvidenceBundle(client, { evidenceIds: [a.id], reasoning: 'an arc' });
     expect(bundle).toContain('an arc');
-    expect(bundle).toContain('#' + String(a.id) + ' A');
+    expect(bundle).toContain(`#${a.id} A`);
     expect(bundle).toContain('alpha');
 
     const inf = mintInference(client, {
@@ -77,9 +77,9 @@ describe('mintInference', () => {
     updateNote(client, a.id, { content: 'alpha rewritten' });
     checkInferenceStale(client, inf.id);
 
-    const found = getInference(client, inf.id)!;
-    expect(found.inference.status).toBe('stale');
-    expect(found.inference.promptText).toBe(bundle);
+    const found = getInference(client, inf.id);
+    expect(found?.inference.status).toBe('stale');
+    expect(found?.inference.promptText).toBe(bundle);
   });
 
   it('marks the originating signal as minted', () => {

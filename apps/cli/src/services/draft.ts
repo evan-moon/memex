@@ -25,7 +25,7 @@ export type Draft =
       reason: string;
       durationMs: number;
     }
-  | { error: string };
+  | { error: string; code?: 'no-claude' };
 
 const MODEL = 'sonnet';
 // A delimiter rather than JSON: the body is long Markdown with its own quotes,
@@ -183,10 +183,6 @@ export const draftStateUpdate = async (source: DraftSource): Promise<Draft> => {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return {
-      error: message.includes('ENOENT')
-        ? 'claude CLI를 찾을 수 없어. 초안을 만들려면 Claude Code가 PATH에 있어야 해.'
-        : message,
-    };
+    return message.includes('ENOENT') ? { error: message, code: 'no-claude' } : { error: message };
   }
 };

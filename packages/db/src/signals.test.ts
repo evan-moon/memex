@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
-import { insertNote, linkTargets, saveEmbedding, serializeTags } from './repository.ts';
+import { setNoteEvidence } from './evidence.ts';
+import { linkTargets } from './link-index.ts';
+import { deleteNote, insertNote, saveEmbedding, serializeTags, updateNote } from './repository.ts';
 import {
   computeSignalHash,
   detectDanglingLinks,
@@ -12,6 +14,7 @@ import {
   detectTagBursts,
   findBestProactiveSignal,
   listSignals,
+  proactiveSignalFor,
   refreshSignals,
   setSignalStatus,
   upsertSignal,
@@ -144,17 +147,36 @@ describe('detectStaleState', () => {
     // unrelated direction — must NOT count
     addNote({ layer: 'past', embedding: unit(1), createdAt: t0 + 30 * DAY });
 
-    const candidates = detectStaleState(client, { minNewer: 2 });
+    const { candidates } = detectStaleState(client, { minNewer: 2 });
     expect(candidates).toHaveLength(1);
     expect(candidates[0].evidenceIds[0]).toBe(state.id);
     expect(candidates[0].evidenceIds).toHaveLength(3); // state + 2 newer
+  });
+
+  it('leaves a note that names its sources to the comparison', () => {
+    const t0 = Date.now() - 100 * DAY;
+    const state = addNote({
+      title: 'Roadmap',
+      layer: 'state',
+      embedding: unit(0),
+      createdAt: t0,
+      updatedAt: t0,
+    });
+    const source = addNote({ layer: 'past', embedding: unit(0), createdAt: t0 - 30 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 20 * DAY });
+
+    expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(1);
+
+    setNoteEvidence(client, state.id, [source.id]);
+    expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(0);
   });
 
   it('does not flag when fewer than minNewer', () => {
     const t0 = Date.now() - 100 * DAY;
     addNote({ layer: 'state', embedding: unit(0), createdAt: t0, updatedAt: t0 });
     addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
-    expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(0);
+    expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(0);
   });
 
   it('does not count freshly imported notes that were authored before the state update', () => {
@@ -164,7 +186,7 @@ describe('detectStaleState', () => {
     // knowledge entering the index must not read as "newer evidence".
     addNote({ layer: 'past', embedding: unit(0), authoredAt: t0 - 20 * DAY });
     addNote({ layer: 'past', embedding: unit(0), authoredAt: t0 - 30 * DAY });
-    expect(detectStaleState(client, { minNewer: 2 })).toHaveLength(0);
+    expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(0);
   });
 });
 
@@ -240,7 +262,7 @@ describe('findBestProactiveSignal', () => {
   });
 });
 
-describe('refreshSignals dirty-flag', () => {
+describe('refreshSignals watermarks', () => {
   const seedArc = () => {
     const now = Date.now();
     for (const d of [400, 300, 200, 10]) {
@@ -254,9 +276,92 @@ describe('refreshSignals dirty-flag', () => {
     expect(refreshSignals(client)).toHaveLength(0); // clean → short-circuit
     expect(refreshSignals(client, { force: true }).length).toBeGreaterThan(0); // forced
 
-    // a change bumps updated_at (explicit future ts avoids same-ms flakiness)
-    addNote({ tags: ['y'], content: 'see [[Nope]]', updatedAt: Date.now() + 60_000 });
-    expect(refreshSignals(client).length).toBeGreaterThan(0); // dirty again
+    addNote({ tags: ['y'], content: 'see [[Nope]]' });
+    expect(refreshSignals(client).length).toBeGreaterThan(0); // logged → dirty again
+  });
+
+  it('leaves a detector alone when only what it cannot read has moved', () => {
+    const note = addNote({ content: 'see [[Nope]]' });
+    refreshSignals(client);
+    const before = listSignals(client).map((s) => s.id);
+
+    updateNote(client, note.id, { tags: serializeTags(['unrelated']) });
+
+    // tag_burst is the only detector watching tags, and it finds nothing here,
+    // so the dangling signal survives rather than being retired on its behalf.
+    expect(refreshSignals(client)).toHaveLength(0);
+    expect(listSignals(client).map((s) => s.id)).toEqual(before);
+  });
+
+  it('wakes on a deletion, which bumps no timestamp of its own', () => {
+    const target = addNote({ title: 'Target' });
+    addNote({ content: 'see [[Target]]' });
+    refreshSignals(client);
+    expect(listSignals(client).filter((s) => s.type === 'dangling_link')).toHaveLength(0);
+
+    deleteNote(client, target.id);
+
+    expect(refreshSignals(client).some((s) => s.type === 'dangling_link')).toBe(true);
+  });
+});
+
+describe('proactiveSignalFor', () => {
+  it('surfaces a dead link in the note just written', () => {
+    const note = addNote({ content: 'see [[Nothing At All]]' });
+    expect(proactiveSignalFor(client, note.id)?.type).toBe('dangling_link');
+  });
+
+  it('says nothing about a note with no answerable signal', () => {
+    const note = addNote({ content: 'plain prose' });
+    expect(proactiveSignalFor(client, note.id)).toBeUndefined();
+  });
+
+  it('hints about the written note only, though the refresh it rides on sees all', () => {
+    const other = addNote({ content: 'see [[Also Missing]]' });
+    const note = addNote({ content: 'plain prose' });
+
+    expect(proactiveSignalFor(client, note.id)).toBeUndefined();
+    // The write refreshes, so a neighbour's dead link is recorded too — it is
+    // just not offered as this write's hint.
+    expect(listSignals(client).some((s) => s.evidenceIds.includes(other.id))).toBe(true);
+  });
+
+  it('surfaces a stale state note the write itself unsettled', () => {
+    const t0 = Date.now() - 100 * DAY;
+    const state = addNote({
+      title: 'Roadmap',
+      layer: 'state',
+      embedding: unit(3),
+      createdAt: t0,
+      updatedAt: t0,
+    });
+    addNote({ layer: 'past', embedding: unit(3), createdAt: t0 + 10 * DAY });
+    addNote({ layer: 'past', embedding: unit(3), createdAt: t0 + 20 * DAY });
+    refreshSignals(client);
+
+    const written = addNote({ layer: 'past', embedding: unit(3), createdAt: t0 + 30 * DAY });
+    const hint = proactiveSignalFor(client, written.id);
+
+    expect(hint?.type).toBe('stale_state');
+    expect(hint?.evidenceIds[0]).toBe(state.id);
+  });
+
+  it('leaves the next read with nothing to do', () => {
+    const note = addNote({ content: 'see [[Nothing At All]]' });
+    proactiveSignalFor(client, note.id);
+
+    expect(refreshSignals(client)).toHaveLength(0);
+  });
+
+  it('persists what it found, so a later refresh does not raise it twice', () => {
+    const note = addNote({ content: 'see [[Nothing At All]]' });
+    const hint = proactiveSignalFor(client, note.id);
+
+    refreshSignals(client);
+    const dangling = listSignals(client).filter(
+      (s) => s.type === 'dangling_link' && s.evidenceIds.includes(note.id),
+    );
+    expect(dangling.map((s) => s.id)).toEqual([hint?.id]);
   });
 });
 
@@ -314,12 +419,12 @@ describe('linkTargets', () => {
     expect(linkTargets('see [[Note|shown as this]]')).toEqual(['Note']);
   });
 
-  it('reads the target, not the heading anchor', () => {
-    expect(linkTargets('see [[Note#Some Heading]]')).toEqual(['Note']);
+  it('keeps the heading anchor for resolution to interpret', () => {
+    expect(linkTargets('see [[Note#Some Heading]]')).toEqual(['Note#Some Heading']);
   });
 
-  it('handles both at once and dedupes', () => {
-    expect(linkTargets('[[Note#H|shown]] and [[Note]]')).toEqual(['Note']);
+  it('drops display text while keeping the anchor, and dedupes', () => {
+    expect(linkTargets('[[Note#H|shown]] and [[Note]]')).toEqual(['Note#H', 'Note']);
   });
 
   it('normalizes composed forms so NFD and NFC name the same note', () => {
@@ -335,6 +440,18 @@ describe('detectDanglingLinks — link syntax', () => {
   it('does not flag a link that only carries display text', () => {
     addNote({ title: '도착' });
     addNote({ title: '출발', content: 'see [[도착|이렇게 보임]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+
+  it('reaches a note whose own title holds a #', () => {
+    addNote({ title: '세션 인계 — 작업지시서 #2219 실행' });
+    addNote({ title: '출발', content: '이어서 [[세션 인계 — 작업지시서 #2219 실행]]' });
+    expect(detectDanglingLinks(client)).toHaveLength(0);
+  });
+
+  it('still reads a # as an anchor when no note is named that way', () => {
+    addNote({ title: '도착' });
+    addNote({ title: '출발', content: 'see [[도착#어느 절]]' });
     expect(detectDanglingLinks(client)).toHaveLength(0);
   });
 

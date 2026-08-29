@@ -38,3 +38,18 @@ export const createEmbedder = async (
     return Array.from(output.data as Float32Array);
   };
 };
+
+// Loading the model costs seconds and a pool of native threads. A caller that
+// may never embed anything — a server that only does so once someone searches —
+// should not pay for it up front, and should not have those threads alive if it
+// has to exit before it is ready.
+export const createLazyEmbedder = (
+  modelCacheDir: string,
+  spec: EmbeddingModel = DEFAULT_EMBEDDING_MODEL,
+): Embedder => {
+  const memo: { instance?: Promise<Embedder> } = {};
+  return async (text, type) => {
+    memo.instance ??= createEmbedder(modelCacheDir, spec);
+    return (await memo.instance)(text, type);
+  };
+};

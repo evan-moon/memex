@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 export const CONFIG_DIR = join(homedir(), '.memex');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
@@ -36,3 +36,8 @@ export const saveConfig = (config: MemexConfig): void => {
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
 };
+
+// The vault is the one place memex owns. A file indexed from anywhere else is
+// borrowed: memex reads it, and the tool that wrote it will write it again.
+export const inVault = (filePath: string, vault: string): boolean =>
+  filePath.startsWith(vault.endsWith(sep) ? vault : `${vault}${sep}`);

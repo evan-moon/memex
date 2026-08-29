@@ -1,6 +1,13 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
+import { type ChangeKind, recordNoteChange } from './changes.ts';
 import type { MemexClient } from './client.ts';
-import { type NewNote, type Note, notes } from './schema.ts';
+import {
+  dropLinkTargets,
+  dropTitleKeys,
+  syncLinkTargets,
+  syncTitleKeys,
+} from './link-index.ts';
+import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
 export type SearchResult = Note & { distance: number; matchSnippet?: string };
 
@@ -23,6 +30,9 @@ export const insertNote = (client: MemexClient, note: NewNote): Note => {
     .values({ ...note, createdAt: now, updatedAt: now })
     .returning()
     .all();
+  syncTitleKeys(client, inserted.id, inserted.title);
+  syncLinkTargets(client, inserted.id, inserted.content);
+  recordNoteChange(client, inserted.id, ['content', 'title', 'tags', 'links'], now);
   return inserted;
 };
 
@@ -97,6 +107,8 @@ export const countChunks = (client: MemexClient): number =>
 
 export const RRF_K = 60;
 
+export const FTS_PREFIX_WEIGHT = 0.3;
+
 const CHUNK_POOL = 6;
 
 // Recency tiebreaker (provisional — confirm/tune with `memex eval`): give
@@ -163,13 +175,16 @@ const buildRrf = () => {
 
   const topK = (k: number, now: number = Date.now()): SearchResult[] =>
     [...scores.entries()]
-      .map(([id, score]) => [id, score * stateRecencyFactor(cache.get(id)!, now)] as const)
-      .sort((a, b) => b[1] - a[1])
+      .flatMap(([id, score]) => {
+        const candidate = cache.get(id);
+        return candidate ? [{ candidate, ranked: score * stateRecencyFactor(candidate, now) }] : [];
+      })
+      .sort((a, b) => b.ranked - a.ranked)
       .slice(0, k)
-      .map(([id]) => {
-        const candidate = cache.get(id)!;
-        return { ...candidate, distance: candidate.distance ?? Number.POSITIVE_INFINITY };
-      });
+      .map(({ candidate }) => ({
+        ...candidate,
+        distance: candidate.distance ?? Number.POSITIVE_INFINITY,
+      }));
 
   // Seeds for link-expansion use the un-adjusted RRF order (relevance-pure).
   const topIds = (k: number): number[] =>
@@ -184,25 +199,42 @@ const buildRrf = () => {
 // `limit` is the page the arms are tuned around — every candidate pool is sized
 // from it. `rows` only widens what comes back, so a caller that overfetches to
 // re-order results does not silently retune retrieval underneath itself.
+export type SearchFilters = {
+  category?: string;
+  tag?: string;
+  layer?: NoteLayer;
+  author?: NoteAuthor;
+  dateFrom?: number;
+  dateTo?: number;
+  /** Candidates to return before the caller re-ranks or collapses them. */
+  rows?: number;
+};
+
 export const searchNotes = (
   client: MemexClient,
   query: string,
   embedding: number[],
   limit = 10,
-  category?: string,
-  tag?: string,
-  dateFrom?: number,
-  dateTo?: number,
-  rows = limit,
+  filters: SearchFilters = {},
 ): SearchResult[] => {
+  const { category, tag, layer, author, dateFrom, dateTo, rows = limit } = filters;
   const vec = new Float32Array(embedding);
-  const filterArgs = [...(category ? [category] : []), ...(tag ? [tag] : [])];
+  const filterArgs = [
+    ...(category ? [category] : []),
+    ...(tag ? [tag] : []),
+    ...(layer ? [layer] : []),
+    ...(author ? [author] : []),
+  ];
   const aliasedCategoryFilter = category ? 'AND n.category = ?' : '';
   const aliasedTagFilter = tag
     ? 'AND EXISTS (SELECT 1 FROM json_each(n.tags) WHERE value = ?)'
     : '';
+  const aliasedLayerFilter = layer ? ' AND n.layer = ?' : '';
+  const aliasedAuthorFilter = author ? ' AND n.author = ?' : '';
   const categoryFilter = category ? ' AND category = ?' : '';
   const tagFilter = tag ? ' AND EXISTS (SELECT 1 FROM json_each(tags) WHERE value = ?)' : '';
+  const layerFilter = layer ? ' AND layer = ?' : '';
+  const authorFilter = author ? ' AND author = ?' : '';
   // Date filters compare the note's effective date: authored_at (real authoring
   // time, parsed from frontmatter/title) when present, created_at (import time)
   // otherwise. Raw created_at would make "notes from April" miss anything
@@ -218,7 +250,7 @@ export const searchNotes = (
   // k is applied by the ANN index BEFORE the joined WHERE filters, so a
   // filtered search needs a much larger candidate pool or relevant notes get
   // crowded out by nearer-but-filtered-away ones. Cheap at personal scale.
-  const hasFilters = Boolean(category || tag || dateFrom || dateTo);
+  const hasFilters = Boolean(category || tag || layer || author || dateFrom || dateTo);
   const vectorK = hasFilters ? Math.max(limit * 5, 250) : limit * 5;
 
   const wholeNoteResults = client.sqlite
@@ -230,7 +262,7 @@ export const searchNotes = (
        AND k = ?
        AND NOT EXISTS (SELECT 1 FROM note_chunks c WHERE c.note_id = n.id)
        ${aliasedCategoryFilter}
-       ${aliasedTagFilter}
+       ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
        ${dateFromFilterAliased}
        ${dateToFilterAliased}
        ORDER BY e.distance`,
@@ -248,7 +280,7 @@ export const searchNotes = (
        WHERE e.embedding MATCH ?
        AND k = ?
        ${aliasedCategoryFilter}
-       ${aliasedTagFilter}
+       ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
        ${dateFromFilterAliased}
        ${dateToFilterAliased}
        ORDER BY e.distance`,
@@ -270,23 +302,24 @@ export const searchNotes = (
       .map((t) => t.replace(/["'*^()[\]{}\\]/g, '').trim())
       .filter((t) => t.length >= 2);
     if (ftsTokens.length > 0) {
-      try {
-        const ftsQuery = ftsTokens.map((t) => `"${t}"`).join(' OR ');
-        const ftsResults = client.sqlite
+      const ftsArm = (match: string) =>
+        client.sqlite
           .prepare(
             `SELECT n.*, snippet(notes_fts, 1, '', '', '…', 12) AS matchSnippet
              FROM notes_fts
              JOIN notes n ON n.id = notes_fts.rowid
              WHERE notes_fts MATCH ?
              ${aliasedCategoryFilter}
-             ${aliasedTagFilter}
+             ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
              ${dateFromFilterAliased}
              ${dateToFilterAliased}
              ORDER BY bm25(notes_fts)
              LIMIT ?`,
           )
-          .all(ftsQuery, ...filterArgs, ...dateArgs, limit * 3) as Candidate[];
-        rrf.add(ftsResults);
+          .all(match, ...filterArgs, ...dateArgs, limit * 3) as Candidate[];
+      try {
+        rrf.add(ftsArm(ftsTokens.map((t) => `"${t}"`).join(' OR ')));
+        rrf.add(ftsArm(ftsTokens.map((t) => `"${t}"*`).join(' OR ')), FTS_PREFIX_WEIGHT);
       } catch {}
     }
 
@@ -302,7 +335,7 @@ export const searchNotes = (
            SELECT 1 FROM json_each(tags)
            WHERE lower(value) IN (${tagPlaceholders})
          )
-         ${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter}
+         ${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
@@ -312,7 +345,7 @@ export const searchNotes = (
     const titleConditions = normTokens.map(() => 'lower(title) LIKE ?').join(' AND ');
     const titleResults = client.sqlite
       .prepare(
-        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter} LIMIT ?`,
+        `SELECT * FROM notes WHERE ${titleConditions}${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter} LIMIT ?`,
       )
       .all(...normTokens.map((t) => `%${t}%`), ...filterArgs, ...dateArgs, limit) as Note[];
     rrf.add(titleResults, 2.0);
@@ -330,7 +363,7 @@ export const searchNotes = (
         `SELECT *, (${likeMatchCount}) AS match_count
          FROM notes
          WHERE (${likeWhere})
-         ${categoryFilter}${tagFilter}${dateFromFilter}${dateToFilter}
+         ${categoryFilter}${tagFilter}${layerFilter}${authorFilter}${dateFromFilter}${dateToFilter}
          ORDER BY match_count DESC
          LIMIT ?`,
       )
@@ -354,7 +387,7 @@ export const searchNotes = (
          WHERE (l.source_id IN (${ph}) OR l.target_id IN (${ph}))
            AND n.id NOT IN (${ph})
            ${aliasedCategoryFilter}
-           ${aliasedTagFilter}
+           ${aliasedTagFilter}${aliasedLayerFilter}${aliasedAuthorFilter}
            ${dateFromFilterAliased}
            ${dateToFilterAliased}
          GROUP BY n.id
@@ -391,13 +424,24 @@ export const deleteNote = (client: MemexClient, id: number): void => {
   deleteNoteChunks(client, id);
   client.sqlite.prepare('DELETE FROM note_embeddings WHERE note_id = ?').run(BigInt(id));
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
+  dropTitleKeys(client, id);
+  dropLinkTargets(client, id);
+  recordNoteChange(client, id, ['removed']);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
+
+const changedKinds = (patch: Partial<NewNote>): ChangeKind[] => [
+  ...(patch.content !== undefined ? (['content', 'links'] as const) : []),
+  ...(patch.title !== undefined ? (['title'] as const) : []),
+  ...(patch.tags !== undefined ? (['tags'] as const) : []),
+];
 
 export const updateNote = (
   client: MemexClient,
   id: number,
-  patch: Partial<Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt'>>,
+  patch: Partial<
+    Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer' | 'author'>
+  >,
 ): Note => {
   const [updated] = client.db
     .update(notes)
@@ -405,6 +449,9 @@ export const updateNote = (
     .where(eq(notes.id, id))
     .returning()
     .all();
+  if (patch.title !== undefined) syncTitleKeys(client, updated.id, updated.title);
+  if (patch.content !== undefined) syncLinkTargets(client, updated.id, updated.content);
+  recordNoteChange(client, updated.id, changedKinds(patch));
   return updated;
 };
 
@@ -463,55 +510,6 @@ export const listAllFolders = (client: MemexClient): FolderCount[] =>
     .all() as FolderCount[];
 
 export type RelatedNote = Note & { sharedTags: string[]; score: number };
-
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
-
-// `[[Note|shown as this]]` and `[[Note#Heading]]` both target `Note`; the rest
-// is display text and an anchor. Reading the whole bracket as the title made
-// every such link look dead — to the graph and to the dangling-link detector
-// alike. Composed forms are normalized because the vault holds both NFC and
-// NFD spellings of the same Korean title.
-export const linkTargets = (content: string): string[] => [
-  ...new Set(
-    [...content.matchAll(WIKI_LINK_RE)]
-      .map((m) => m[1].split('|')[0].split('#')[0].trim().normalize('NFC'))
-      .filter(Boolean),
-  ),
-];
-
-export const syncLinks = (client: MemexClient, sourceId: number, content: string) => {
-  client.sqlite
-    .prepare("DELETE FROM note_links WHERE source_id = ? AND source = 'wiki'")
-    .run(sourceId);
-
-  const titles = linkTargets(content);
-  if (titles.length === 0) return;
-
-  const insert = client.sqlite.prepare(
-    "INSERT OR IGNORE INTO note_links(source_id, target_id, source) VALUES (?, ?, 'wiki')",
-  );
-  const findByTitle = client.sqlite.prepare(
-    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
-  );
-
-  titles.forEach((title) => {
-    const row = findByTitle.get(title) as { id: number } | undefined;
-    if (row) insert.run(sourceId, row.id);
-  });
-};
-
-// A wiki link only works in Obsidian when a note carries that exact title (or
-// declares it as an alias), so an unmatched target is a dead link on disk, not
-// just a missing row in note_links.
-export const findUnresolvedLinks = (client: MemexClient, content: string): string[] => {
-  const targets = linkTargets(content);
-  if (targets.length === 0) return [];
-
-  const findByTitle = client.sqlite.prepare(
-    'SELECT id FROM notes WHERE lower(title) = lower(?) LIMIT 1',
-  );
-  return targets.filter((target) => !findByTitle.get(target));
-};
 
 export const getBacklinks = (client: MemexClient, targetId: number): Note[] =>
   client.sqlite
@@ -592,7 +590,23 @@ export type FlashbackOptions = {
   minDaysGap?: number;
   maxDistance?: number;
   limit?: number;
+  /** Vector neighbours to consider before the gap and folder filters run. */
+  pool?: number;
 };
+
+// The vector search picks its neighbours before any of the filters below run,
+// so the pool has to be wide enough that filtering leaves something: the notes
+// nearest a given note are almost always recent ones from the same folder,
+// which is exactly what a rediscovery excludes. Measured on a 1.3k-note vault
+// (`memex stats flashback`), the pool holds the note a person linked by hand
+// 49% of the time at 15 neighbours and 95% at 500.
+const DEFAULT_POOL = 500;
+
+// Distances here are Euclidean over unit vectors. Notes 90 days apart in
+// different folders do not come closer than ~0.47 in practice, so the 0.4 this
+// once demanded could never match anything. Past ~0.55 every note has twenty
+// candidates, which is the same as having none.
+const DEFAULT_MAX_DISTANCE = 0.5;
 
 export const findFlashbacks = (
   client: MemexClient,
@@ -601,8 +615,9 @@ export const findFlashbacks = (
   options: FlashbackOptions = {},
 ): Flashback[] => {
   const minDaysGap = options.minDaysGap ?? 90;
-  const maxDistance = options.maxDistance ?? 0.4;
+  const maxDistance = options.maxDistance ?? DEFAULT_MAX_DISTANCE;
   const limit = options.limit ?? 3;
+  const pool = options.pool ?? DEFAULT_POOL;
   const cutoff = now - minDaysGap * 86_400_000;
 
   const embRow = client.sqlite
@@ -614,13 +629,7 @@ export const findFlashbacks = (
   const sourceCategory = source?.category ?? null;
 
   const categoryFilter = sourceCategory ? 'AND (n.category IS NULL OR n.category != ?)' : '';
-  const args: (number | Buffer | string)[] = [
-    embRow.embedding,
-    limit * 5,
-    noteId,
-    cutoff,
-    maxDistance,
-  ];
+  const args: (number | Buffer | string)[] = [embRow.embedding, pool, noteId, cutoff, maxDistance];
   if (sourceCategory) args.push(sourceCategory);
 
   const rows = client.sqlite

@@ -171,7 +171,9 @@ export const mintInference = (client: MemexClient, input: MintInferenceInput): I
   });
 
   const id = tx();
-  return getInference(client, id)!.inference;
+  const minted = getInference(client, id);
+  if (!minted) throw new Error(`inference #${id} vanished between its write and its read-back`);
+  return minted.inference;
 };
 
 export const getInference = (
@@ -280,4 +282,78 @@ export const setInferenceStatus = (
     | InferenceRow
     | undefined;
   return row ? rowToInference(row) : undefined;
+};
+
+export type InferenceRef = { id: number; title: string; status: InferenceStatus };
+
+// A hypothesis is not returned by note search, on purpose — the only way to
+// reach one is a door built for it. Its own sources are the first door: every
+// note it was built from can say so.
+export const inferencesCiting = (client: MemexClient, noteId: number): InferenceRef[] =>
+  client.sqlite
+    .prepare(
+      `SELECT i.id, i.title, i.status
+       FROM inference_evidence e JOIN inferences i ON i.id = e.inference_id
+       WHERE e.note_id = ? AND i.status != 'archived'
+       ORDER BY i.created_at DESC`,
+    )
+    .all(noteId) as InferenceRef[];
+
+// The second door: a subject whose notes a hypothesis actually leans on. Some
+// hypotheses share no tag with each other's sources at all — that is often why
+// they are worth having — so this finds nothing for those, and should.
+export const inferencesOverNotes = (
+  client: MemexClient,
+  noteIds: number[],
+  minShared = 2,
+): (InferenceRef & { shared: number })[] => {
+  if (noteIds.length === 0) return [];
+  const placeholders = noteIds.map(() => '?').join(', ');
+  return client.sqlite
+    .prepare(
+      `SELECT i.id, i.title, i.status, COUNT(*) AS shared
+       FROM inference_evidence e JOIN inferences i ON i.id = e.inference_id
+       WHERE e.note_id IN (${placeholders}) AND i.status != 'archived'
+       GROUP BY i.id
+       HAVING shared >= ?
+       ORDER BY shared DESC`,
+    )
+    .all(...noteIds, minShared) as (InferenceRef & { shared: number })[];
+};
+
+// Re-declaring what the hypothesis was built from, as those notes read now.
+// Used when a person has read the changes and decided the hypothesis survives.
+export const restampInference = (client: MemexClient, id: number): Inference | undefined => {
+  const rows = client.sqlite
+    .prepare(
+      `SELECT e.note_id, n.content FROM inference_evidence e
+       LEFT JOIN notes n ON n.id = e.note_id WHERE e.inference_id = ?`,
+    )
+    .all(id) as { note_id: number; content: string | null }[];
+
+  const update = client.sqlite.prepare(
+    'UPDATE inference_evidence SET source_hash = ? WHERE inference_id = ? AND note_id = ?',
+  );
+  client.sqlite.transaction(() => {
+    for (const row of rows) {
+      if (row.content !== null) update.run(noteContentHash(row.content), id, row.note_id);
+    }
+  })();
+
+  return setInferenceStatus(client, id, 'active');
+};
+
+// A hypothesis re-read from the same records. The sources do not change — what
+// the model made of them does — so the edges are restamped rather than rebuilt.
+export const rewriteInference = (
+  client: MemexClient,
+  id: number,
+  next: { title: string; summary: string; modelId?: string },
+): Inference | undefined => {
+  client.sqlite
+    .prepare(
+      'UPDATE inferences SET title = ?, summary = ?, model_id = ?, updated_at = ? WHERE id = ?',
+    )
+    .run(next.title, next.summary, next.modelId ?? null, Date.now(), id);
+  return restampInference(client, id);
 };

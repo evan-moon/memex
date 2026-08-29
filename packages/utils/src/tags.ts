@@ -76,7 +76,7 @@ const rewriteFrontmatter = (front: string, rename: Map<string, string>): string 
 
 /**
  * Rewrite the tags in a note's frontmatter, leaving the rest of the file
- * untouched — these are Obsidian files a person also edits by hand, so a
+ * untouched — these are files a person also edits by hand, so a
  * rewrite that reformats what it did not need to change is a rewrite that
  * loses arguments with git. Scoped to the frontmatter block on purpose: a
  * `tags: [...]` line inside a fenced code block is prose, not metadata.

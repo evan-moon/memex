@@ -27,7 +27,9 @@ export const startRecallDaemon = async (configDir: string, modelCacheDir: string
     socket.on('data', (chunk) => chunks.push(chunk));
     socket.on('end', async () => {
       const query = Buffer.concat(chunks).toString('utf8').trim();
-      const notes = await semanticSearch(client, embedder, query, RECALL_LIMIT).catch(() => []);
+      const notes = await semanticSearch(client, embedder, query, RECALL_LIMIT, {
+        surface: 'recall',
+      }).catch(() => []);
       const hits: RecallHit[] = notes
         .filter(isRelevantHit)
         .map(({ id, title, layer }) => ({ id, title, layer }));

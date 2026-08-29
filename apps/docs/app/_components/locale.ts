@@ -7,4 +7,4 @@ export const isLocale = (value: string): value is Locale =>
   (LOCALES as readonly string[]).includes(value);
 
 export type Localized<T> = Partial<Record<Locale, T>> & { en: T };
-export const t = <T,>(value: Localized<T>, locale: Locale): T => value[locale] ?? value.en;
+export const t = <T>(value: Localized<T>, locale: Locale): T => value[locale] ?? value.en;

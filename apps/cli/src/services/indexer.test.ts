@@ -1,7 +1,15 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getNoteByFilePath, type MemexClient, openDb } from '@memex/db';
+import {
+  evidenceStaleness,
+  getBacklinks,
+  getNoteByFilePath,
+  getNoteEvidence,
+  listNotes,
+  type MemexClient,
+  openDb,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory } from './indexer.ts';
 
@@ -22,6 +30,95 @@ describe('indexDirectory', () => {
     client.sqlite.close();
     rmSync(dbDir, { recursive: true, force: true });
     rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  const declare = (file: string, sourceIds: number[], body: string) =>
+    writeFileSync(
+      join(vaultDir, file),
+      `---\ntitle: ${file.replace('.md', '')}\nlayer: state\nderives_from: [${sourceIds.join(', ')}]\n---\n\n${body}\n`,
+      'utf8',
+    );
+
+  it('reads what a note declares it was built from', async () => {
+    writeFileSync(join(vaultDir, 'source.md'), '# what happened\n\nwe chose JWT\n', 'utf8');
+    writeFileSync(join(vaultDir, 'plan.md'), '# plan\n\nwe use JWT\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    declare('plan.md', [source?.id ?? 0], 'we use JWT');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const plan = getNoteByFilePath(client, join(vaultDir, 'plan.md'));
+    expect(getNoteEvidence(client, plan?.id ?? 0).map((e) => e.sourceId)).toEqual([source?.id]);
+  });
+
+  it('keeps the hash a source was declared with, so a later change still shows', async () => {
+    writeFileSync(join(vaultDir, 'source.md'), '# a rule\n\nFP first\n', 'utf8');
+    writeFileSync(join(vaultDir, 'plan.md'), '# plan\n\nwe write FP\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    declare('plan.md', [source?.id ?? 0], 'we write FP');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const plan = getNoteByFilePath(client, join(vaultDir, 'plan.md'));
+    expect(evidenceStaleness(client, plan?.id ?? 0)?.changed).toHaveLength(0);
+
+    writeFileSync(join(vaultDir, 'source.md'), '# a rule\n\nOOP now\n', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(evidenceStaleness(client, plan?.id ?? 0)?.changed).toHaveLength(1);
+  });
+
+  it('rebuilds the link graph, so a link written against a filename becomes an edge', async () => {
+    writeFileSync(join(vaultDir, 'target.md'), '---\ntitle: Round-2/3 통과\n---\n\nbody', 'utf8');
+    writeFileSync(join(vaultDir, 'source.md'), '# Source\n\nsee [[Round-2／3 통과]]', 'utf8');
+
+    const stats = await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const target = getNoteByFilePath(client, join(vaultDir, 'target.md'));
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    expect(stats.relinked).toBe(1);
+    expect(getBacklinks(client, target?.id ?? 0).map((n) => n.id)).toEqual([source?.id]);
+  });
+
+  it('repairs a link that a rename broke in a file it never had to touch', async () => {
+    writeFileSync(join(vaultDir, 'target.md'), '# Old Name\n\nbody', 'utf8');
+    writeFileSync(join(vaultDir, 'source.md'), '# Source\n\nsee [[New Name]]', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const source = getNoteByFilePath(client, join(vaultDir, 'source.md'));
+    expect(
+      getBacklinks(client, getNoteByFilePath(client, join(vaultDir, 'target.md'))?.id ?? 0),
+    ).toHaveLength(0);
+
+    writeFileSync(join(vaultDir, 'target.md'), '# New Name\n\nbody', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const renamed = getNoteByFilePath(client, join(vaultDir, 'target.md'));
+    expect(getBacklinks(client, renamed?.id ?? 0).map((n) => n.id)).toEqual([source?.id]);
+  });
+
+  it('reads a quoted title as the words it means, not the escapes it needed', async () => {
+    writeFileSync(
+      join(vaultDir, 'quoted.md'),
+      '---\ntitle: "1인칭은 \\"필자\\""\n---\n\nbody\n',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(listNotes(client, 50).map((n) => n.title)).toContain('1인칭은 "필자"');
+  });
+
+  it('leaves a backslash alone in a title that was never quoted', async () => {
+    writeFileSync(
+      join(vaultDir, 'regex.md'),
+      '---\ntitle: 공백을 찾아내는 \\s 캐릭터 클래스\n---\n\nbody\n',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(listNotes(client, 50).map((n) => n.title)).toContain('공백을 찾아내는 \\s 캐릭터 클래스');
   });
 
   it('parses authored_at from frontmatter dates on insert', async () => {

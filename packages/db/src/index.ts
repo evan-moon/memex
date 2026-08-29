@@ -1,6 +1,44 @@
+export {
+  getNoteShape,
+  indexTypeNoteIds,
+  type NoteShape,
+  type NoteShapeInput,
+  type NoteShapeKind,
+  overClaimCeiling,
+  setNoteShape,
+  shapedNoteIds,
+} from './claims.ts';
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
+export {
+  classifyDangling,
+  type DanglingKind,
+  type DanglingLink,
+  danglingLinks,
+  dismissDanglingFor,
+  dismissedDanglingNoteIds,
+  restoreDanglingFor,
+} from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
+export {
+  findUnresolvedLinks,
+  linkTargets,
+  resolveLinkTargets,
+  resyncLinkIndexes,
+  syncLinks,
+  unresolvedLinksByNote,
+} from './link-index.ts';
+export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
+export {
+  bodyHash,
+  evidenceFor,
+  evidenceStaleness,
+  getNoteEvidence,
+  isStale,
+  notesDeclaringEvidence,
+  setNoteEvidence,
+  syncNoteEvidence,
+} from './evidence.ts';
 export {
   type EmbeddingModelStatus,
   ensureEmbeddingModel,
@@ -12,6 +50,7 @@ export type {
   EvidenceInput,
   EvidenceRole,
   Inference,
+  InferenceRef,
   InferenceStatus,
   MintInferenceInput,
 } from './inferences.ts';
@@ -19,10 +58,14 @@ export {
   buildEvidenceBundle,
   checkInferenceStale,
   getInference,
+  inferencesCiting,
+  inferencesOverNotes,
   listInferences,
   mintInference,
   noteContentHash,
   refreshInferenceStaleness,
+  restampInference,
+  rewriteInference,
   setInferenceStatus,
 } from './inferences.ts';
 export type {
@@ -43,7 +86,6 @@ export {
   findFlashbacks,
   findRelatedNotes,
   findSimilarByEmbedding,
-  findUnresolvedLinks,
   getAmendments,
   getAmendmentsFor,
   getBacklinks,
@@ -62,10 +104,34 @@ export {
   saveEmbedding,
   searchNotes,
   serializeTags,
-  syncLinks,
   updateNote,
 } from './repository.ts';
-export type { NewNote, Note, NoteLayer, NoteSource } from './schema.ts';
+export {
+  presentationsFor,
+  type PresentationSurface,
+  receptionCounts,
+  recordPresentation,
+  type SignalPresentation,
+  type SignalReception,
+  wasIgnored,
+} from './presentations.ts';
+export {
+  countRetrievals,
+  logRetrieval,
+  type RetrievalCount,
+  type RetrievalCountOptions,
+  type RetrievalEntry,
+  type RetrievalInitiator,
+  type RetrievalSurface,
+  retrievalCounts,
+} from './retrieval-log.ts';
+export {
+  approveRule,
+  countProvisionalRules,
+  declineRule,
+  listRules,
+} from './rules.ts';
+export type { NewNote, Note, NoteAuthor, NoteLayer, NoteSource, RuleStatus } from './schema.ts';
 export type {
   HiddenArcOptions,
   ListSignalsOptions,
@@ -77,14 +143,24 @@ export type {
   TagBurstOptions,
 } from './signals.ts';
 export {
+  type ChangeKind,
+  changeHead,
+  hasChangeFrom,
+  recordNoteChange,
+} from './changes.ts';
+export {
   computeSignalHash,
+  detectConflictPairs,
   detectDanglingLinks,
+  detectDanglingLinksFor,
   detectHiddenArcs,
   detectStaleState,
   detectTagBursts,
   findBestProactiveSignal,
   getSignal,
+  getSignalByHash,
   listSignals,
+  proactiveSignalFor,
   refreshSignals,
   setSignalStatus,
   upsertSignal,

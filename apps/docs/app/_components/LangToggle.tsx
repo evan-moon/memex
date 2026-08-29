@@ -18,7 +18,7 @@ export default function LangToggle() {
   const onKo = pathname === '/ko' || pathname.startsWith('/ko/');
 
   return (
-    <div className="lang-toggle" role="group" aria-label="Language">
+    <nav className="lang-toggle" aria-label="Language">
       <Link
         href={stripKo(pathname)}
         className={`lang-toggle-link${!onKo ? ' active' : ''}`}
@@ -34,6 +34,6 @@ export default function LangToggle() {
       >
         한국어
       </Link>
-    </div>
+    </nav>
   );
 }

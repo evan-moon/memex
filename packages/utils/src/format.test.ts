@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildEmbeddingText, extractCategory, formatDate, stripFrontmatter } from './format.ts';
+import {
+  authorOfPath,
+  buildEmbeddingText,
+  extractCategory,
+  formatDate,
+  stripFrontmatter,
+} from './format.ts';
 
 describe('formatDate', () => {
   it('formats date as YYYY-MM-DD', () => {
@@ -78,5 +84,21 @@ describe('stripFrontmatter', () => {
 
   it('stops at the first closing delimiter', () => {
     expect(stripFrontmatter('---\ntitle: T\n---\nBody\n---\nMore')).toBe('Body\n---\nMore');
+  });
+});
+
+describe('authorOfPath', () => {
+  it("calls a note in a memory directory the agent's own", () => {
+    expect(authorOfPath('/vault/projects/opula/memory/drivers.md')).toBe('agent');
+  });
+
+  it("calls everything else the person's, however it was typed", () => {
+    expect(authorOfPath('/vault/projects/opula/opula.md')).toBe('person');
+    expect(authorOfPath('/vault/work/people/jaedo.md')).toBe('person');
+  });
+
+  it('does not mistake a word that merely contains memory for the directory', () => {
+    expect(authorOfPath('/vault/learning/memory-models.md')).toBe('person');
+    expect(authorOfPath('/vault/memoryless/a.md')).toBe('person');
   });
 });

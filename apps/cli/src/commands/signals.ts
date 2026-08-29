@@ -12,6 +12,7 @@ import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
+import { registerConflicts } from './conflicts.ts';
 import { registerMint } from './mint.ts';
 
 const TYPE_LABEL: Record<SignalType, (s: string) => string> = {
@@ -19,6 +20,7 @@ const TYPE_LABEL: Record<SignalType, (s: string) => string> = {
   stale_state: pc.yellow,
   dangling_link: pc.cyan,
   tag_burst: pc.green,
+  conflict_candidate: pc.red,
 };
 
 const num = (v: string | undefined): number | undefined =>
@@ -42,7 +44,13 @@ const detectorOptions = () => ({
   },
 });
 
-const TYPE_ORDER: SignalType[] = ['hidden_arc', 'stale_state', 'tag_burst', 'dangling_link'];
+const TYPE_ORDER: SignalType[] = [
+  'conflict_candidate',
+  'hidden_arc',
+  'stale_state',
+  'tag_burst',
+  'dangling_link',
+];
 
 const printSignal = (client: ReturnType<typeof openDb>, s: Signal) => {
   const label = TYPE_LABEL[s.type](`[${s.type}]`);
@@ -119,5 +127,6 @@ export const registerSignals = (program: Command) => {
     .description('Snooze a signal')
     .action((id: string) => triage(id, 'snoozed'));
 
+  registerConflicts(signals);
   registerMint(signals);
 };

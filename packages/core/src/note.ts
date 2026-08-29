@@ -5,20 +5,22 @@ import {
   deleteNote,
   type Flashback,
   type FlashbackOptions,
-  findBestProactiveSignal,
   findFlashbacks,
   findSimilarByEmbedding,
   getNote,
   insertNote,
   linkAmendment,
+  logRetrieval,
   type MemexClient,
   type Note,
+  type NoteAuthor,
   type NoteLayer,
   type NoteSource,
   parseAuthoredAt,
   parseTags,
+  type RetrievalSurface,
   RRF_K,
-  refreshSignals,
+  proactiveSignalFor,
   type SearchResult,
   type Signal,
   type SimilarNote,
@@ -26,31 +28,16 @@ import {
   syncLinks,
   updateNote,
 } from '@memex/db';
-import { buildEmbeddingText, collapseSeries, extractCategory } from '@memex/utils';
+import {
+  buildEmbeddingText,
+  collapseSeries,
+  extractCategory,
+  inVault,
+  sanitizeFilename,
+} from '@memex/utils';
 import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
-
-const FILENAME_MAX_BYTES = 200;
-
-// The filename IS the Obsidian link target: `[[Some Note]]` resolves to
-// "Some Note.md". Slugging the title (lowercase, spaces to hyphens) silently
-// breaks every wiki link pointing at the note, so the title is preserved and
-// only the characters Obsidian and the filesystem reject are replaced.
-const sanitizeFilename = (title: string): string => {
-  const cleaned = title
-    .replace(/\//g, '／')
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from filenames is intentional
-    .replace(/[<>:"\\|?*#^[\]\x00-\x1f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/^[.\s]+|[.\s]+$/g, '');
-  const buf = Buffer.from(cleaned, 'utf8');
-  if (buf.byteLength <= FILENAME_MAX_BYTES) return cleaned;
-  return Buffer.from(buf.subarray(0, FILENAME_MAX_BYTES))
-    .toString('utf8')
-    .replace(/\uFFFD+$/, '')
-    .trim();
-};
 
 const yamlString = (value: string): string =>
   /[:#[\]{}&*!|>'"%@`,]|^\s|\s$/.test(value)
@@ -79,8 +66,8 @@ export type NoteFileMeta = {
 };
 
 // A note file has one of three shapes, and a write must not corrupt the two
-// shapes that originate outside memex (the interop contract: files stay
-// editable in Obsidian and re-indexable without drift):
+// shapes that originate outside memex (the contract: a file memex did not
+// author keeps the shape it arrived in and re-indexes without drift):
 // - frontmatter file (indexed from an external vault): the DB content IS the
 //   full file, frontmatter included — write it back verbatim, only syncing the
 //   frontmatter `title:` field so a title edit survives the next reindex.
@@ -89,8 +76,8 @@ export type NoteFileMeta = {
 //   prepending a second one, and don't force frontmatter onto a file the user
 //   shaped themselves.
 // - memex-native content: generate frontmatter (title/date/tags/layer) so the
-//   note's metadata survives the Obsidian -> `memex index` round-trip instead
-//   of living only in the DB.
+//   note's metadata survives a `memex index` round-trip instead of living
+//   only in the DB.
 export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMeta): string => {
   if (content.startsWith('---')) {
     const end = content.indexOf('\n---', 3);
@@ -137,7 +124,9 @@ const persistFlashbackLinks = (
 /** Who is driving the write. MCP tool handlers are always 'agent'; only the CLI passes 'user'. */
 export type WriteActor = 'user' | 'agent';
 
-export type RuleWriteRejection = { error: 'RULE_USER_ONLY'; message: string };
+export type RuleWriteRejection =
+  | { error: 'RULE_USER_ONLY'; message: string }
+  | { error: 'EXTERNAL_SOURCE'; message: string };
 
 export const isSaveRejection = (
   result: { note: Note } | RuleWriteRejection,
@@ -168,17 +157,12 @@ export const saveNote = async (
     }
   | RuleWriteRejection
 > => {
-  // Rule notes become SERVER_INSTRUCTIONS on the next startup — letting the agent channel write
-  // them is a self-poisoning / prompt-injection escalation path, so creation is user-only, like
-  // editing. The agent surfaces the proposed rule text instead.
-  if (params.layer === 'rule' && params.actor !== 'user') {
-    return {
-      error: 'RULE_USER_ONLY',
-      message:
-        'rule notes can only be created by the user. Show the proposed rule text in chat and ' +
-        'suggest they run: memex add --layer rule',
-    };
-  }
+  // Rule notes become SERVER_INSTRUCTIONS on the next startup, so a rule the
+  // agent wrote would be read back to the agent that writes the next one. The
+  // proposal is kept; it is the injection that waits for a person to approve it.
+  const ruleStatus =
+    params.layer === 'rule' ? (params.actor === 'user' ? 'canonical' : 'provisional') : null;
+
   const embedding = await embedder(
     buildEmbeddingText(params.title, params.content, params.folder, params.tags),
   );
@@ -208,6 +192,7 @@ export const saveNote = async (
     category: category ?? undefined,
     tags,
     authoredAt,
+    ruleStatus,
   });
   await indexNoteVectors(
     client,
@@ -224,11 +209,11 @@ export const saveNote = async (
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
 
-  // Proactive surfacing: the write just bumped updated_at, so the dirty-flag
-  // lets this refresh run (detection cost is paid on write, keeping reads free).
-  // We then surface at most one signal the new note is part of.
-  const signals = refreshSignals(client);
-  const signal = findBestProactiveSignal(signals, note.id);
+  // Proactive surfacing: the detectors that can answer for a single note run
+  // here; the corpus-wide sweeps are left to the next read, which the change
+  // log now wakes on its own. A save used to pay 363ms of detection to find
+  // one hint about the note it had just written.
+  const signal = proactiveSignalFor(client, note.id);
 
   return {
     note,
@@ -245,6 +230,8 @@ export type Reranker = (query: string, passages: string[]) => Promise<number[]>;
 export type SearchOptions = {
   category?: string;
   tag?: string;
+  layer?: NoteLayer;
+  author?: NoteAuthor;
   dateFrom?: number;
   dateTo?: number;
   reranker?: Reranker;
@@ -252,6 +239,8 @@ export type SearchOptions = {
   seriesCap?: number;
   /** Rows to fetch before re-ordering. Widens the page without retuning the arms. */
   rows?: number;
+  /** Where the query came from. Set it to record the page in `retrieval_log`. */
+  surface?: RetrievalSurface;
 };
 
 export type RankedResult = SearchResult & { rerankScore?: number };
@@ -296,6 +285,16 @@ const applyRerank = async (
     .slice(0, limit);
 };
 
+const recordPage = (
+  client: MemexClient,
+  query: string,
+  surface: RetrievalSurface | undefined,
+  page: SearchPage,
+): SearchPage => {
+  if (surface) logRetrieval(client, { query, surface, noteIds: page.results.map((r) => r.id) });
+  return page;
+};
+
 export const searchPage = async (
   client: MemexClient,
   embedder: Embedder,
@@ -303,25 +302,26 @@ export const searchPage = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, category, tag, dateFrom, dateTo } = options;
+  const { reranker, category, tag, layer, author, dateFrom, dateTo, surface } = options;
   const embedding = await embedder(query, 'query');
-  const candidates = dbSearchNotes(
-    client,
-    query,
-    embedding,
-    limit,
+  const candidates = dbSearchNotes(client, query, embedding, limit, {
     category,
     tag,
+    layer,
+    author,
     dateFrom,
     dateTo,
-    fetchSize(limit, options),
-  );
+    rows: fetchSize(limit, options),
+  });
   const ranked = reranker
     ? await applyRerank(reranker, query, candidates, candidates.length)
     : candidates;
   const cap = capOf(options);
-  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
-  return collapseSeries(ranked, limit, cap);
+  const page =
+    cap <= 0
+      ? { results: ranked.slice(0, limit), collapsed: [] }
+      : collapseSeries(ranked, limit, cap);
+  return recordPage(client, query, surface, page);
 };
 
 export const semanticSearch = async (
@@ -339,7 +339,7 @@ export const searchPageMulti = async (
   limit: number,
   options: SearchOptions = {},
 ): Promise<SearchPage> => {
-  const { reranker, ...filters } = options;
+  const { reranker, surface, ...filters } = options;
   const cap = capOf(options);
   const wide = fetchSize(limit, options);
   const perQuery = { ...filters, seriesCap: 0, rows: wide };
@@ -374,8 +374,11 @@ export const searchPageMulti = async (
 
   const ranked = reranker ? await applyRerank(reranker, queries[0], pooled, pooled.length) : pooled;
 
-  if (cap <= 0) return { results: ranked.slice(0, limit), collapsed: [] };
-  return collapseSeries(ranked, limit, cap);
+  const page =
+    cap <= 0
+      ? { results: ranked.slice(0, limit), collapsed: [] }
+      : collapseSeries(ranked, limit, cap);
+  return recordPage(client, queries.join(' | '), surface, page);
 };
 
 export const semanticSearchMulti = async (
@@ -399,17 +402,62 @@ export type EditNoteRejection =
         amends: number;
       };
     }
-  | { error: 'RULE_USER_ONLY'; message: string };
+  | { error: 'RULE_USER_ONLY'; message: string }
+  | {
+      error: 'EXTERNAL_SOURCE';
+      message: string;
+      suggestion: {
+        action: 'save_note';
+        title: string;
+        link: string;
+        layer: NoteLayer;
+        derivesFrom: number[];
+      };
+    };
+
+// What to do with a borrowed note instead of editing it: say something about
+// it in a note memex owns, and name it as the source.
+export const referenceSuggestion = (note: { id: number; title: string }) => ({
+  action: 'save_note' as const,
+  title: `${note.title} — what I make of it`,
+  link: `[[${note.title}]]`,
+  layer: 'state' as const,
+  derivesFrom: [note.id],
+});
+
+// The shape of a correction, in one place: the rejection an agent gets and the
+// form a person fills in have to agree on what an amendment looks like.
+export const amendmentSuggestion = (note: { id: number; title: string }) => ({
+  action: 'save_note' as const,
+  title: `[Amendment] ${note.title}`,
+  link: `[[${note.title}]]`,
+  layer: 'past' as const,
+  amends: note.id,
+});
 
 export const editNote = async (
   client: MemexClient,
   embedder: Embedder,
   vaultPath: string,
   id: number,
-  patch: { title?: string; content?: string; tags?: string[] },
+  patch: { title?: string; content?: string; tags?: string[]; layer?: NoteLayer },
+  options: { actor?: WriteActor } = {},
 ): Promise<(Note & { signal?: Signal }) | EditNoteRejection | null> => {
   const note = getNote(client, id);
   if (!note) return null;
+
+  // The next `memex index` reads this file again and overwrites whatever was
+  // written here, so an edit that appears to work is the worst outcome.
+  if (!inVault(note.filePath, vaultPath)) {
+    return {
+      error: 'EXTERNAL_SOURCE',
+      message:
+        `#${id} lives outside the vault, in ${dirname(note.filePath)}. memex indexes that ` +
+        'directory but does not own it: an edit here is undone by the next index, and the ' +
+        'tool that wrote the file never sees it. Write a note about it instead.',
+      suggestion: referenceSuggestion(note),
+    };
+  }
 
   if (note.layer === 'past') {
     return {
@@ -417,17 +465,14 @@ export const editNote = async (
       message:
         'past notes are immutable. Save an Amendment note instead, passing amends so ' +
         'search can warn that this note was corrected.',
-      suggestion: {
-        action: 'save_note',
-        title: `[Amendment] ${note.title}`,
-        link: `[[${note.title}]]`,
-        layer: 'past',
-        amends: note.id,
-      },
+      suggestion: amendmentSuggestion(note),
     };
   }
 
-  if (note.layer === 'rule') {
+  // Editing a rule rewrites a constraint on the agent, and promoting a note
+  // into one writes a new constraint from scratch. Both are the same
+  // self-modification surface saveNote and removeNote already close.
+  if ((note.layer === 'rule' || patch.layer === 'rule') && options.actor !== 'user') {
     return {
       error: 'RULE_USER_ONLY',
       message: 'rule notes can only be edited by the user. Surface your proposed change in chat.',
@@ -438,6 +483,7 @@ export const editNote = async (
   const updated = updateNote(client, id, { ...patch, tags });
   const title = patch.title ?? note.title;
   const content = patch.content ?? note.content;
+  const layer = patch.layer ?? note.layer;
   const resolvedTags = patch.tags ?? parseTags(note.tags);
 
   writeFileSync(
@@ -446,7 +492,7 @@ export const editNote = async (
       title,
       content,
       tags: resolvedTags,
-      layer: note.layer,
+      layer,
       date: note.authoredAt ?? note.createdAt,
     }),
     'utf8',
@@ -462,8 +508,7 @@ export const editNote = async (
   });
   syncLinks(client, id, content);
 
-  const signals = refreshSignals(client);
-  const signal = findBestProactiveSignal(signals, id);
+  const signal = proactiveSignalFor(client, id);
 
   return { ...updated, signal };
 };
@@ -477,7 +522,7 @@ export const removeNote = (
   client: MemexClient,
   id: number,
   filePath: string,
-  options: { actor?: WriteActor } = {},
+  options: { actor?: WriteActor; vaultPath?: string } = {},
 ): RuleWriteRejection | undefined => {
   // Deleting a rule removes a constraint on the agent — the same self-modification surface as
   // creating or editing one, so it is user-only too.
@@ -488,6 +533,20 @@ export const removeNote = (
       message: `rule notes can only be deleted by the user. Suggest they run: memex delete ${String(id)}`,
     };
   }
+
+  // Deleting an indexed note unlinks the file it was read from, and outside the
+  // vault that file is the original: a blog post, a repo doc. Forgetting a
+  // borrowed note has to mean dropping the index entry, never the source.
+  if (options.vaultPath !== undefined && !inVault(filePath, options.vaultPath)) {
+    return {
+      error: 'EXTERNAL_SOURCE',
+      message:
+        `#${id} was indexed from ${dirname(filePath)}, outside the vault. Deleting it here ` +
+        'would delete the original file. Remove the directory with `memex source` instead, ' +
+        'or delete the file where it lives.',
+    };
+  }
+
   if (existsSync(filePath)) unlinkSync(filePath);
   deleteNote(client, id);
   return undefined;

@@ -1,6 +1,7 @@
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   type EditNoteRejection,
+  amendmentSuggestion,
   editNote,
   isEditRejection,
   isSaveRejection,

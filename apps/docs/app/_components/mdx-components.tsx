@@ -1,7 +1,11 @@
 import type { ComponentProps, ReactNode } from 'react';
 
 const slugify = (input: string): string =>
-  input.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+  input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-');
 
 const flattenText = (node: ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -34,7 +38,9 @@ export const mdxComponents = {
     />
   ),
   table: (props: ComponentProps<'table'>) => (
-    <div className="docs-table-wrap"><table className="docs-table" {...props} /></div>
+    <div className="docs-table-wrap">
+      <table className="docs-table" {...props} />
+    </div>
   ),
   th: (props: ComponentProps<'th'>) => <th className="docs-th" {...props} />,
   td: (props: ComponentProps<'td'>) => <td className="docs-td" {...props} />,

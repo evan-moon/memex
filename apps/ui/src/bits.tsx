@@ -1,19 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { NoteRef } from './api.ts';
-
-// A note with no usable timestamp is worth rendering without its date; throwing
-// here unmounts the screen it appears on.
-export const day = (ms: number) =>
-  Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString().slice(0, 10) : '—';
-
-export const ago = (ms: number) => {
-  if (!Number.isFinite(ms) || ms <= 0) return '—';
-  const d = Math.floor((Date.now() - ms) / 86_400_000);
-  if (d < 1) return '오늘';
-  if (d < 30) return `${d}일 전`;
-  if (d < 365) return `${Math.floor(d / 30)}개월 전`;
-  return `${(d / 365).toFixed(1)}년 전`;
-};
+import { useT } from './i18n.ts';
+import { day } from './time.ts';
 
 const LAYER_TONE: Record<string, string> = {
   state: 'border-primary text-primary',
@@ -29,24 +17,51 @@ export const Layer = ({ layer }: { layer: string }) => (
   </span>
 );
 
-export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string }) => (
-  <Link
-    to={`/note/${note.id}`}
-    className="-mx-2 block rounded-lg px-2 py-2 hover:bg-surface-muted"
-  >
-    <div className="flex items-baseline gap-2">
-      <Layer layer={note.layer} />
-      <span className="min-w-0 flex-1 truncate text-sm">{note.title}</span>
-      <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(note.at)}</span>
-    </div>
-    {note.reason ? (
-      <div className="mt-1 text-xs" style={{ color: 'var(--caution)' }}>
-        {note.reason}
+export const Dates = ({ at, updatedAt }: { at: number; updatedAt: number }) => {
+  const t = useT();
+  const written = day(at);
+  const edited = day(updatedAt);
+  return (
+    <span className="tabular-nums">
+      {t.note.written(written)}
+      {edited !== written && edited !== '—' ? ` · ${t.note.lastEdited(edited)}` : ''}
+    </span>
+  );
+};
+
+// Only the agent's own notes are marked. Marking the person's would put a
+// badge on almost every row, which says nothing.
+export const Agent = () => {
+  const t = useT();
+  return (
+    <span className="shrink-0 rounded-full border border-line px-2 py-px text-[10px] leading-4 text-muted">
+      {t.note.agent}
+    </span>
+  );
+};
+
+export const NoteItem = ({ note, snippet }: { note: NoteRef; snippet?: string }) => {
+  const t = useT();
+  return (
+    <Link
+      to={`/note/${note.id}`}
+      className="-mx-2 block rounded-lg px-2 py-2 hover:bg-surface-muted"
+    >
+      <div className="flex items-baseline gap-2">
+        <Layer layer={note.layer} />
+        {note.author === 'agent' ? <Agent /> : null}
+        <span className="min-w-0 flex-1 truncate text-sm">{note.title}</span>
+        <span className="shrink-0 text-[11px] tabular-nums text-muted">{day(note.at)}</span>
       </div>
-    ) : null}
-    {snippet ? <div className="mt-1 line-clamp-2 text-xs text-muted">{snippet}…</div> : null}
-  </Link>
-);
+      {note.status ? (
+        <div className="mt-1 text-xs" style={{ color: 'var(--caution)' }}>
+          {t.status(note.status)}
+        </div>
+      ) : null}
+      {snippet ? <div className="mt-1 line-clamp-2 text-xs text-muted">{snippet}…</div> : null}
+    </Link>
+  );
+};
 
 export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) =>
   notes.length === 0 ? (
@@ -59,6 +74,10 @@ export const NoteList = ({ notes, empty }: { notes: NoteRef[]; empty: string }) 
     </div>
   );
 
+export const Page = ({ children }: { children: React.ReactNode }) => (
+  <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">{children}</div>
+);
+
 export const Card = ({
   children,
   className = '',
@@ -69,4 +88,29 @@ export const Card = ({
   <div className={`rounded-card border border-line bg-surface p-4 sm:p-5 ${className}`}>
     {children}
   </div>
+);
+
+export const Button = ({
+  children,
+  onClick,
+  disabled,
+  tone = 'plain',
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'primary' | 'plain';
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+      tone === 'primary'
+        ? 'bg-primary text-background hover:brightness-110'
+        : 'border border-line hover:bg-surface-muted'
+    }`}
+  >
+    {children}
+  </button>
 );

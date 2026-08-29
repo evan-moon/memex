@@ -105,7 +105,7 @@ Call list_folders before saving and reuse an existing folder. Never create decis
 
 ## LINKS
 
-Notes are Obsidian files, so \`[[Exact Note Title]]\` is the only link form that works. Search first and copy the title verbatim — a title you guessed at is a dead link. Use \`[[Title|display text]]\` when the sentence needs different wording.
+A note's filename is its title, so \`[[Exact Note Title]]\` is the only link form memex resolves. Search first and copy the title verbatim — a title you guessed at is a dead link. Use \`[[Title|display text]]\` when the sentence needs different wording.
 
 Never write: \`[[Title]](#1234)\` (the tail renders as literal text), \`[[1234]]\` (ids are not titles), \`[label](path/note.md)\` (breaks the moment a note moves), or \`[[some-memory-key]]\` (Claude's own memory files are not notes in this vault). To point at a note by id in prose, write #1234 as plain text.
 
@@ -154,7 +154,7 @@ registerSaveNote(server, client, embedder, vaultPath);
 registerSearchNotes(server, client, embedder, reranker);
 registerListNotes(server, client);
 registerGetNote(server, client);
-registerDeleteNote(server, client);
+registerDeleteNote(server, client, vaultPath);
 registerUpdateNote(server, client, embedder, vaultPath);
 registerListTags(server, client);
 registerListFolders(server, client);

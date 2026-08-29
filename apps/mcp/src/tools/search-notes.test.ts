@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatSize, supersededLine, toSnippet } from './search-notes.ts';
+import { formatSize, ownWorkHint, stamp, supersededLine, toSnippet } from './search-notes.ts';
 
 describe('toSnippet', () => {
   it('strips leading frontmatter and collapses whitespace', () => {
@@ -46,5 +46,25 @@ describe('supersededLine', () => {
     expect(line).toContain('#9 "third"');
     expect(line).toContain('2 earlier corrections');
     expect(line).not.toContain('"first"');
+  });
+});
+
+describe('stamp', () => {
+  it('says only the layer for a note the user wrote', () => {
+    expect(stamp({ layer: 'state', author: 'person' })).toBe('state');
+  });
+
+  it('names the agent, so its own summary is not read as the user speaking', () => {
+    expect(stamp({ layer: 'state', author: 'agent' })).toBe('state · agent');
+  });
+
+  it('assumes nothing when the author is unknown', () => {
+    expect(stamp({ layer: 'past' })).toBe('past');
+  });
+});
+
+describe('ownWorkHint', () => {
+  it('says which note wins when the two disagree', () => {
+    expect(ownWorkHint).toContain("user's note wins");
   });
 });

@@ -1,7 +1,7 @@
 import { cancel, confirm, isCancel } from '@clack/prompts';
 import { removeNote } from '@memex/core';
 import { getNote, openDb } from '@memex/db';
-import { CONFIG_DIR } from '@memex/utils';
+import { CONFIG_DIR, expandPath, loadConfig } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 
@@ -27,7 +27,15 @@ export const registerDelete = (program: Command) => {
         }
       }
 
-      removeNote(client, note.id, note.filePath, { actor: 'user' });
+      const rejection = removeNote(client, note.id, note.filePath, {
+        actor: 'user',
+        vaultPath: expandPath(loadConfig().vault_path),
+      });
+      if (rejection) {
+        console.error(pc.red(rejection.message));
+        process.exit(1);
+      }
+
       console.log(pc.green(`Deleted note #${note.id}: "${note.title}"`));
     });
 };

@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto';
 import type { MemexClient } from './client.ts';
-import { linkTargets, parseTags } from './repository.ts';
+import { dismissedDanglingNoteIds } from './dangling.ts';
+import { notesDeclaringEvidence } from './evidence.ts';
+import { unresolvedLinksByNote, unresolvedLinksFor } from './link-index.ts';
+import { parseTags } from './repository.ts';
+import {
+  type ChangeKind,
+  changedNotesFrom,
+  changeHead,
+  hasChangeFrom,
+  trimChangeLog,
+} from './changes.ts';
 
 // Lv1 deterministic inference signals.
 //
@@ -14,8 +24,18 @@ import { linkTargets, parseTags } from './repository.ts';
 // uses the default L2 metric, so `distance` is Euclidean. For unit vectors
 // L2 = sqrt(2 - 2·cos), e.g. L2 0.40 ≈ cos 0.92, L2 0.55 ≈ cos 0.85.
 
-export type SignalType = 'hidden_arc' | 'dangling_link' | 'stale_state' | 'tag_burst';
+export type SignalType =
+  | 'hidden_arc'
+  | 'dangling_link'
+  | 'stale_state'
+  | 'tag_burst'
+  | 'conflict_candidate';
 export type SignalStatus = 'new' | 'snoozed' | 'dismissed' | 'minted';
+
+// conflict_candidate is nominated on demand, not swept for, so it has no
+// watermark and is never retired by a refresh.
+const REFRESHABLE = ['dangling_link', 'stale_state', 'tag_burst', 'hidden_arc'] as const;
+type RefreshableType = (typeof REFRESHABLE)[number];
 
 export type Signal = {
   id: number;
@@ -61,9 +81,22 @@ const rowToSignal = (r: SignalRow): Signal => ({
   updatedAt: r.updated_at,
 });
 
-export const computeSignalHash = (candidate: SignalCandidate): string => {
-  const identity = candidate.identity ?? [...candidate.evidenceIds].sort((a, b) => a - b).join(',');
-  return createHash('sha256').update(`${candidate.type}|${identity}`).digest('hex');
+export const signalHashOf = (type: SignalType, identity: string): string =>
+  createHash('sha256').update(`${type}|${identity}`).digest('hex');
+
+export const computeSignalHash = (candidate: SignalCandidate): string =>
+  signalHashOf(
+    candidate.type,
+    candidate.identity ?? [...candidate.evidenceIds].sort((a, b) => a - b).join(','),
+  );
+
+// What a detector actually looked at this run. A sweep of the whole corpus can
+// say any of its open signals is void; one that started from a handful of
+// changed notes can only speak for the identities it reached, and retiring
+// beyond them would delete findings it never re-examined.
+export type Detection = {
+  candidates: SignalCandidate[];
+  covered?: Set<string>;
 };
 
 // Idempotent insert. Re-running detection never duplicates a signal and never
@@ -113,6 +146,13 @@ export const listSignals = (client: MemexClient, options: ListSignalsOptions = {
   return rows.map(rowToSignal);
 };
 
+export const getSignalByHash = (client: MemexClient, hash: string): Signal | undefined => {
+  const row = client.sqlite.prepare('SELECT * FROM signals WHERE signal_hash = ?').get(hash) as
+    | SignalRow
+    | undefined;
+  return row ? rowToSignal(row) : undefined;
+};
+
 export const getSignal = (client: MemexClient, id: number): Signal | undefined => {
   const row = client.sqlite.prepare('SELECT * FROM signals WHERE id = ?').get(id) as
     | SignalRow
@@ -141,64 +181,123 @@ export const setSignalStatus = (
 
 const DAY_MS = 86_400_000;
 
-type NoteRow = {
-  id: number;
-  title: string;
-  content: string;
-  tags: string;
-  layer: string;
-  category: string | null;
-  created_at: number;
-  updated_at: number;
-};
-
 // dangling_link: a [[Title]] reference whose target note does not exist.
 // Identity = source note + missing title (lowercased), so one note can raise
 // distinct signals for distinct missing targets.
-export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
-  const notes = client.sqlite.prepare('SELECT id, title, content FROM notes').all() as Pick<
-    NoteRow,
-    'id' | 'title' | 'content'
-  >[];
+const danglingCandidates = (
+  noteId: number,
+  targets: string[],
+  seen: Set<string>,
+): SignalCandidate[] =>
+  targets.flatMap((title) => {
+    const dedup = `${noteId}:${title.toLowerCase()}`;
+    if (seen.has(dedup)) return [];
+    seen.add(dedup);
+    return [
+      {
+        type: 'dangling_link' as const,
+        evidenceIds: [noteId],
+        reasoning: `Note #${noteId} links to "${title}", which has no note yet (open question).`,
+        identity: dedup,
+      },
+    ];
+  });
 
-  const titleExists = new Set(notes.map((n) => n.title.trim().normalize('NFC').toLowerCase()));
-  const candidates: SignalCandidate[] = [];
+export const detectDanglingLinks = (client: MemexClient): SignalCandidate[] => {
+  const dismissed = new Set(dismissedDanglingNoteIds(client));
   const seen = new Set<string>();
 
-  for (const note of notes) {
-    const titles = linkTargets(note.content);
-    for (const title of titles) {
-      const key = title.toLowerCase();
-      if (titleExists.has(key)) continue;
-      const dedup = `${note.id}:${key}`;
-      if (seen.has(dedup)) continue;
-      seen.add(dedup);
-      candidates.push({
-        type: 'dangling_link',
-        evidenceIds: [note.id],
-        reasoning: `Note #${note.id} links to "${title}", which has no note yet (open question).`,
-        identity: dedup,
-      });
-    }
-  }
-  return candidates;
+  return [...unresolvedLinksByNote(client)]
+    .filter(([noteId]) => !dismissed.has(noteId))
+    .flatMap(([noteId, targets]) => danglingCandidates(noteId, targets, seen));
 };
+
+// The same question asked of one note. A write needs to know what it just broke,
+// not what the whole vault has left open.
+export const detectDanglingLinksFor = (
+  client: MemexClient,
+  noteId: number,
+): SignalCandidate[] =>
+  dismissedDanglingNoteIds(client).includes(noteId)
+    ? []
+    : danglingCandidates(noteId, unresolvedLinksFor(client, noteId), new Set());
 
 export type StaleStateOptions = { maxDistance?: number; minNewer?: number };
 
 // stale_state: a `state` note that has accumulated semantically-related `past`
 // notes created AFTER it was last updated — i.e. its "current truth" may be out
 // of date. Identity = the state note id (one open question per stale state).
+type StateRow = { id: number; title: string; updated_at: number };
+
+// Which state notes a set of changed notes could have made stale. A new past
+// note can only unsettle a state note it sits near, so the question is asked
+// from the note that moved outward, rather than of every state note in turn.
+//
+// A deletion has no embedding left to search from, so the states it could have
+// unsettled are recovered from the signals that already cite it.
+const statesTouchedBy = (client: MemexClient, changed: number[], maxDistance: number): number[] => {
+  if (changed.length === 0) return [];
+
+  const embedding = client.sqlite.prepare(
+    'SELECT embedding FROM note_embeddings WHERE note_id = ?',
+  );
+  const near = client.sqlite.prepare(
+    `SELECT n.id
+     FROM note_embeddings e
+     JOIN notes n ON n.id = e.note_id
+     WHERE e.embedding MATCH ? AND k = ? AND n.layer = 'state' AND e.distance < ?`,
+  );
+  const isState = client.sqlite.prepare("SELECT 1 AS yes FROM notes WHERE id = ? AND layer = 'state'");
+
+  const touched = new Set<number>();
+
+  for (const id of changed) {
+    if ((isState.get(id) as { yes: number } | undefined) !== undefined) touched.add(id);
+
+    const row = embedding.get(BigInt(id)) as { embedding: Buffer } | undefined;
+    if (!row) continue;
+    for (const hit of near.all(row.embedding, 250, maxDistance) as { id: number }[])
+      touched.add(hit.id);
+  }
+
+  const gone = changed.filter((id) => (embedding.get(BigInt(id)) as unknown) === undefined);
+  if (gone.length > 0) {
+    for (const signal of listSignals(client, { type: 'stale_state' })) {
+      if (signal.evidenceIds.some((id) => gone.includes(id))) touched.add(signal.evidenceIds[0]);
+    }
+  }
+
+  return [...touched];
+};
+
 export const detectStaleState = (
   client: MemexClient,
   options: StaleStateOptions = {},
-): SignalCandidate[] => {
+  changed?: number[],
+): Detection => {
   const maxDistance = options.maxDistance ?? 0.45;
   const minNewer = options.minNewer ?? 3;
 
-  const states = client.sqlite
-    .prepare("SELECT id, title, updated_at FROM notes WHERE layer = 'state'")
-    .all() as { id: number; title: string; updated_at: number }[];
+  // A note that names its sources is checked by comparing them, not by asking
+  // which notes look close enough to matter. Guessing is what is left for the
+  // ones that have not said.
+  const declared = new Set(notesDeclaringEvidence(client));
+
+  const scope =
+    changed === undefined ? undefined : new Set(statesTouchedBy(client, changed, maxDistance));
+
+  const states = (
+    scope === undefined
+      ? (client.sqlite
+          .prepare("SELECT id, title, updated_at FROM notes WHERE layer = 'state'")
+          .all() as StateRow[])
+      : [...scope].flatMap(
+          (id) =>
+            client.sqlite
+              .prepare("SELECT id, title, updated_at FROM notes WHERE id = ? AND layer = 'state'")
+              .all(id) as StateRow[],
+        )
+  ).filter((state) => !declared.has(state.id));
 
   const candidates: SignalCandidate[] = [];
 
@@ -238,7 +337,150 @@ export const detectStaleState = (
       identity: String(state.id),
     });
   }
-  return candidates;
+
+  // Every state note reached is answered for, whether or not it produced a
+  // candidate — that is what lets a resolved one be retired.
+  return {
+    candidates,
+    ...(scope === undefined ? {} : { covered: new Set([...scope].map(String)) }),
+  };
+};
+
+export type ConflictOptions = {
+  maxDistance?: number;
+  crossAuthorDistance?: number;
+  neighbours?: number;
+};
+
+type Judgement = { id: number; title: string; layer: string; author: string };
+
+const pairKey = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
+
+// Pairs already reconciled by hand. A correction is the author saying which of
+// the two survives, so re-asking whether they disagree is asking a question
+// that was already answered.
+const reconciledPairs = (client: MemexClient): Set<string> =>
+  new Set(
+    (
+      client.sqlite
+        .prepare("SELECT source_id, target_id FROM note_links WHERE source = 'amends'")
+        .all() as { source_id: number; target_id: number }[]
+    ).map((row) => pairKey(row.source_id, row.target_id)),
+  );
+
+// Two judgements that sit close together but were written far apart are where
+// a position quietly reverses. Whether they actually disagree is not something
+// distance can answer -- an embedding puts a claim and its negation side by
+// side -- so this only nominates the pair. The verdict is the agent's.
+//
+// `rule` notes are compared exhaustively because they govern behaviour and
+// there are few of them; a contradiction between two of them is the most
+// expensive kind to leave standing.
+export const detectConflictPairs = (
+  client: MemexClient,
+  options: ConflictOptions = {},
+): SignalCandidate[] => {
+  const maxDistance = options.maxDistance ?? 0.35;
+  // Two writers recording the same subject phrase it differently enough that a
+  // tight cap misses them, and the pairs found here have been worth the extra
+  // reach: of the judgements sitting between a person note and the agent's own
+  // copy, the ones that turned out to disagree or to be duplicates all sat
+  // further apart than two notes by the same hand ever need to.
+  const crossDistance = options.crossAuthorDistance ?? 0.4;
+  // k is applied by the ANN index BEFORE the layer filter, so a small k returns
+  // the nearest notes of every layer and leaves almost no judgements standing.
+  // Measured here: k=25 found 8 pairs where k=250 finds the ones that matter.
+  const neighbours = options.neighbours ?? 250;
+  const reconciled = reconciledPairs(client);
+  const seen = new Set<string>();
+  const candidates: SignalCandidate[] = [];
+  const distances = new Map<string, number>();
+
+  const crossAuthor = new Set<string>();
+
+  const nominate = (a: Judgement, b: Judgement, why: string) => {
+    const key = pairKey(a.id, b.id);
+    if (a.id === b.id || seen.has(key) || reconciled.has(key)) return;
+    seen.add(key);
+    if (a.author !== b.author) crossAuthor.add(key);
+    candidates.push({
+      type: 'conflict_candidate',
+      evidenceIds: [a.id, b.id],
+      reasoning: `#${a.id} "${a.title}" and #${b.id} "${b.title}" ${why}. Do they actually disagree?`,
+      identity: key,
+    });
+  };
+
+  const neighboursOf = (id: number, layer: string, cap: number | null) => {
+    const embRow = client.sqlite
+      .prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?')
+      .get(BigInt(id)) as { embedding: Buffer } | undefined;
+    if (!embRow) return [];
+
+    return client.sqlite
+      .prepare(
+        `SELECT n.id, e.distance
+         FROM note_embeddings e
+         JOIN notes n ON n.id = e.note_id
+         WHERE e.embedding MATCH ?
+           AND k = ?
+           AND n.id != ?
+           AND n.layer = ?
+           ${cap === null ? '' : 'AND e.distance < ?'}
+         ORDER BY e.distance`,
+      )
+      .all(...[embRow.embedding, neighbours, id, layer, ...(cap === null ? [] : [cap])]) as {
+      id: number;
+      distance: number;
+    }[];
+  };
+
+  const remember = (id: number, near: { id: number; distance: number }[]) => {
+    for (const row of near) {
+      const key = pairKey(id, row.id);
+      const known = distances.get(key);
+      if (known === undefined || row.distance < known) distances.set(key, row.distance);
+    }
+  };
+
+  const rules = client.sqlite
+    .prepare("SELECT id, title, layer, author FROM notes WHERE layer = 'rule' ORDER BY id")
+    .all() as Judgement[];
+  for (const [index, rule] of rules.entries()) {
+    // Uncapped: rules are compared exhaustively anyway, so the neighbourhood is
+    // read only to learn which of those pairs to ask about first.
+    remember(rule.id, neighboursOf(rule.id, 'rule', null));
+    for (const other of rules.slice(index + 1)) {
+      nominate(rule, other, 'both instruct how to act');
+    }
+  }
+
+  const states = client.sqlite
+    .prepare("SELECT id, title, layer, author FROM notes WHERE layer = 'state' ORDER BY id")
+    .all() as Judgement[];
+  const byId = new Map(states.map((state) => [state.id, state]));
+
+  for (const state of states) {
+    const near = neighboursOf(state.id, 'state', Math.max(maxDistance, crossDistance));
+    remember(state.id, near);
+    for (const row of near) {
+      const other = byId.get(row.id);
+      if (!other) continue;
+      const cap = state.author === other.author ? maxDistance : crossDistance;
+      if (row.distance < cap) nominate(state, other, 'claim something about the same subject');
+    }
+  }
+
+  // Closest first, and a pair written by two different hands before a pair
+  // written by one. Measured on this vault: every disagreement and every
+  // duplicate found so far sat between a note the person wrote and the agent's
+  // own copy of it, and none sat between two notes the person wrote. It is the
+  // same subject recorded twice by two writers who never read each other.
+  const distanceOf = (candidate: SignalCandidate) =>
+    distances.get(candidate.identity ?? '') ?? Number.POSITIVE_INFINITY;
+  const rank = (candidate: SignalCandidate) => (crossAuthor.has(candidate.identity ?? '') ? 0 : 1);
+
+  return candidates.sort((a, b) => rank(a) - rank(b) || distanceOf(a) - distanceOf(b));
 };
 
 export type TagBurstOptions = {
@@ -337,6 +579,81 @@ const linkDensity = (client: MemexClient, ids: number[]): number => {
   return possiblePairs > 0 ? linkCount / possiblePairs : 1;
 };
 
+type NeighborOptions = { knn: number; knnDistance: number };
+
+// A note whose embedding moved changes its own neighbours, and it changes them
+// for anything close enough to have been considering it. Both sides are
+// re-queried: the note, whatever used to point at it, and whatever now sits
+// within the same radius. Anything further away cannot form a mutual edge with
+// it, so it cannot be part of an arc either.
+const neighborhoodOf = (
+  client: MemexClient,
+  options: NeighborOptions,
+  changed: number[],
+): number[] => {
+  const embedding = client.sqlite.prepare(
+    'SELECT embedding FROM note_embeddings WHERE note_id = ?',
+  );
+  const within = client.sqlite.prepare(
+    'SELECT note_id AS id FROM note_embeddings WHERE embedding MATCH ? AND k = ? AND distance < ?',
+  );
+  const pointingAt = client.sqlite.prepare(
+    'SELECT note_id AS id FROM note_neighbors WHERE neighbor_id = ?',
+  );
+
+  const affected = new Set(changed);
+  for (const id of changed) {
+    for (const row of pointingAt.all(id) as { id: number }[]) affected.add(row.id);
+
+    const emb = embedding.get(BigInt(id)) as { embedding: Buffer } | undefined;
+    if (!emb) continue;
+    for (const row of within.all(emb.embedding, 250, options.knnDistance) as { id: number }[])
+      affected.add(row.id);
+  }
+  return [...affected];
+};
+
+const refreshNeighbors = (
+  client: MemexClient,
+  options: NeighborOptions,
+  changed: number[] | undefined,
+  embedded: { id: number }[],
+) => {
+  const targets =
+    changed === undefined ? embedded.map((e) => e.id) : neighborhoodOf(client, options, changed);
+  if (targets.length === 0) return;
+
+  const embedding = client.sqlite.prepare(
+    'SELECT embedding FROM note_embeddings WHERE note_id = ?',
+  );
+  const nearest = client.sqlite.prepare(
+    'SELECT note_id AS id FROM note_embeddings WHERE embedding MATCH ? AND k = ? AND distance < ?',
+  );
+  const clear = client.sqlite.prepare('DELETE FROM note_neighbors WHERE note_id = ?');
+  const link = client.sqlite.prepare(
+    'INSERT OR IGNORE INTO note_neighbors (note_id, neighbor_id) VALUES (?, ?)',
+  );
+
+  client.sqlite.transaction(() => {
+    // A note with no embedding left has been deleted or un-indexed; its edges go
+    // with it, in both directions.
+    client.sqlite.exec(
+      `DELETE FROM note_neighbors WHERE note_id NOT IN (SELECT note_id FROM note_embeddings)
+          OR neighbor_id NOT IN (SELECT note_id FROM note_embeddings)`,
+    );
+
+    for (const id of targets) {
+      const emb = embedding.get(BigInt(id)) as { embedding: Buffer } | undefined;
+      clear.run(id);
+      if (!emb) continue;
+      for (const row of nearest.all(emb.embedding, options.knn + 1, options.knnDistance) as {
+        id: number;
+      }[])
+        if (row.id !== id) link.run(id, row.id);
+    }
+  })();
+};
+
 // hidden_arc: a cluster of notes that clearly belong together but were never
 // connected (low link density) and play out over a long time — an
 // un-synthesized "arc" the author lived through without stepping back to name
@@ -353,6 +670,7 @@ const linkDensity = (client: MemexClient, ids: number[]): number => {
 export const detectHiddenArcs = (
   client: MemexClient,
   options: HiddenArcOptions = {},
+  changed?: number[],
 ): SignalCandidate[] => {
   const knn = options.knn ?? 8;
   // L2 on normalized vectors. Empirically 0.45 (≈cos 0.90) is the sweet spot on
@@ -365,7 +683,8 @@ export const detectHiddenArcs = (
   const maxLinkDensity = options.maxLinkDensity ?? 0.2;
   const minAvgDaysBetween = options.minAvgDaysBetween ?? 14;
 
-  // 1. Each note's k nearest neighbours within T (one query per note).
+  // 1. Each note's k nearest neighbours within T, read from the stored graph
+  //    after re-querying only the notes whose own neighbourhood could have moved.
   const embedded = client.sqlite
     .prepare(
       `SELECT n.id FROM notes n
@@ -373,30 +692,23 @@ export const detectHiddenArcs = (
     )
     .all() as { id: number }[];
 
-  const embQuery = client.sqlite.prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?');
-  const neighborQuery = client.sqlite.prepare(
-    `SELECT note_id AS id
-     FROM note_embeddings
-     WHERE embedding MATCH ? AND k = ? AND distance < ?`,
-  );
+  refreshNeighbors(client, { knn, knnDistance }, changed, embedded);
 
-  const neighbors = new Map<number, Set<number>>();
-  for (const { id } of embedded) {
-    const embRow = embQuery.get(BigInt(id)) as { embedding: Buffer } | undefined;
-    if (!embRow) continue;
-    const rows = neighborQuery.all(embRow.embedding, knn + 1, knnDistance) as { id: number }[];
-    neighbors.set(id, new Set(rows.map((r) => r.id).filter((nid) => nid !== id)));
-  }
+  const neighbors = new Map<number, Set<number>>(embedded.map(({ id }) => [id, new Set<number>()]));
+  for (const edge of client.sqlite
+    .prepare('SELECT note_id AS a, neighbor_id AS b FROM note_neighbors')
+    .all() as { a: number; b: number }[])
+    neighbors.get(edge.a)?.add(edge.b);
 
   // 2. Union-find over mutual edges only.
   const parent = new Map<number, number>();
   for (const { id } of embedded) parent.set(id, id);
   const find = (x: number): number => {
     let root = x;
-    while (parent.get(root) !== root) root = parent.get(root)!;
+    while (parent.get(root) !== root) root = parent.get(root) ?? root;
     let cur = x;
     while (parent.get(cur) !== root) {
-      const next = parent.get(cur)!;
+      const next = parent.get(cur) ?? cur;
       parent.set(cur, root);
       cur = next;
     }
@@ -459,11 +771,21 @@ export const detectHiddenArcs = (
   return candidates;
 };
 
-const REFRESH_META_KEY = 'signals_refreshed_at';
+// What each detector reads. A detector is re-run only when the log holds a
+// change of a kind it can see: renaming a tag cannot move an embedding, so it
+// has no business costing a kNN sweep of the whole corpus.
+const WATCHES: Record<RefreshableType, ChangeKind[]> = {
+  dangling_link: ['content', 'title', 'links', 'removed'],
+  stale_state: ['content', 'removed'],
+  tag_burst: ['tags', 'content', 'removed'],
+  hidden_arc: ['content', 'links', 'removed'],
+};
 
-const maxNotesUpdatedAt = (client: MemexClient): number =>
-  (client.sqlite.prepare('SELECT MAX(updated_at) AS m FROM notes').get() as { m: number | null })
-    .m ?? 0;
+const watermarkKey = (type: RefreshableType) => `signals_watermark:${type}`;
+
+// A detector due to run, and the notes it may start from. `changed` is
+// undefined for a full sweep: the first run, or a forced one.
+type Due = { type: RefreshableType; changed: number[] | undefined };
 
 const getMeta = (client: MemexClient, key: string): number =>
   (
@@ -484,13 +806,34 @@ const setMeta = (client: MemexClient, key: string, value: number): void => {
 // a real vault pointed at notes that had since been written. Only untriaged
 // signals are dropped; dismissed and minted are decisions, and re-raising those
 // would argue with the user.
-const retireResolved = (client: MemexClient, candidates: SignalCandidate[]) => {
+const retireResolved = (
+  client: MemexClient,
+  candidates: SignalCandidate[],
+  answeredFor: Map<RefreshableType, Set<string> | undefined>,
+) => {
   const live = new Set(candidates.map(computeSignalHash));
   const open = client.sqlite
-    .prepare("SELECT id, signal_hash FROM signals WHERE status = 'new'")
-    .all() as { id: number; signal_hash: string }[];
+    .prepare("SELECT id, type, signal_hash FROM signals WHERE status = 'new'")
+    .all() as { id: number; type: SignalType; signal_hash: string }[];
 
-  const gone = open.filter((row) => !live.has(row.signal_hash));
+  // Only a detector that just ran can say its findings are void, and one that
+  // started from a few changed notes only speaks for what it reached. Retiring
+  // past either boundary deletes findings nobody re-examined.
+  const reached = new Map(
+    [...answeredFor].map(([type, covered]) => [
+      type,
+      covered === undefined
+        ? undefined
+        : new Set([...covered].map((identity) => signalHashOf(type, identity))),
+    ]),
+  );
+
+  const gone = open.filter((row) => {
+    if (!reached.has(row.type as RefreshableType)) return false;
+    const hashes = reached.get(row.type as RefreshableType);
+    if (hashes !== undefined && !hashes.has(row.signal_hash)) return false;
+    return !live.has(row.signal_hash);
+  });
   if (gone.length === 0) return;
 
   const remove = client.sqlite.prepare('DELETE FROM signals WHERE id = ?');
@@ -515,20 +858,43 @@ export const refreshSignals = (
     force?: boolean;
   } = {},
 ): Signal[] => {
-  if (!options.force && maxNotesUpdatedAt(client) <= getMeta(client, REFRESH_META_KEY)) {
-    return [];
-  }
-  const candidates = [
-    ...detectDanglingLinks(client),
-    ...detectStaleState(client, options.stale),
-    ...detectTagBursts(client, options.burst),
-    ...detectHiddenArcs(client, options.arc),
-  ];
+  const head = changeHead(client);
+
+  // A watermark of zero means this detector has never read the log — on a vault
+  // that predates it, or one that has just been opened. It sweeps once to learn
+  // what is already there, and works from the log after that.
+  const due = REFRESHABLE.flatMap((type): Due[] => {
+    const from = getMeta(client, watermarkKey(type));
+    if (options.force || from === 0) return [{ type, changed: undefined }];
+    if (!hasChangeFrom(client, from, WATCHES[type])) return [];
+    return [{ type, changed: changedNotesFrom(client, from, WATCHES[type]) }];
+  });
+  if (due.length === 0) return [];
+
+  const detect = (type: RefreshableType, changed: number[] | undefined): Detection => {
+    if (type === 'dangling_link') return { candidates: detectDanglingLinks(client) };
+    if (type === 'stale_state') return detectStaleState(client, options.stale, changed);
+    if (type === 'tag_burst') return { candidates: detectTagBursts(client, options.burst) };
+    return { candidates: detectHiddenArcs(client, options.arc, changed) };
+  };
+
+  const detections = due.map(({ type, changed }) => [type, detect(type, changed)] as const);
+  const candidates = detections.flatMap(([, detection]) => detection.candidates);
   const touched = candidates.map((c) => upsertSignal(client, c));
-  retireResolved(client, candidates);
-  setMeta(client, REFRESH_META_KEY, Date.now());
+
+  retireResolved(client, candidates, new Map(detections.map(([t, d]) => [t, d.covered])));
+  for (const { type } of due) setMeta(client, watermarkKey(type), head + 1);
+  trimChangeLog(client, Math.min(...REFRESHABLE.map((t) => getMeta(client, watermarkKey(t)))) - 1);
+
   return touched;
 };
+
+// One signal about the note just written. This is a full refresh again, which
+// it could not afford to be while every detector re-read the corpus — now each
+// one starts from the change the write just logged, so the write pays for its
+// own change and the read that follows finds nothing left to do.
+export const proactiveSignalFor = (client: MemexClient, noteId: number): Signal | undefined =>
+  findBestProactiveSignal(refreshSignals(client), noteId);
 
 /**
  * Pick the most interesting "new" signal that involves the given note.
@@ -538,6 +904,7 @@ export const findBestProactiveSignal = (signals: Signal[], noteId: number): Sign
   const candidates = signals.filter((s) => s.status === 'new' && s.evidenceIds.includes(noteId));
 
   const priority: Record<SignalType, number> = {
+    conflict_candidate: 0,
     hidden_arc: 1,
     tag_burst: 2,
     stale_state: 3,

@@ -1,5 +1,4 @@
 import { countChunks, countNotes, type MemexClient } from '@memex/db';
-import { planTidy } from '../tidy.ts';
 import { buildTopics } from './topics.ts';
 
 const DAY = 86_400_000;
@@ -12,7 +11,6 @@ export type Overview = {
   changed: number;
   review: number;
   activity: { date: string; notes: number }[];
-  tidy: { pairs: { keep: string; drop: string[]; notes: number }[]; notes: number };
   staleness: {
     tag: string;
     count: number;
@@ -20,6 +18,7 @@ export type Overview = {
     share: number;
     spark: number[];
     lastAt: number;
+    dormant: boolean;
   }[];
 };
 
@@ -48,12 +47,7 @@ const activity = (client: MemexClient, days: number, now: number) => {
   });
 };
 
-export const buildOverview = (
-  client: MemexClient,
-  vaultPath: string,
-  now = Date.now(),
-): Overview => {
-  const tidy = planTidy(client, vaultPath);
+export const buildOverview = (client: MemexClient, now = Date.now()): Overview => {
   const links = client.sqlite
     .prepare('SELECT source, COUNT(*) AS c FROM note_links GROUP BY source')
     .all() as { source: string; c: number }[];
@@ -70,14 +64,9 @@ export const buildOverview = (
     changed: topics.reduce((acc, t) => acc + t.changedCount, 0),
     review: topics.reduce((acc, t) => acc + t.reviewCount, 0),
     activity: activity(client, 90, now),
-    tidy: {
-      pairs: tidy.ours.map((v) => ({
-        keep: v.keep,
-        drop: v.drop.map((d) => d.tag),
-        notes: v.notes,
-      })),
-      notes: tidy.mine.length,
-    },
+    // A topic nobody has touched in a season is not rotting, it is finished.
+    // Sorting by share alone put those at the top and buried the subjects that
+    // are still moving while going out of date underneath them.
     staleness: topics
       .map((t) => ({
         tag: t.tag,
@@ -89,8 +78,12 @@ export const buildOverview = (
             : (t.changedCount + t.reviewCount) / (t.currentCount + t.changedCount + t.reviewCount),
         spark: t.spark,
         lastAt: t.lastAt,
+        dormant: t.dormant,
       }))
-      .sort((a, b) => b.share - a.share || b.outdated - a.outdated)
+      .sort(
+        (a, b) =>
+          Number(a.dormant) - Number(b.dormant) || b.outdated - a.outdated || b.share - a.share,
+      )
       .slice(0, 12),
   };
 };

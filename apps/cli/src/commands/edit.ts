@@ -61,10 +61,14 @@ export const registerEdit = (program: Command) => {
 
       try {
         const embedder = await createEmbedder(MODEL_CACHE_DIR);
-        const result = await editNote(client, embedder, vaultPath, Number(id), {
-          title: title || undefined,
-          content: content || undefined,
-        });
+        const result = await editNote(
+          client,
+          embedder,
+          vaultPath,
+          Number(id),
+          { title: title || undefined, content: content || undefined },
+          { actor: 'user' },
+        );
 
         if (isEditRejection(result)) {
           s.stop(pc.yellow(result.message));
@@ -78,7 +82,12 @@ export const registerEdit = (program: Command) => {
           process.exit(1);
         }
 
-        s.stop(`Updated note #${result!.id}: "${result!.title}"`);
+        if (result === null) {
+          s.stop(pc.red(`Note #${id} not found.`));
+          process.exit(1);
+        }
+
+        s.stop(`Updated note #${result.id}: "${result.title}"`);
         outro('Done');
       } catch (err) {
         s.stop('Failed');

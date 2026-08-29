@@ -4,7 +4,7 @@ import { getNote } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const registerDeleteNote = (server: McpServer, client: MemexClient) => {
+export const registerDeleteNote = (server: McpServer, client: MemexClient, vaultPath: string) => {
   server.tool(
     'delete_note',
     'Delete a note by ID. Removes both the markdown file and the index entry. Rule-layer notes are user-only and always rejected — suggest `memex delete <id>` instead.',
@@ -14,7 +14,7 @@ export const registerDeleteNote = (server: McpServer, client: MemexClient) => {
       if (!note) {
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
-      const rejection = removeNote(client, id, note.filePath);
+      const rejection = removeNote(client, id, note.filePath, { vaultPath });
       if (rejection) {
         return { content: [{ type: 'text', text: rejection.message }], isError: true };
       }

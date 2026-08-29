@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
+import { syncLinks } from './link-index.ts';
 import {
   deleteNote,
   getAmendments,
@@ -10,7 +11,6 @@ import {
   insertNote,
   linkAmendment,
   serializeTags,
-  syncLinks,
 } from './repository.ts';
 
 let dbDir: string;
@@ -147,6 +147,9 @@ describe('note_links migration', () => {
     legacy.sqlite
       .prepare("INSERT INTO note_links(source_id, target_id, source) VALUES (1, 2, 'wiki')")
       .run();
+    // A DB old enough to have this key predates the migration counter, so it
+    // carries no stamp — without clearing it the rebuild is correctly skipped.
+    legacy.sqlite.prepare("DELETE FROM index_meta WHERE key = 'schema_version'").run();
     legacy.sqlite.close();
 
     const migrated = openDb(legacyDir);

@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MemexClient, openDb } from './client.ts';
+import { findUnresolvedLinks, resolveLinkTargets, syncLinks } from './link-index.ts';
 import {
   findFlashbacks,
-  findUnresolvedLinks,
   getBacklinks,
   getNote,
   insertNote,
@@ -13,7 +13,6 @@ import {
   saveEmbedding,
   searchNotes,
   serializeTags,
-  syncLinks,
   updateNote,
 } from './repository.ts';
 
@@ -244,6 +243,67 @@ describe('note_links source column', () => {
   });
 });
 
+describe('resolveLinkTargets', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-links-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const addNote = (title: string, content = '') =>
+    insertNote(client, {
+      title,
+      content,
+      filePath: join(dbDir, `${encodeURIComponent(title)}.md`),
+      source: 'manual',
+      layer: 'past',
+    });
+
+  it('opens a link written against the title', () => {
+    const target = addNote('auth decision');
+    expect(resolveLinkTargets(client, ['auth decision']).get('auth decision')).toBe(target.id);
+  });
+
+  it('opens a link written against the filename, not just the title', () => {
+    const slashed = addNote('Round-2/3 25/25 통과');
+    const asked = addNote('앵커란 무엇인가요?');
+
+    expect(
+      resolveLinkTargets(client, ['Round-2／3 25／25 통과']).get('Round-2／3 25／25 통과'),
+    ).toBe(slashed.id);
+    expect(resolveLinkTargets(client, ['앵커란 무엇인가요']).get('앵커란 무엇인가요')).toBe(
+      asked.id,
+    );
+  });
+
+  it('prefers a note that actually carries the title over one whose filename matches', () => {
+    const byFilename = addNote('plan?');
+    const byTitle = addNote('plan');
+    expect(resolveLinkTargets(client, ['plan']).get('plan')).toBe(byTitle.id);
+    expect(byFilename.id).not.toBe(byTitle.id);
+  });
+
+  it('leaves a target nothing in the vault answers to unresolved', () => {
+    addNote('auth decision');
+    expect(resolveLinkTargets(client, ['a note nobody wrote']).size).toBe(0);
+  });
+
+  it('records the recovered link as a real edge, so it becomes a backlink', () => {
+    const target = addNote('Round-2/3 25/25 통과');
+    const source = addNote('later', 'see [[Round-2／3 25／25 통과]]');
+    syncLinks(client, source.id, source.content);
+
+    expect(getBacklinks(client, target.id).map((n) => n.id)).toEqual([source.id]);
+  });
+});
+
 describe('findFlashbacks', () => {
   let dbDir: string;
   let client: MemexClient;
@@ -265,6 +325,30 @@ describe('findFlashbacks', () => {
     client.sqlite.prepare('UPDATE notes SET authored_at = ? WHERE id = ?').run(ms, id);
 
   const fakeEmbedding = new Array(768).fill(0.1);
+
+  // A unit vector the given euclidean distance from [1, 0, 0, ...]:
+  // for unit vectors, L2 = sqrt(2 - 2·cos).
+  const vectorAt = (distance: number): number[] => {
+    const cos = 1 - (distance * distance) / 2;
+    const v = new Array(768).fill(0);
+    v[0] = cos;
+    v[1] = Math.sqrt(1 - cos * cos);
+    return v;
+  };
+
+  const addNote = (title: string, category: string, embedding: number[], ageDays: number) => {
+    const note = insertNote(client, {
+      title,
+      content: 'x',
+      filePath: join(dbDir, `${title}.md`),
+      source: 'manual',
+      layer: 'past',
+      category,
+    });
+    setCreatedAt(note.id, Date.now() - ageDays * 86_400_000);
+    saveEmbedding(client, note.id, embedding);
+    return note;
+  };
 
   it('returns notes older than minDaysGap from a different category', () => {
     const now = Date.now();
@@ -293,6 +377,31 @@ describe('findFlashbacks', () => {
     expect(flashbacks.map((f) => f.id)).toContain(old.id);
     const oldFlash = flashbacks.find((f) => f.id === old.id);
     expect(oldFlash?.daysAgo).toBeGreaterThanOrEqual(90);
+  });
+
+  it('looks past the nearest neighbours, which are always the recent ones', () => {
+    const now = Date.now();
+    const source = addNote('source', 'projects', vectorAt(0), 0);
+    for (let i = 0; i < 30; i += 1) {
+      addNote(`recent-${i}`, 'projects', vectorAt(0.05 + i * 0.001), 1);
+    }
+    const old = addNote('old', 'writing', vectorAt(0.45), 200);
+
+    expect(findFlashbacks(client, source.id, now).map((f) => f.id)).toContain(old.id);
+    expect(findFlashbacks(client, source.id, now, { pool: 5 }).map((f) => f.id)).not.toContain(
+      old.id,
+    );
+  });
+
+  it('leaves out a note too far away to be about the same thing', () => {
+    const now = Date.now();
+    const source = addNote('source', 'projects', vectorAt(0), 0);
+    const near = addNote('near', 'writing', vectorAt(0.45), 200);
+    const far = addNote('far', 'writing', vectorAt(0.7), 200);
+
+    const found = findFlashbacks(client, source.id, now).map((f) => f.id);
+    expect(found).toContain(near.id);
+    expect(found).not.toContain(far.id);
   });
 
   it('excludes notes in the same category as the source', () => {
@@ -452,6 +561,59 @@ describe('searchNotes — substring and link-expansion arms', () => {
 
   const fakeEmbedding = new Array(768).fill(0.1);
 
+  it('narrows to one layer when asked, across every arm', () => {
+    const believed = insertNote(client, {
+      title: 'auth approach',
+      content: 'we use JWT',
+      filePath: join(dbDir, 'state.md'),
+      source: 'manual',
+      layer: 'state',
+      tags: serializeTags(['auth']),
+    });
+    const recorded = insertNote(client, {
+      title: 'auth approach retro',
+      content: 'we use JWT',
+      filePath: join(dbDir, 'past.md'),
+      source: 'manual',
+      layer: 'past',
+      tags: serializeTags(['auth']),
+    });
+    saveEmbedding(client, believed.id, fakeEmbedding);
+    saveEmbedding(client, recorded.id, fakeEmbedding);
+
+    const found = searchNotes(client, 'auth', fakeEmbedding, 10, { layer: 'state' }).map(
+      (r) => r.id,
+    );
+    expect(found).toContain(believed.id);
+    expect(found).not.toContain(recorded.id);
+  });
+
+  it("can look at one person's memories without an agent's working notes", () => {
+    const mine = insertNote(client, {
+      title: 'opula pricing',
+      content: 'we picked two tiers',
+      filePath: join(dbDir, 'mine.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+    const theirs = insertNote(client, {
+      title: 'opula-pricing-drivers',
+      content: 'we picked two tiers',
+      filePath: join(dbDir, 'memory', 'theirs.md'),
+      source: 'index',
+      layer: 'state',
+      author: 'agent',
+    });
+    saveEmbedding(client, mine.id, fakeEmbedding);
+    saveEmbedding(client, theirs.id, fakeEmbedding);
+
+    const found = searchNotes(client, 'opula', fakeEmbedding, 10, { author: 'person' }).map(
+      (r) => r.id,
+    );
+    expect(found).toContain(mine.id);
+    expect(found).not.toContain(theirs.id);
+  });
+
   it('matches inside agglutinated Korean words (substring arm)', () => {
     const note = insertNote(client, {
       title: '어제 한 일',
@@ -531,6 +693,45 @@ describe('searchNotes — substring and link-expansion arms', () => {
   });
 });
 
+describe('searchNotes — inflected Korean', () => {
+  let dbDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-prefix-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+  });
+
+  const far = new Array(768).fill(0);
+
+  const add = (title: string, content: string, file: string) => {
+    const note = insertNote(client, {
+      title,
+      content,
+      filePath: join(dbDir, file),
+      source: 'manual',
+      layer: 'past',
+    });
+    saveEmbedding(client, note.id, far);
+    return note;
+  };
+
+  it('finds a note whose query token only ever appears with a particle attached', () => {
+    const inflected = add('조사가 붙은 노트', '이것이 근거는 아니다', 'k.md');
+    expect(searchNotes(client, '근거', far, 5).map((r) => r.id)).toContain(inflected.id);
+  });
+
+  it('finds an English match that only appears in a longer inflected form', () => {
+    const inflected = add('plural only', 'the protocols themselves', 'p.md');
+    expect(searchNotes(client, 'protocol', far, 5).map((r) => r.id)).toContain(inflected.id);
+  });
+});
+
 describe('searchNotes date filters', () => {
   let dbDir: string;
   let client: MemexClient;
@@ -570,29 +771,16 @@ describe('searchNotes date filters', () => {
     saveEmbedding(client, importedOld.id, fakeEmbedding);
     saveEmbedding(client, freshNote.id, fakeEmbedding);
 
-    const oldWindow = searchNotes(
-      client,
-      'april retro',
-      fakeEmbedding,
-      10,
-      undefined,
-      undefined,
-      now - 110 * DAY,
-      now - 90 * DAY,
-    );
+    const oldWindow = searchNotes(client, 'april retro', fakeEmbedding, 10, {
+      dateFrom: now - 110 * DAY,
+      dateTo: now - 90 * DAY,
+    });
     expect(oldWindow.map((r) => r.id)).toContain(importedOld.id);
     expect(oldWindow.map((r) => r.id)).not.toContain(freshNote.id);
 
-    const recentWindow = searchNotes(
-      client,
-      'april retro',
-      fakeEmbedding,
-      10,
-      undefined,
-      undefined,
-      now - 1 * DAY,
-      undefined,
-    );
+    const recentWindow = searchNotes(client, 'april retro', fakeEmbedding, 10, {
+      dateFrom: now - 1 * DAY,
+    });
     expect(recentWindow.map((r) => r.id)).toContain(freshNote.id);
     expect(recentWindow.map((r) => r.id)).not.toContain(importedOld.id);
   });

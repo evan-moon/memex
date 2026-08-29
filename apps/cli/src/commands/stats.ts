@@ -2,7 +2,9 @@ import { type CountByKey, getCorpusStats, openDb } from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { registerAudit } from './audit.ts';
 import { registerEval } from './eval.ts';
+import { registerFlashbackEval } from './flashback-eval.ts';
 
 const printCounts = (label: string, counts: CountByKey[]) => {
   if (counts.length === 0) return;
@@ -55,5 +57,7 @@ export const registerStats = (program: Command) => {
       console.log();
     });
 
+  registerAudit(stats);
   registerEval(stats);
+  registerFlashbackEval(stats);
 };

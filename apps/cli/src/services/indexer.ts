@@ -11,10 +11,13 @@ import {
   type NoteLayer,
   parseAuthoredAt,
   parseTags,
+  resyncLinkIndexes,
   serializeTags,
+  syncLinks,
+  syncNoteEvidence,
   updateNote,
 } from '@memex/db';
-import { extractCategory } from '@memex/utils';
+import { authorOfPath, extractCategory, parseDerivesFrom, yamlScalar } from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -23,6 +26,10 @@ type IndexStats = {
   updated: number;
   removed: number;
   skipped: number;
+  /** Wiki links the rebuilt graph gained (or lost, when negative). */
+  relinked: number;
+  /** Notes whose title or link-target index had drifted from their content. */
+  reindexed: number;
 };
 
 type ExtractedNote = {
@@ -32,14 +39,10 @@ type ExtractedNote = {
   layer?: NoteLayer;
 };
 
-const unquote = (value: string): string =>
-  value
-    .trim()
-    .replace(/^["']|["']$/g, '')
-    .replace(/^#/, '');
+const unquote = (value: string): string => yamlScalar(value).replace(/^#/, '');
 
-// Obsidian writes tags either inline (`tags: [a, b]` / `tags: a, b`) or as a
-// block list (`tags:` followed by `- a` lines). Both must survive indexing or
+// Frontmatter carries tags either inline (`tags: [a, b]` / `tags: a, b`) or as
+// a block list (`tags:` followed by `- a` lines). Both must survive indexing or
 // vault tags never reach the tag search arm.
 const parseFrontmatterTags = (frontmatter: string): string[] => {
   const lines = frontmatter.split('\n');
@@ -72,7 +75,7 @@ const extractNote = (content: string, filePath: string): ExtractedNote => {
     | NoteLayer
     | undefined;
 
-  const fmTitle = frontmatter?.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]?.trim();
+  const fmTitle = yamlScalar(frontmatter?.match(/^title:[ \t]*(.*)$/m)?.[1] ?? '');
   if (fmTitle) return { title: fmTitle, body: content, tags, layer };
 
   const h1 = content.match(/^#\s+(.+)$/m);
@@ -118,6 +121,7 @@ const indexFile = async (
       category: category ?? undefined,
       authoredAt,
       tags: serializeTags(tags),
+      author: authorOfPath(filePath),
     });
     await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
@@ -132,6 +136,7 @@ const indexFile = async (
         authoredAt,
         tags: serializeTags(fmTags),
         layer,
+        author: authorOfPath(filePath),
       });
       await indexNoteVectors(client, embedder, note.id, {
         title,
@@ -161,6 +166,46 @@ const IGNORE_DIRS = [
 const isIgnoredPath = (filePath: string): boolean =>
   filePath.split('/').some((segment) => IGNORE_DIRS.includes(segment));
 
+// A link lives in one note and points at another, so renaming the second one
+// breaks a row the first one owns — and the first one's file never changed, so
+// nothing above would touch it. Rebuilding the whole graph costs no embeddings
+// and is the only way the index and the vault agree after a rename.
+const resyncLinks = (client: MemexClient): number => {
+  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
+    id: number;
+    content: string;
+  }[];
+  const before = (
+    client.sqlite.prepare("SELECT COUNT(*) AS c FROM note_links WHERE source = 'wiki'").get() as {
+      c: number;
+    }
+  ).c;
+
+  client.sqlite.transaction(() => {
+    for (const note of notes) syncLinks(client, note.id, note.content);
+  })();
+
+  const after = (
+    client.sqlite.prepare("SELECT COUNT(*) AS c FROM note_links WHERE source = 'wiki'").get() as {
+      c: number;
+    }
+  ).c;
+  return after - before;
+};
+
+// Run after the walk, not during it: a note can declare a source that has not
+// been read yet, and an edge to a note the index has never heard of is dropped.
+const resyncEvidence = (client: MemexClient) => {
+  const notes = client.sqlite.prepare('SELECT id, content FROM notes').all() as {
+    id: number;
+    content: string;
+  }[];
+  for (const note of notes) {
+    const declared = parseDerivesFrom(note.content);
+    if (declared.length > 0) syncNoteEvidence(client, note.id, declared);
+  }
+};
+
 export const indexDirectory = async (
   client: MemexClient,
   embedder: Embedder,
@@ -168,7 +213,14 @@ export const indexDirectory = async (
   onProgress?: (file: string) => void,
   force = false,
 ): Promise<IndexStats> => {
-  const stats: IndexStats = { added: 0, updated: 0, removed: 0, skipped: 0 };
+  const stats: IndexStats = {
+    added: 0,
+    updated: 0,
+    removed: 0,
+    skipped: 0,
+    relinked: 0,
+    reindexed: 0,
+  };
 
   const files: string[] = [];
   // The exclude callback sees paths like "sub/node_modules", so match path
@@ -198,5 +250,9 @@ export const indexDirectory = async (
     }
   }
 
+  const repaired = resyncLinkIndexes(client);
+  stats.reindexed = Math.max(repaired.titles, repaired.targets);
+  stats.relinked = resyncLinks(client);
+  resyncEvidence(client);
   return stats;
 };

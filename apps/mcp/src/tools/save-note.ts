@@ -1,9 +1,23 @@
 import { isSaveRejection, saveNote } from '@memex/core';
-import { findUnresolvedLinks, type MemexClient, type NoteSource } from '@memex/db';
+import {
+  findUnresolvedLinks,
+  type MemexClient,
+  type NoteSource,
+  recordPresentation,
+} from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 type Embedder = (text: string) => Promise<number[]>;
+
+// Without this the agent reports "saved your rule" and the user reasonably reads
+// that as "in effect". It is stored; it is not doing anything yet, and only the
+// agent is in a position to say so at the moment it happens.
+export const proposalLine = (ruleStatus: string | null): string =>
+  ruleStatus === 'provisional'
+    ? '\n\n📋 Saved as a proposal — it is NOT in effect. It stays inert until the user approves ' +
+      'it under Guidance in the memex app. Tell them it is waiting there.'
+    : '';
 
 export const registerSaveNote = (
   server: McpServer,
@@ -23,8 +37,8 @@ export const registerSaveNote = (
 - state: current state or plans (project progress, a person's current
          role, future roadmap). Freely updatable.
 - rule: behaviour guidance for Claude (coding style, search policy, etc.).
-        User-only — this tool always rejects rule writes. Show the proposed
-        rule text in chat and suggest \`memex add --layer rule\` instead.
+        You may write one, but it is stored as a proposal and is NOT injected
+        until the user approves it in the memex app. Say so when you write one.
 
 Rules of thumb: past tense vs present/future tense, "fact vs intent" axis.
 When in doubt, choose past.
@@ -60,7 +74,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
-          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — user-only; this tool rejects rule writes (suggest `memex add --layer rule`). When in doubt, choose past.',
+          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
         ),
     },
     async ({ title, content, folder, tags, source, layer, amends }) => {
@@ -101,6 +115,9 @@ The response may include "Flashback" lines pointing to older notes from a differ
               .join('\n')}`
           : '';
 
+      // Recorded here rather than where the signal is chosen: saveNote hands one
+      // back to every caller, and only the ones that render it have shown it.
+      if (signal) recordPresentation(client, signal.id, 'mcp');
       const signalSection = signal
         ? `\n\n💡 Proactive Signal: Note joined an un-synthesized ${signal.type.replace('_', ' ')} (#${signal.id}: ${signal.reasoning})`
         : '';
@@ -108,12 +125,12 @@ The response may include "Flashback" lines pointing to older notes from a differ
       const unresolved = findUnresolvedLinks(client, content);
       const linkSection =
         unresolved.length > 0
-          ? `\n\n🔗 These wiki links point at no note and render as dead links in Obsidian — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
+          ? `\n\n🔗 These wiki links point at no note, so they render as plain text and join nothing to the link graph — use the exact title of an existing note (search first), or drop the brackets:\n${unresolved
               .map((t) => `- [[${t}]]`)
               .join('\n')}`
           : '';
 
-      const text = `Saved note #${note.id}: "${note.title}"${amendSection}${warning}${flashbackSection}${linkSection}${signalSection}`;
+      const text = `Saved note #${note.id}: "${note.title}"${proposalLine(note.ruleStatus)}${amendSection}${warning}${flashbackSection}${linkSection}${signalSection}`;
 
       return { content: [{ type: 'text', text }] };
     },

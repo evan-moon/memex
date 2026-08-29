@@ -1,9 +1,10 @@
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown';
 import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
-import { remarkWikiLinks } from './wiki-links.ts';
+import { type Strings, useT } from './i18n.ts';
+import { remarkWikiLinks, WIKI_TITLE_PROP } from './wiki-links.ts';
 
-const componentsFor = (targets: Map<string, number>): Components => ({
+const componentsFor = (targets: Map<string, number>, t: Strings): Components => ({
   h1: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h2: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h3: ({ children }) => <h3 className="doc-h3">{children}</h3>,
@@ -22,7 +23,9 @@ const componentsFor = (targets: Map<string, number>): Components => ({
   pre: ({ children }) => <pre className="doc-pre">{children}</pre>,
   blockquote: ({ children }) => <blockquote className="doc-blockquote">{children}</blockquote>,
   hr: () => <hr className="doc-hr" />,
-  img: ({ src, alt }) => <img className="doc-img" src={typeof src === 'string' ? src : ''} alt={alt ?? ''} />,
+  img: ({ src, alt }) => (
+    <img className="doc-img" src={typeof src === 'string' ? src : ''} alt={alt ?? ''} />
+  ),
   table: ({ children }) => (
     <div className="doc-table-wrap">
       <table className="doc-table">{children}</table>
@@ -30,18 +33,19 @@ const componentsFor = (targets: Map<string, number>): Components => ({
   ),
   th: ({ children }) => <th className="doc-th">{children}</th>,
   td: ({ children }) => <td className="doc-td">{children}</td>,
-  a: ({ href, children }) => {
-    if (!href?.startsWith('wiki:')) {
+  a: ({ href, children, node }) => {
+    const title = node?.properties?.[WIKI_TITLE_PROP];
+    if (typeof title !== 'string') {
       return (
         <a className="doc-link" href={href} target="_blank" rel="noreferrer">
           {children}
         </a>
       );
     }
-    const id = targets.get(href.slice('wiki:'.length).toLowerCase());
+    const id = targets.get(title.toLowerCase());
     if (id === undefined) {
       return (
-        <span className="doc-wiki-dead" title="아직 없는 노트">
+        <span className="doc-wiki-dead" title={t.note.deadLink}>
           {children}
         </span>
       );
@@ -61,12 +65,13 @@ export const Markdown = ({
   children: string;
   links?: { title: string; id: number }[];
 }) => {
+  const t = useT();
   const targets = new Map(links.map((l) => [l.title.toLowerCase(), l.id]));
   return (
     <div className="doc">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkWikiLinks]}
-        components={componentsFor(targets)}
+        components={componentsFor(targets, t)}
         urlTransform={(url) => (url.startsWith('wiki:') ? url : defaultUrlTransform(url))}
       >
         {children}

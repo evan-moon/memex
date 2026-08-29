@@ -1,16 +1,30 @@
-import { basename } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, relative } from 'node:path';
+import { amendmentSuggestion } from '@memex/core';
 import {
+  evidenceFor,
+  evidenceStaleness,
   findRelatedNotes,
+  findUnresolvedLinks,
   getAmendments,
   getBacklinks,
   getNote,
+  inferencesCiting,
   listSignals,
   type MemexClient,
   type NoteLayer,
   parseTags,
 } from '@memex/db';
+import { type NoteStatus, statusesFor } from './status.ts';
 
-export type NoteRef = { id: number; title: string; layer: string; at: number };
+export type NoteRef = {
+  id: number;
+  title: string;
+  layer: string;
+  author: string;
+  at: number;
+  status?: NoteStatus | null;
+};
 
 export type NoteDetail = {
   id: number;
@@ -18,10 +32,24 @@ export type NoteDetail = {
   content: string;
   layer: NoteLayer;
   at: number;
+  updatedAt: number;
   tags: string[];
-  obsidianUrl: string | null;
+  author: string;
   filePath: string;
+  folder: string | null;
+  amendment: ReturnType<typeof amendmentSuggestion> | null;
   wikiLinks: { title: string; id: number }[];
+  deadLinks: string[];
+  evidence: {
+    id: number;
+    title: string | null;
+    changed: boolean;
+    missing: boolean;
+    amendedBy: { id: number; title: string } | null;
+  }[];
+  /** Notes this one links to that could be declared as sources. */
+  candidateSources: NoteRef[];
+  hypotheses: { id: number; title: string; status: string }[];
   stale: { newer: NoteRef[] } | null;
   supersededBy: NoteRef[];
   corrects: NoteRef[];
@@ -36,6 +64,7 @@ type RawNote = {
   id: number;
   title: string;
   layer: string;
+  author?: string;
   authoredAt?: number | null;
   createdAt?: number;
   updatedAt?: number;
@@ -48,6 +77,7 @@ const toRef = (n: RawNote): NoteRef => ({
   id: n.id,
   title: n.title,
   layer: n.layer,
+  author: n.author ?? 'person',
   at: n.authoredAt ?? n.authored_at ?? n.createdAt ?? n.created_at ?? 0,
 });
 
@@ -55,14 +85,6 @@ const toStateRef = (n: RawNote): NoteRef => ({
   ...toRef(n),
   at: n.updatedAt ?? n.updated_at ?? toRef(n).at,
 });
-
-// Obsidian can only open what is inside the vault it has open; notes indexed
-// from other roots get their path shown instead of a link that would fail.
-const obsidianUrl = (filePath: string, vaultPath: string): string | null => {
-  if (!filePath.startsWith(`${vaultPath}/`)) return null;
-  const rel = filePath.slice(vaultPath.length + 1);
-  return `obsidian://open?vault=${encodeURIComponent(basename(vaultPath))}&file=${encodeURIComponent(rel.replace(/\.md$/, ''))}`;
-};
 
 // A note's stored content is the file as it sits on disk, so most of it opens
 // with YAML frontmatter and then repeats the title as an H1. Rendered as text
@@ -118,7 +140,7 @@ const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string 
   const newer = (
     client.sqlite
       .prepare(
-        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
          FROM notes WHERE id IN (${signal.evidenceIds
            .slice(1)
            .map(() => '?')
@@ -128,6 +150,87 @@ const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string 
       .all(...signal.evidenceIds.slice(1)) as RawNote[]
   ).map(toRef);
   return { newer };
+};
+
+// Every list of notes says whether each one still holds, so a backlink that a
+// later note corrected does not read as current just because of where it sits.
+const withStatus = (client: MemexClient, refs: NoteRef[]): NoteRef[] => {
+  const statuses = statusesFor(
+    client,
+    refs.map((r) => r.id),
+  );
+  return refs.map((ref) => ({ ...ref, status: statuses.get(ref.id) ?? null }));
+};
+
+// Where a correction should land: beside the note it corrects, since the
+// folder convention is by subject rather than by kind of note.
+const folderOf = (filePath: string, vaultPath: string): string | null => {
+  const rel = relative(vaultPath, dirname(filePath));
+  return rel && !rel.startsWith('..') ? rel : null;
+};
+
+const FRONTMATTER_KEYS = /^(---|(?:title|date|tags|layer|aliases|categories|source)\s*:)/i;
+
+// An FTS snippet is a window of a dozen tokens wherever the match landed, and
+// the index holds the file as written — so a match near the top comes back as
+// `--- title: ... tags: [...] --- the actual sentence`. Only a window that
+// opens inside the frontmatter is cut, so a `---` rule in the middle of a note
+// keeps the prose in front of it.
+const dropFrontmatter = (text: string): string => {
+  const trimmed = text.trimStart();
+  if (!FRONTMATTER_KEYS.test(trimmed)) return text;
+  const close = trimmed.indexOf('---', trimmed.startsWith('---') ? 3 : 0);
+  return close === -1 ? trimmed : trimmed.slice(close + 3);
+};
+
+export const plainSnippet = (text: string): string =>
+  dropFrontmatter(text)
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s*/gm, '')
+    .replace(/\[\[([^\]]+)\]\]/g, (_, inner) => inner.split('|').pop().split('#')[0].trim())
+    .replace(/[`*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// What a projection could plausibly name, offered rather than assumed: a link
+// is a reference, and only some references are what a judgement rests on.
+export const candidateSources = (
+  client: MemexClient,
+  note: { id: number; layer: string },
+): NoteRef[] => {
+  if (note.layer !== 'state' || evidenceFor(client, note.id).length > 0) return [];
+  return outgoingWikiLinks(client, note.id).flatMap((link) => {
+    const row = client.sqlite
+      .prepare(
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+         FROM notes WHERE id = ?`,
+      )
+      .get(link.id) as RawNote | undefined;
+    return row ? [toRef(row)] : [];
+  });
+};
+
+// A declared projection is checked by comparison, so the panel's evidence is
+// the corrections and rewrites of what it named — not a guess at what might be
+// related.
+const declaredStaleness = (client: MemexClient, note: { id: number }) => {
+  const staleness = evidenceStaleness(client, note.id);
+  if (!staleness) return null;
+
+  const newer = [
+    ...staleness.amended.map((entry) => entry.by.id),
+    ...staleness.changed.map((edge) => edge.sourceId),
+  ];
+  if (newer.length === 0) return { newer: [] };
+
+  const rows = client.sqlite
+    .prepare(
+      `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+       FROM notes WHERE id IN (${newer.map(() => '?').join(',')})`,
+    )
+    .all(...newer) as RawNote[];
+  return { newer: rows.map(toRef) };
 };
 
 export const noteDetail = (
@@ -141,7 +244,7 @@ export const noteDetail = (
   const corrects = (
     client.sqlite
       .prepare(
-        `SELECT n.id, n.title, n.layer, n.authored_at AS authoredAt, n.created_at AS createdAt
+        `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt
          FROM note_links l JOIN notes n ON n.id = l.target_id
          WHERE l.source_id = ? AND l.source = 'amends'`,
       )
@@ -153,22 +256,52 @@ export const noteDetail = (
     title: note.title,
     content: bodyOf(note.content, note.title),
     layer: note.layer,
+    author: note.author,
     at: note.authoredAt ?? note.createdAt,
+    updatedAt: note.updatedAt,
     tags: parseTags(note.tags),
-    obsidianUrl: obsidianUrl(note.filePath, vaultPath),
     filePath: note.filePath,
+    folder: folderOf(note.filePath, vaultPath),
+    amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
     wikiLinks: outgoingWikiLinks(client, id),
-    stale: staleNewerNotes(client, note),
+    deadLinks: findUnresolvedLinks(client, note.content),
+    evidence: evidenceFor(client, id).map((edge) => ({
+      id: edge.sourceId,
+      title: edge.title,
+      changed: edge.changed,
+      missing: edge.missing,
+      amendedBy: edge.amendedBy,
+    })),
+    candidateSources: candidateSources(client, note),
+    hypotheses: inferencesCiting(client, id),
+    stale: declaredStaleness(client, note) ?? staleNewerNotes(client, note),
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,
       layer: 'past',
+      author: 'person',
       at: a.authoredAt,
     })),
     corrects,
-    backlinks: getBacklinks(client, id).map(toRef),
-    related: findRelatedNotes(client, id, 5).map(toRef),
+    backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
+    related: withStatus(client, findRelatedNotes(client, id, 5).map(toRef)),
   };
+};
+
+export type NoteSource = { path: string; text: string | null };
+
+const readOrNull = (path: string) => {
+  try {
+    return readFileSync(path, 'utf-8');
+  } catch {
+    return null;
+  }
+};
+
+export const noteSource = (client: MemexClient, id: number): NoteSource | null => {
+  const note = getNote(client, id);
+  if (!note) return null;
+  return { path: note.filePath, text: readOrNull(note.filePath) };
 };
 
 // `state` is what is believed now, so its recency is the last time it was
@@ -183,7 +316,7 @@ export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 5000)
   (
     client.sqlite
       .prepare(
-        `SELECT id, title, layer, authored_at AS authoredAt, created_at AS createdAt,
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt,
                 updated_at AS updatedAt
          FROM notes WHERE layer = ?
          ORDER BY ${recencyColumn(layer)} DESC LIMIT ?`,
@@ -219,3 +352,38 @@ export const staleStateIds = (client: MemexClient): number[] => {
     ),
   ];
 };
+
+export type NoteTitle = { id: number; title: string; layer: string; author: string };
+
+// The palette matches on titles alone, so it ships titles alone — the sidebar
+// used to hand over every note in full for the same job.
+export const noteTitles = (client: MemexClient, limit: number): NoteTitle[] =>
+  client.sqlite
+    .prepare(
+      `SELECT id, title, layer, author FROM notes
+       ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
+    )
+    .all(limit) as NoteTitle[];
+
+export type SearchFacets = {
+  folders: { name: string; count: number }[];
+  tags: { name: string; count: number }[];
+};
+
+const FACET_TAGS = 60;
+
+export const searchFacets = (client: MemexClient): SearchFacets => ({
+  folders: client.sqlite
+    .prepare(
+      `SELECT category AS name, COUNT(*) AS count FROM notes
+       WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC`,
+    )
+    .all() as { name: string; count: number }[],
+  tags: client.sqlite
+    .prepare(
+      `SELECT j.value AS name, COUNT(*) AS count
+       FROM notes n, json_each(n.tags) j
+       GROUP BY j.value ORDER BY count DESC LIMIT ?`,
+    )
+    .all(FACET_TAGS) as { name: string; count: number }[],
+});

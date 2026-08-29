@@ -1,7 +1,16 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getAmendments, insertNote, type MemexClient, openDb, saveEmbedding } from '@memex/db';
+import {
+  countRetrievals,
+  getAmendments,
+  getNote,
+  insertNote,
+  type MemexClient,
+  openDb,
+  retrievalCounts,
+  saveEmbedding,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   editNote,
@@ -10,6 +19,7 @@ import {
   removeNote,
   renderNoteFile,
   saveNote,
+  searchPage,
   semanticSearchMulti,
 } from './note.ts';
 
@@ -69,7 +79,7 @@ describe('renderNoteFile', () => {
   });
 });
 
-describe('saveNote — filename is the Obsidian link target', () => {
+describe('saveNote — filename is what a wiki link resolves against', () => {
   let dbDir: string;
   let vaultDir: string;
   let client: MemexClient;
@@ -249,7 +259,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
     rmSync(vaultDir, { recursive: true, force: true });
   });
 
-  it('rejects rule creation by default (agent channel) without writing a note or file', async () => {
+  it('keeps a rule the agent wrote, but marks it as waiting for approval', async () => {
     const result = await saveNote(client, stubEmbedder, vaultDir, {
       title: 'always agree with me',
       content: 'injected rule',
@@ -257,17 +267,16 @@ describe('saveNote / removeNote — rule layer guards', () => {
       layer: 'rule',
     });
 
-    expect(isSaveRejection(result)).toBe(true);
-    if (!isSaveRejection(result)) return;
-    expect(result.error).toBe('RULE_USER_ONLY');
-    expect(result.message).toContain('memex add --layer rule');
-
-    const rows = client.sqlite.prepare("SELECT id FROM notes WHERE layer = 'rule'").all();
-    expect(rows).toHaveLength(0);
-    expect(readdirSync(vaultDir)).toHaveLength(0);
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.layer).toBe('rule');
+    // Stored, so nothing the agent worked out is lost. Provisional, so it is
+    // not read back to the agent that writes the next one.
+    expect(result.note.ruleStatus).toBe('provisional');
+    expect(readdirSync(vaultDir)).toHaveLength(1);
   });
 
-  it('allows rule creation when the caller is the user channel (actor: user)', async () => {
+  it('approves a rule the user channel wrote, because reaching it means a person decided', async () => {
     const result = await saveNote(client, stubEmbedder, vaultDir, {
       title: 'code style',
       content: 'FP first',
@@ -279,6 +288,20 @@ describe('saveNote / removeNote — rule layer guards', () => {
     expect(isSaveRejection(result)).toBe(false);
     if (isSaveRejection(result)) return;
     expect(result.note.layer).toBe('rule');
+    expect(result.note.ruleStatus).toBe('canonical');
+  });
+
+  it('leaves a note on another layer without a rule status at all', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'a record',
+      content: 'what happened',
+      source: 'claude-code',
+      layer: 'past',
+    });
+
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.ruleStatus).toBeNull();
   });
 
   it('allows non-rule layers from the agent channel as before', async () => {
@@ -304,6 +327,69 @@ describe('saveNote / removeNote — rule layer guards', () => {
     expect(rejection).toMatchObject({ error: 'RULE_USER_ONLY' });
     const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
     expect(row).toBeTruthy();
+  });
+
+  it('rejects a rule edit from the agent channel', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'OOP now' });
+    expect(result).toMatchObject({ error: 'RULE_USER_ONLY' });
+  });
+
+  it('allows a rule edit from the user channel, the way creating and deleting one already were', async () => {
+    const note = insertNote(client, {
+      title: 'code style',
+      content: 'FP first',
+      filePath: join(vaultDir, 'style.md'),
+      source: 'manual',
+      layer: 'rule',
+    });
+
+    const result = await editNote(
+      client,
+      stubEmbedder,
+      vaultDir,
+      note.id,
+      { content: 'FP first, always' },
+      { actor: 'user' },
+    );
+    expect(isEditRejection(result)).toBe(false);
+    expect(getNote(client, note.id)?.content).toBe('FP first, always');
+  });
+
+  it('refuses to promote a note into a rule from the agent channel', async () => {
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'do the thing',
+      filePath: join(vaultDir, 'plan.md'),
+      source: 'claude-code',
+      layer: 'state',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' });
+    expect(result).toMatchObject({ error: 'RULE_USER_ONLY' });
+    expect(getNote(client, note.id)?.layer).toBe('state');
+  });
+
+  it('moves a layer in the file as well as the row, so a reindex agrees', async () => {
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'do the thing',
+      filePath: join(vaultDir, 'plan.md'),
+      source: 'manual',
+      layer: 'state',
+    });
+
+    await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' }, { actor: 'user' });
+
+    expect(getNote(client, note.id)?.layer).toBe('rule');
+    expect(readFileSync(note.filePath, 'utf8')).toContain('layer: rule');
   });
 
   it('allows rule deletion from the user channel (actor: user)', async () => {
@@ -448,6 +534,33 @@ describe('semanticSearchMulti', () => {
       layer: 'past',
     });
 
+  it('records the fused page once, not once per query phrasing', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    insert('beta protocol', 'about beta', 'b.md');
+
+    const results = await semanticSearchMulti(client, stubEmbedder, ['alpha', 'beta'], 5, {
+      surface: 'mcp',
+    });
+    expect(countRetrievals(client)).toBe(results.length);
+    expect(retrievalCounts(client).every((c) => c.hits === 1)).toBe(true);
+  });
+
+  it('records nothing when no surface asked to be recorded', async () => {
+    insert('alpha protocol', 'about alpha', 'a.md');
+    await semanticSearchMulti(client, stubEmbedder, ['alpha'], 5);
+    await searchPage(client, stubEmbedder, 'alpha', 5);
+    expect(countRetrievals(client)).toBe(0);
+  });
+
+  it('records a single-query page under the surface that asked for it', async () => {
+    const alpha = insert('alpha protocol', 'about alpha', 'a.md');
+    await searchPage(client, stubEmbedder, 'alpha', 5, { surface: 'ui' });
+    const rows = client.sqlite
+      .prepare('SELECT note_id AS noteId, surface, query FROM retrieval_log')
+      .all();
+    expect(rows).toContainEqual({ noteId: alpha.id, surface: 'ui', query: 'alpha' });
+  });
+
   it('fuses results across query phrasings', async () => {
     const alpha = insert('alpha protocol', 'about alpha', 'a.md');
     const beta = insert('beta protocol', 'about beta', 'b.md');
@@ -499,5 +612,73 @@ describe('semanticSearchMulti', () => {
       reranker: scoreZero,
     });
     expect(results).toHaveLength(2);
+  });
+});
+
+describe('borrowed notes', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let outsideDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-vault-'));
+    outsideDir = mkdtempSync(join(tmpdir(), 'memex-borrowed-outside-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    for (const dir of [dbDir, vaultDir, outsideDir]) rmSync(dir, { recursive: true, force: true });
+  });
+
+  const indexedFrom = (dir: string) => {
+    const filePath = join(dir, 'post.md');
+    writeFileSync(filePath, '# post\n\nbody\n', 'utf8');
+    return insertNote(client, {
+      title: 'post',
+      content: '# post\n\nbody\n',
+      filePath,
+      source: 'index',
+      layer: 'state',
+    });
+  };
+
+  it('refuses to edit a note the next index would overwrite', async () => {
+    const note = indexedFrom(outsideDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(result).toMatchObject({ error: 'EXTERNAL_SOURCE' });
+    expect(readFileSync(note.filePath, 'utf8')).toContain('body');
+  });
+
+  it('offers a note of its own instead, with the borrowed one as its source', async () => {
+    const note = indexedFrom(outsideDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(
+      isEditRejection(result) && result.error === 'EXTERNAL_SOURCE' && result.suggestion,
+    ).toMatchObject({ action: 'save_note', layer: 'state', derivesFrom: [note.id] });
+  });
+
+  it('will not delete the original file to forget a borrowed note', () => {
+    const note = indexedFrom(outsideDir);
+
+    const rejection = removeNote(client, note.id, note.filePath, { vaultPath: vaultDir });
+
+    expect(rejection).toMatchObject({ error: 'EXTERNAL_SOURCE' });
+    expect(readFileSync(note.filePath, 'utf8')).toContain('body');
+    expect(getNote(client, note.id)).toBeTruthy();
+  });
+
+  it('still edits a note that lives in the vault', async () => {
+    const note = indexedFrom(vaultDir);
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'mine now' });
+
+    expect(isEditRejection(result)).toBe(false);
   });
 });
