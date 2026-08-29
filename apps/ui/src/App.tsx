@@ -1,6 +1,6 @@
 import { Languages, LayoutDashboard, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   api,
   type Overview as OverviewData,
@@ -9,6 +9,7 @@ import {
 } from './api.ts';
 import { ConnectScreen } from './Connect.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
+import { firstRunSettled, gateFrom, settleFirstRun } from './first-run.ts';
 import { HypothesisScreen } from './Hypothesis.tsx';
 import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
@@ -21,6 +22,7 @@ import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
 import { useTheme } from './theme.ts';
+import { useAsync } from './useAsync.ts';
 
 export const App = () => {
   const { theme, toggle: toggleTheme } = useTheme();
@@ -32,6 +34,28 @@ export const App = () => {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [palette, setPalette] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [settled, setSettled] = useState(firstRunSettled);
+
+  // Loaded beside the app rather than with it. `claude auth status` is a child
+  // process with a fifteen-second timeout of its own, and a machine where it
+  // hangs would otherwise be a machine where memex never finishes loading.
+  const { data: claude, failure: claudeFailure } = useAsync(() => api.claude(), 'claude');
+  const gate = gateFrom({ claude, failed: claudeFailure !== null }, settled);
+
+  // Settled by having seen it done, not by the gate happening to be open: a
+  // probe that failed opens the gate for this launch without deciding that
+  // setup is behind them.
+  useEffect(() => {
+    if (claude?.kind !== 'ready' || settled) return;
+    settleFirstRun();
+    setSettled(true);
+  }, [claude, settled]);
+
+  const skipFirstRun = () => {
+    settleFirstRun();
+    setSettled(true);
+    navigate('/');
+  };
 
   useEffect(() => {
     Promise.all([api.sidebar(), api.topics(), api.overview()]).then(([s, t, o]) => {
@@ -133,7 +157,18 @@ export const App = () => {
         <main className="min-h-0 flex-1 overflow-y-auto">
           <ErrorBoundary key={location.pathname} t={t}>
             <Routes>
-              <Route path="/" element={<Overview data={overview} />} />
+              <Route
+                path="/"
+                element={
+                  gate === 'needed' ? (
+                    <Navigate to="/connect" replace />
+                  ) : gate === 'clear' ? (
+                    <Overview data={overview} />
+                  ) : (
+                    <div className="p-10 text-sm text-muted">{t.common.loading}</div>
+                  )
+                }
+              />
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />
@@ -144,7 +179,10 @@ export const App = () => {
               <Route path="/rules" element={<RulesScreen />} />
               <Route path="/register" element={<RegisterSubjectsScreen />} />
               <Route path="/register/:subject" element={<RegisterScreen />} />
-              <Route path="/connect" element={<ConnectScreen />} />
+              <Route
+                path="/connect"
+                element={<ConnectScreen gated={gate === 'needed'} onSkip={skipFirstRun} />}
+              />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Routes>

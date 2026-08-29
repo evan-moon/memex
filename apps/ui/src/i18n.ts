@@ -175,6 +175,11 @@ const en = {
     unreadable:
       'This version of Claude Code answers in a way memex does not recognise. Sign in from a terminal with `claude auth login`, then come back.',
   },
+  firstRun: {
+    title: 'Set memex up',
+    lead: 'memex needs Claude Code to read and write your notes. Install it, sign in, and that is the whole setup.',
+    skip: 'Skip for now',
+  },
   connect: {
     screenTitle: 'Connect',
     appsTitle: 'Your apps',
@@ -219,6 +224,10 @@ const en = {
     home: 'Back to the overview',
   },
   overview: {
+    emptyTitle: 'Nothing here yet',
+    emptyLead:
+      'memex fills as you talk with Claude. Connect an app, and what an agent decides is worth keeping lands here.',
+    emptyAction: 'Connect an app',
     title: 'Overview',
     subtitle: 'What is waiting, and what came in',
     notes: 'Notes',
@@ -581,6 +590,11 @@ const ko: typeof en = {
     unreadable:
       '이 버전의 Claude Code는 memex가 모르는 방식으로 답해요. 터미널에서 `claude auth login`으로 로그인한 뒤 다시 와 주세요.',
   },
+  firstRun: {
+    title: 'memex 설정하기',
+    lead: '노트를 읽고 쓰려면 Claude Code가 필요해요. 설치하고 로그인하면 설정은 끝이에요.',
+    skip: '나중에 할게요',
+  },
   connect: {
     screenTitle: '연결',
     appsTitle: '내 앱',
@@ -624,6 +638,10 @@ const ko: typeof en = {
     home: '개요로 돌아가기',
   },
   overview: {
+    emptyTitle: '아직 아무것도 없어요',
+    emptyLead:
+      'Claude와 이야기하면 memex가 채워져요. 앱을 연결하면 남길 만하다고 판단한 것이 여기에 쌓여요.',
+    emptyAction: '앱 연결하기',
     title: '개요',
     subtitle: '기다리는 것과 새로 들어온 것',
     notes: '노트',

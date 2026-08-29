@@ -60,7 +60,13 @@ const Row = ({
   );
 };
 
-export const ConnectScreen = () => {
+export const ConnectScreen = ({
+  gated = false,
+  onSkip,
+}: {
+  gated?: boolean;
+  onSkip?: () => void;
+}) => {
   const t = useT();
   const { data, failure } = useAsync(() => api.mcp(), '');
   const [written, setWritten] = useState<McpConnections | null>(null);
@@ -99,8 +105,19 @@ export const ConnectScreen = () => {
 
   return (
     <Page>
-      <h1 className="text-lg font-semibold text-foreground">{t.connect.screenTitle}</h1>
-      <p className="mt-1 text-xs text-muted">{t.connect.intro}</p>
+      <h1 className="text-lg font-semibold text-foreground">
+        {gated ? t.firstRun.title : t.connect.screenTitle}
+      </h1>
+      <p className="mt-1 text-xs text-muted">{gated ? t.firstRun.lead : t.connect.intro}</p>
+      {gated && onSkip ? (
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-2 text-[11px] text-muted hover:underline"
+        >
+          {t.firstRun.skip}
+        </button>
+      ) : null}
 
       <div className="mt-5 space-y-3">
         <ModelCard />

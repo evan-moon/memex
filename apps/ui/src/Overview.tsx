@@ -23,10 +23,31 @@ const Stat = ({ label, value, hint }: { label: string; value: string; hint?: str
   </div>
 );
 
+// A vault nobody has written to is not a day with nothing left to do, and the
+// daily card says the second thing. Answering the empty case before the screen
+// is assembled is what keeps "All done." off a page where nothing has started.
+const EmptyVault = () => {
+  const t = useT();
+  return (
+    <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
+      <h1 className="text-xl font-semibold tracking-tight">{t.overview.emptyTitle}</h1>
+      <p className="mt-2 max-w-prose text-sm text-muted">{t.overview.emptyLead}</p>
+      <Link
+        to="/connect"
+        className="mt-5 inline-block rounded-md border border-line px-3 py-1.5 text-sm hover:bg-surface-muted"
+      >
+        {t.overview.emptyAction}
+      </Link>
+    </div>
+  );
+};
+
 export const Overview = ({ data }: { data: Data }) => {
   const t = useT();
   const written = data.activity.reduce((a, d) => a + d.notes, 0);
   const active = data.activity.filter((d) => d.notes > 0).length;
+
+  if (data.notes === 0) return <EmptyVault />;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
