@@ -9,40 +9,25 @@ description: Get memex running in under 2 minutes.
 npm install -g @evan-moon/memex
 ```
 
-## Connect to Claude Code and Codex
+## Connect your apps
+
+Open the app and use the **Connect** screen:
+
+```bash
+memex ui
+```
+
+It lists every MCP client on this machine — Claude, Claude Code, Codex, Cursor — and says which ones can already reach memex. One button registers the rest. Restart a client after connecting it.
+
+The same thing from the terminal:
 
 ```bash
 memex mcp install
 ```
 
-This registers memex with both clients. Restart them after installation. To register Codex manually:
-
-```bash
-codex mcp add memex -- node "$(memex mcp path)"
-```
+Either way memex writes each client's own config file, leaving the servers already in it alone. If a client still runs an older copy of memex, both paths repoint it.
 
 That's it. On first run, the embedding model (~450 MB) downloads once to `~/.memex/models/`. All subsequent runs are fully offline.
-
-## Connect to Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "memex": {
-      "command": "node",
-      "args": ["<path from `memex mcp path`>"]
-    }
-  }
-}
-```
-
-Get the path with:
-
-```bash
-memex mcp path
-```
 
 ## What gets created
 

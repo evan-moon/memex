@@ -9,40 +9,25 @@ description: 2분 안에 memex를 시작하세요.
 npm install -g @evan-moon/memex
 ```
 
-## Claude Code 및 Codex 연결
+## 앱 연결하기
+
+앱을 열고 **연결** 화면을 쓰세요:
+
+```bash
+memex ui
+```
+
+이 컴퓨터에 있는 MCP 클라이언트 — Claude, Claude Code, Codex, Cursor — 가 모두 보이고, 어떤 앱이 이미 memex에 닿을 수 있는지 알려줘요. 나머지는 버튼 하나로 등록돼요. 연결한 앱은 다시 켜야 적용돼요.
+
+터미널에서 하려면:
 
 ```bash
 memex mcp install
 ```
 
-Claude Code와 Codex 양쪽에 memex가 등록됩니다. 설치 후 두 클라이언트를 재시작하세요. Codex에 수동으로 등록하려면:
+어느 쪽이든 각 클라이언트의 설정 파일에 직접 쓰고, 이미 들어 있던 다른 서버는 그대로 둬요. 옛 경로를 가리키는 클라이언트는 두 방법 모두 지금 경로로 맞춰줘요.
 
-```bash
-codex mcp add memex -- node "$(memex mcp path)"
-```
-
-끝입니다. 최초 실행 시 임베딩 모델(~450 MB)이 `~/.memex/models/`에 한 번만 다운로드됩니다. 이후 실행은 완전히 오프라인으로 동작합니다.
-
-## Claude Desktop 연결
-
-`~/Library/Application Support/Claude/claude_desktop_config.json`에 다음을 추가하세요:
-
-```json
-{
-  "mcpServers": {
-    "memex": {
-      "command": "node",
-      "args": ["<`memex mcp path` 결과>"]
-    }
-  }
-}
-```
-
-경로 확인:
-
-```bash
-memex mcp path
-```
+끝이에요. 최초 실행 시 임베딩 모델(~450 MB)이 `~/.memex/models/`에 한 번만 다운로드돼요. 이후 실행은 완전히 오프라인으로 동작해요.
 
 ## 생성되는 파일
 

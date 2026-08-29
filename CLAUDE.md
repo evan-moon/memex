@@ -56,7 +56,7 @@ before. Existing commands stay in these groups (mirrored in `memex --help`):
 - **Verify** (inspect what landed in the DB; `tags tidy` is the one write, and it proposes before it applies): `search`, `list`, `show`, `related`, `tags` (+ `tags tidy`)
 - **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
 - **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`, `stats flashback`), `schedule`
-- **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, and in a finite daily session that empties. Never as a standing backlog counter
+- **Read** (the one screen): `ui` — browse by topic and see what a later note corrected. Signals appear here as annotations in context, and in a finite daily session that empties. Never as a standing backlog counter. The same screen is where an app gets connected to memex (`/connect`), because the non-developer cannot type `memex mcp install`
 
 Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`).
 

@@ -62,18 +62,13 @@ Claude searches your notes before answering and saves insights at the end of eve
 npm install -g @evan-moon/memex
 ```
 
-Connect to Claude Code:
+Connect your apps:
 
 ```bash
 memex mcp install
 ```
 
-This registers memex with both Claude Code and Codex. Restart the clients after installation. To register either client manually:
-
-```bash
-claude mcp add memex -- node "$(memex mcp path)"
-codex mcp add memex -- node "$(memex mcp path)"
-```
+This registers memex with every MCP client on this machine — Claude, Claude Code, Codex, Cursor — by writing each one's own config file. Restart the clients afterwards. The same thing is one button in the app: run `memex ui` and open **Connect**, which also shows which apps can already reach memex.
 
 That's it. On first run, the embedding model (~450MB) downloads once to `~/.memex/models/`.
 
@@ -172,7 +167,7 @@ memex config show
 memex config set vault-path ~/Documents/Second\ Brain
 
 # MCP
-memex mcp install                            # register with Claude Code and Codex
+memex mcp install                            # register with every MCP client on this machine
 
 # Auto-recall
 memex recall install                         # search notes on every prompt, inject hits
@@ -184,38 +179,15 @@ memex mcp path                               # print MCP binary path
 
 ## MCP server
 
-### Claude Code and Codex
+### Claude, Claude Code, Codex, Cursor
 
 ```bash
 memex mcp install
 ```
 
-Or manually for Claude Code:
+Or from the app: `memex ui`, then **Connect**.
 
-```bash
-claude mcp add memex -- node "$(memex mcp path)"
-```
-
-For Codex:
-
-```bash
-codex mcp add memex -- node "$(memex mcp path)"
-```
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "memex": {
-      "command": "node",
-      "args": ["<path from `memex mcp path`>"]
-    }
-  }
-}
-```
+Both write each client's own config file and leave the servers already in it alone. If a client still runs an older copy of memex, both repoint it. `memex mcp path` prints the server path for a client memex does not know about yet.
 
 ### Available tools
 
