@@ -241,9 +241,25 @@ export const NoteScreen = () => {
         onSaved={setEdited}
         onDismissed={() => setEdited({ ...note, stale: null })}
       />
+      {/* The layer decides what a click on the body means. 1,149 of these notes
+          cannot be edited at all, so an editor that opens on them would be a
+          promise the vault breaks; the same gesture opens a correction instead,
+          already quoting the paragraph it is about. state and rule open where
+          the reader is looking. */}
       <article className="reading mt-7 rounded-card p-5 sm:p-7">
         {note.content.trim() ? (
-          <Markdown links={note.wikiLinks}>{note.content}</Markdown>
+          <Markdown
+            links={note.wikiLinks}
+            onPick={
+              editing || draft
+                ? undefined
+                : note.layer === 'past'
+                  ? (quoted) => setDraft(correctionDraft(note, t, quoted))
+                  : () => setEditing(true)
+            }
+          >
+            {note.content}
+          </Markdown>
         ) : (
           // Frontmatter-only stubs exist in the vault, and a silently blank
           // article reads as the screen having failed to load.

@@ -4,14 +4,41 @@ import remarkGfm from 'remark-gfm';
 import { type Strings, useT } from './i18n.ts';
 import { remarkWikiLinks, WIKI_TITLE_PROP } from './wiki-links.ts';
 
-const componentsFor = (targets: Map<string, number>, t: Strings): Components => ({
+// Reading the text back out of what was rendered rather than out of the source:
+// remark has already resolved the wiki links and entities by this point, so this
+// is the paragraph as the reader saw it, which is what a correction should quote.
+const textOf = (node: unknown): string =>
+  typeof node === 'string' || typeof node === 'number'
+    ? String(node)
+    : Array.isArray(node)
+      ? node.map(textOf).join('')
+      : typeof node === 'object' && node !== null && 'props' in node
+        ? textOf((node as { props: { children?: unknown } }).props.children)
+        : '';
+
+const componentsFor = (
+  targets: Map<string, number>,
+  t: Strings,
+  onPick?: (text: string) => void,
+): Components => ({
   h1: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h2: ({ children }) => <h2 className="doc-h2">{children}</h2>,
   h3: ({ children }) => <h3 className="doc-h3">{children}</h3>,
   h4: ({ children }) => <h4 className="doc-h4">{children}</h4>,
   h5: ({ children }) => <h4 className="doc-h4">{children}</h4>,
   h6: ({ children }) => <h4 className="doc-h4">{children}</h4>,
-  p: ({ children }) => <p className="doc-body">{children}</p>,
+  p: ({ children }) =>
+    onPick === undefined ? (
+      <p className="doc-body">{children}</p>
+    ) : (
+      // biome-ignore lint/a11y/noStaticElementInteractions: the paragraph is the target, and the button beside it does the same thing for a keyboard
+      <p
+        className="doc-body -mx-2 cursor-text rounded px-2 hover:bg-surface-muted"
+        onClick={() => onPick(textOf(children))}
+      >
+        {children}
+      </p>
+    ),
   ul: ({ children }) => <ul className="doc-ul">{children}</ul>,
   ol: ({ children }) => <ol className="doc-ol">{children}</ol>,
   li: ({ children, className }) => (
@@ -61,9 +88,11 @@ const componentsFor = (targets: Map<string, number>, t: Strings): Components => 
 export const Markdown = ({
   children,
   links = [],
+  onPick,
 }: {
   children: string;
   links?: { title: string; id: number }[];
+  onPick?: (text: string) => void;
 }) => {
   const t = useT();
   const targets = new Map(links.map((l) => [l.title.toLowerCase(), l.id]));
@@ -71,7 +100,7 @@ export const Markdown = ({
     <div className="doc">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkWikiLinks]}
-        components={componentsFor(targets, t)}
+        components={componentsFor(targets, t, onPick)}
         urlTransform={(url) => (url.startsWith('wiki:') ? url : defaultUrlTransform(url))}
       >
         {children}

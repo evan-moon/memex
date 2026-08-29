@@ -12,13 +12,18 @@ export type Draft = {
   submitLabel: string;
 };
 
-export const correctionDraft = (note: NoteDetail, t: Strings): Draft | null =>
+// `quoted` is the paragraph the reader was looking at when they said it was
+// wrong. Carrying it in means the correction says what it corrects, instead of
+// pointing at a note and leaving the reader to say it again.
+export const correctionDraft = (note: NoteDetail, t: Strings, quoted?: string): Draft | null =>
   note.amendment
     ? {
         heading: t.edit.correctionTitle,
         explain: t.edit.correctionWhy,
         title: note.amendment.title,
-        body: `${note.amendment.link}\n\n`,
+        body: quoted
+          ? `${note.amendment.link}\n\n> ${quoted.trim()}\n\n`
+          : `${note.amendment.link}\n\n`,
         layer: note.amendment.layer,
         fixedLayer: true,
         amends: note.amendment.amends,
