@@ -207,6 +207,55 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     CREATE INDEX IF NOT EXISTS note_neighbors_reverse ON note_neighbors (neighbor_id);
   `);
 
+  // The register: what is true right now about a subject, as an append-only
+  // stream rather than a note somebody has to keep rewriting. A value is not
+  // "the most recent row" but a head — an event nothing else follows — so a
+  // vocabulary merge that joins two chains shows up as two heads instead of
+  // silently picking one.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS register_subjects (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      key        TEXT    NOT NULL UNIQUE,
+      label      TEXT    NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS register_predicates (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      label      TEXT    NOT NULL,
+      status     TEXT    NOT NULL DEFAULT 'provisional',
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS register_predicate_aliases (
+      key          TEXT    PRIMARY KEY,
+      predicate_id INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS register_events (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject_id   INTEGER NOT NULL,
+      predicate_id INTEGER NOT NULL,
+      scope        TEXT    NOT NULL,
+      scope_start  TEXT,
+      scope_end    TEXT,
+      value        TEXT    NOT NULL,
+      note_id      INTEGER,
+      author       TEXT    NOT NULL,
+      created_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS register_events_key
+      ON register_events (subject_id, predicate_id, scope, scope_start, scope_end);
+
+    CREATE TABLE IF NOT EXISTS register_event_follows (
+      event_id   INTEGER NOT NULL,
+      follows_id INTEGER NOT NULL,
+      PRIMARY KEY (event_id, follows_id)
+    );
+    CREATE INDEX IF NOT EXISTS register_event_follows_target
+      ON register_event_follows (follows_id);
+  `);
+
   // Small key/value store for engine bookkeeping (e.g. per-detector watermarks
   // into note_changes, so on-read detection is free when nothing it reads moved).
   sqlite.exec(`

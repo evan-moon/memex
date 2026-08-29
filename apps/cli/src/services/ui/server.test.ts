@@ -538,3 +538,99 @@ describe('mcp connections', () => {
     expect(body(reply)).toMatchObject({ error: { code: 'unknown-client' } });
   });
 });
+
+describe('register', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('records a value under a key and reads it back as the current one', async () => {
+    const written = await post('/api/register/opula', {
+      predicate: 'trial.duration',
+      value: '14 days',
+      scope: 'global',
+    });
+
+    expect(written.status).toBe(200);
+    expect(body(written)).toMatchObject({
+      subject: 'opula',
+      keys: [
+        {
+          predicate: 'trial.duration',
+          entries: [{ changes: 0, heads: [{ value: '14 days' }] }],
+        },
+      ],
+    });
+
+    const subjects = JSON.parse((await get('/api/register')).body);
+    expect(subjects).toEqual([{ subject: 'opula', keys: 1, lastAt: expect.any(Number) }]);
+  });
+
+  it('marks a correction as the person’s, and keeps what it replaced in history', async () => {
+    await post('/api/register/opula', {
+      predicate: 'trial.duration',
+      value: '14 days',
+      scope: 'global',
+    });
+    await post('/api/register/opula', {
+      predicate: 'trial.duration',
+      value: '30 days',
+      scope: 'global',
+    });
+
+    const history = JSON.parse(
+      (await get('/api/register/opula?predicate=trial.duration&scope=global')).body,
+    );
+
+    expect(history).toMatchObject([
+      { value: '30 days', superseded: false, author: 'person' },
+      { value: '14 days', superseded: true, author: 'person' },
+    ]);
+  });
+
+  it('refuses a period it cannot bound instead of storing an unfindable key', async () => {
+    const reply = await post('/api/register/opula', {
+      predicate: 'revenue',
+      value: '1,200',
+      scope: 'period',
+      start: '2026-05-01',
+    });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'invalid-scope' } });
+  });
+
+  it('says nothing about a subject it has never been given', async () => {
+    expect(body(await get('/api/register/nobody'))).toEqual({ subject: 'nobody', keys: [] });
+  });
+});
+
+describe('a key measured by period', () => {
+  const monthly = (start: string, end: string, value: string) =>
+    post('/api/register/opula', { predicate: 'revenue', value, scope: 'period', start, end });
+
+  it('keeps every month under one key, newest first', async () => {
+    await monthly('2026-05-01', '2026-05-31', '1,200');
+    await monthly('2026-06-01', '2026-06-30', '1,800');
+
+    const screen = body(
+      await route(deps, 'GET', new URL('/api/register/opula', 'http://localhost'), null),
+    ) as { keys: { predicate: string; entries: { scope: { start?: string }; changes: number }[] }[] };
+
+    expect(screen.keys).toHaveLength(1);
+    expect(screen.keys[0].entries.map((e) => e.scope.start)).toEqual(['2026-06-01', '2026-05-01']);
+    expect(screen.keys[0].entries.every((e) => e.changes === 0)).toBe(true);
+  });
+
+  it('counts a correction as a change, not as the first write', async () => {
+    await monthly('2026-05-01', '2026-05-31', '1,200');
+    await monthly('2026-05-01', '2026-05-31', '1,250');
+
+    const screen = body(
+      await route(deps, 'GET', new URL('/api/register/opula', 'http://localhost'), null),
+    ) as { keys: { entries: { changes: number; heads: { value: string }[] }[] }[] };
+
+    expect(screen.keys[0].entries[0]).toMatchObject({
+      changes: 1,
+      heads: [{ value: '1,250' }],
+    });
+  });
+});

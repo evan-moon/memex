@@ -13,6 +13,7 @@ import { HypothesisScreen } from './Hypothesis.tsx';
 import { useLocale } from './i18n.ts';
 import { Overview } from './Overview.tsx';
 import { Palette } from './Palette.tsx';
+import { RegisterScreen, RegisterSubjectsScreen } from './Register.tsx';
 import { RepairScreen } from './Repair.tsx';
 import { RulesScreen } from './Rules.tsx';
 import { Sidebar } from './Sidebar.tsx';
@@ -141,6 +142,8 @@ export const App = () => {
               <Route path="/repair/evidence" element={<RepairScreen />} />
               <Route path="/tags" element={<TagsScreen />} />
               <Route path="/rules" element={<RulesScreen />} />
+              <Route path="/register" element={<RegisterSubjectsScreen />} />
+              <Route path="/register/:subject" element={<RegisterScreen />} />
               <Route path="/connect" element={<ConnectScreen />} />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
               <Route path="*" element={<NotFoundScreen />} />

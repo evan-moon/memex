@@ -366,7 +366,7 @@ tip)와 stale 탐색의 **방향**(state→evidence → 신규 event→영향받
 | 4 | 본문 전체 적재 → `link_targets` 추출 테이블 + LEFT JOIN | `db/src/link-index.ts` | ✅ `ba3ede9` |
 | 5 | 오타 후보 title 전수 편집거리 → prefix/trigram 축소 후 소수만 | `db/src/dangling.ts` | ✅ `ecd4e09` |
 | 6 | startup migration 본문 전체 스캔 → versioned batch cursor | `db/src/migrations.ts` | ✅ `46996fc` |
-| 7 | predicate registry + register 도입 | 신규 | ⚠️ 성격 변경 |
+| 7 | predicate registry + register 도입 | `db/src/register.ts` | ✅ 화면과 함께 |
 | 8 | `stale_state` 방향 역전 (신규 event → 영향받는 state) | `db/src/signals.ts` | ✅ `b76bef9` |
 | 9 | `hidden_arc` 전체 재구축 → 신규 노트 kNN만 증분 | `db/src/signals.ts` | ✅ `b76bef9` |
 | 10 | 회고 benchmark 실행 (74 / 80 / 14건) | — | |
@@ -428,6 +428,21 @@ dangling 분류는 바이트 동일.
 
 남은 전수 스캔 하나: `apps/cli/src/services/indexer.ts`의 `resyncLinks`가 아직 본문을 전량
 읽는다. 인덱싱 자체가 O(N)이라 급하진 않지만 `note_link_targets`에서 읽으면 없앨 수 있다.
+
+### 7번이 실제로 착지한 모양 (2026-08-29)
+
+스키마·fold·`set_register`·`지금 참인 것` 화면을 한 커밋으로 관통시켰다. §4·§5에서 바꾼 것 셋:
+
+- **`follows`를 단일 값이 아니라 집합으로 뒀다.** 새 값은 그 키의 **모든 head**를 따른다.
+  head 하나를 timestamp로 고르는 것이 곧 §4가 막으려던 false merge이고, 집합이면 fork가
+  다음 쓰기에서 저절로 닫힌다. 그래서 fork는 경쟁 쓰기가 아니라 **어휘 병합**에서만 생긴다
+- **읽기 툴을 만들지 않았다.** tip은 `search_notes` 결과에 업힌다. 질의 키에 subject 키가
+  들어 있으면 붙는 방식이라 철자만 보고 판정한다. 툴은 14개(쓰기 하나만 늘었다)
+- **head가 둘이면 값을 말하지 않고 질문을 낸다.** 에이전트 쪽 문구도 `ask the user which
+  one holds`다. 사람만 아는 정보를 사람에게 묻는 것이 이 화면의 존재 이유이기 때문이다
+
+**아직 없는 것**: predicate equivalence(병합) — fork를 만들 수 있는 유일한 경로이므로,
+실제로 유사 키가 쌓인 뒤에 화면과 함께 붙인다. `provisional → canonical` 승격도 같다.
 
 ## 12. 논의 메모 — 무엇이 철회됐나
 

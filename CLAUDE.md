@@ -60,7 +60,7 @@ before. Existing commands stay in these groups (mirrored in `memex --help`):
 
 Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`).
 
-The MCP tool surface is deliberately small (13 tools) — **duplicate read paths** give the model more ways to pick wrong; consolidate before enumerating. This bounds read paths, not write kinds: a genuinely new kind of write (`set_register`) is not what that rule is guarding against.
+The MCP tool surface is deliberately small (14 tools) — **duplicate read paths** give the model more ways to pick wrong; consolidate before enumerating. This bounds read paths, not write kinds: a genuinely new kind of write (`set_register`) is not what that rule is guarding against.
 
 ## Memex MCP Usage
 

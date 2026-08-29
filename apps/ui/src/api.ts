@@ -304,6 +304,35 @@ export type RepairCard = {
 
 export type RepairBatch = { remaining: number; cards: RepairCard[] };
 
+export type RegisterScope = { kind: 'global' } | { kind: 'period'; start: string; end: string };
+
+export type RegisterValue = {
+  id: number;
+  value: string;
+  author: 'person' | 'agent';
+  at: number;
+  note: { id: number; title: string } | null;
+};
+
+export type RegisterEntry = {
+  scope: RegisterScope;
+  heads: RegisterValue[];
+  changes: number;
+};
+
+export type RegisterKeyCard = { predicate: string; entries: RegisterEntry[] };
+
+export type RegisterScreen = { subject: string; keys: RegisterKeyCard[] };
+
+export type RegisterSubjectRow = { subject: string; keys: number; lastAt: number };
+
+export type RegisterHistoryEntry = RegisterValue & { superseded: boolean };
+
+export const scopeParams = (scope: RegisterScope): Record<string, string> =>
+  scope.kind === 'global'
+    ? { scope: 'global' }
+    : { scope: 'period', start: scope.start, end: scope.end };
+
 export type McpClientId = 'claude-desktop' | 'claude-code' | 'codex' | 'cursor';
 
 export type McpRegistration =
@@ -365,6 +394,25 @@ export const api = {
   approveRule: (id: number) => post<{ ok: true }>(`/api/rule/${id}/approve`),
   declineRule: (id: number, layer: 'past' | 'state') =>
     post<{ ok: true }>(`/api/rule/${id}/decline`, { layer }),
+  registerSubjects: () => request<RegisterSubjectRow[]>('/api/register'),
+  register: (subject: string) =>
+    request<RegisterScreen>(`/api/register/${encodeURIComponent(subject)}`),
+  registerHistory: (subject: string, predicate: string, scope: RegisterScope) =>
+    request<RegisterHistoryEntry[]>(
+      `/api/register/${encodeURIComponent(subject)}?${new URLSearchParams({
+        predicate,
+        ...scopeParams(scope),
+      })}`,
+    ),
+  setRegister: (
+    subject: string,
+    entry: { predicate: string; value: string; scope: RegisterScope },
+  ) =>
+    post<RegisterScreen>(`/api/register/${encodeURIComponent(subject)}`, {
+      predicate: entry.predicate,
+      value: entry.value,
+      ...scopeParams(entry.scope),
+    }),
   mcp: () => request<McpConnections>('/api/mcp'),
   connectMcp: (client: McpClientId) => post<McpConnections>('/api/mcp/connect', { client }),
 };

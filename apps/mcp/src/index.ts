@@ -15,6 +15,7 @@ import { registerListNotes } from './tools/list-notes.ts';
 import { registerListTags } from './tools/list-tags.ts';
 import { registerSaveNote } from './tools/save-note.ts';
 import { registerSearchNotes } from './tools/search-notes.ts';
+import { registerSetRegister } from './tools/set-register.ts';
 import { registerSignals } from './tools/signals.ts';
 import { registerUpdateNote } from './tools/update-note.ts';
 
@@ -156,6 +157,7 @@ registerListNotes(server, client);
 registerGetNote(server, client);
 registerDeleteNote(server, client, vaultPath);
 registerUpdateNote(server, client, embedder, vaultPath);
+registerSetRegister(server, client);
 registerListTags(server, client);
 registerListFolders(server, client);
 registerSignals(server, client);

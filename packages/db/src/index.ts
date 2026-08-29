@@ -1,4 +1,10 @@
 export {
+  type ChangeKind,
+  changeHead,
+  hasChangeFrom,
+  recordNoteChange,
+} from './changes.ts';
+export {
   getNoteShape,
   indexTypeNoteIds,
   type NoteShape,
@@ -20,14 +26,6 @@ export {
   restoreDanglingFor,
 } from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
-export {
-  findUnresolvedLinks,
-  linkTargets,
-  resolveLinkTargets,
-  resyncLinkIndexes,
-  syncLinks,
-  unresolvedLinksByNote,
-} from './link-index.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
 export {
   bodyHash,
@@ -68,6 +66,43 @@ export {
   rewriteInference,
   setInferenceStatus,
 } from './inferences.ts';
+export {
+  findUnresolvedLinks,
+  linkTargets,
+  resolveLinkTargets,
+  resyncLinkIndexes,
+  syncLinks,
+  unresolvedLinksByNote,
+} from './link-index.ts';
+export {
+  type PresentationSurface,
+  presentationsFor,
+  receptionCounts,
+  recordPresentation,
+  type SignalPresentation,
+  type SignalReception,
+  wasIgnored,
+} from './presentations.ts';
+export type {
+  PredicateStatus,
+  RegisterAuthor,
+  RegisterHead,
+  RegisterHistoryEntry,
+  RegisterScope,
+  RegisterSubject,
+  RegisterTip,
+  SetRegisterInput,
+  SetRegisterRejection,
+  SetRegisterResult,
+} from './register.ts';
+export {
+  isValidScope,
+  listRegisterSubjects,
+  matchRegisterSubjects,
+  readRegister,
+  registerHistory,
+  setRegister,
+} from './register.ts';
 export type {
   EmbeddedChunk,
   Flashback,
@@ -107,15 +142,6 @@ export {
   updateNote,
 } from './repository.ts';
 export {
-  presentationsFor,
-  type PresentationSurface,
-  receptionCounts,
-  recordPresentation,
-  type SignalPresentation,
-  type SignalReception,
-  wasIgnored,
-} from './presentations.ts';
-export {
   countRetrievals,
   logRetrieval,
   type RetrievalCount,
@@ -142,12 +168,6 @@ export type {
   StaleStateOptions,
   TagBurstOptions,
 } from './signals.ts';
-export {
-  type ChangeKind,
-  changeHead,
-  hasChangeFrom,
-  recordNoteChange,
-} from './changes.ts';
 export {
   computeSignalHash,
   detectConflictPairs,

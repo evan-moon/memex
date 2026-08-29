@@ -4,12 +4,14 @@ import {
   findFlashbacks,
   getAmendmentsFor,
   type MemexClient,
+  matchRegisterSubjects,
   needsReembed,
   parseTags,
 } from '@memex/db';
 import { stripFrontmatter } from '@memex/utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerHint } from '../services/register.ts';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -106,8 +108,16 @@ export const registerSearchNotes = (
       const reembedWarning = needsReembed(client)
         ? '\n\n⚠️ The embedding model changed and vectors have not been rebuilt — these results are keyword-only. Tell the user to run `memex reembed` to restore semantic search.'
         : '';
+      // The register answers a different question than the notes do — what is
+      // true now, rather than what was written down — so it rides along even
+      // when nothing matched. A query about a subject with no notes left can
+      // still have a current value.
+      const register = registerHint(client, matchRegisterSubjects(client, queries));
+
       if (results.length === 0) {
-        return { content: [{ type: 'text', text: `No notes found.${reembedWarning}` }] };
+        return {
+          content: [{ type: 'text', text: `No notes found.${register}${reembedWarning}` }],
+        };
       }
 
       const seriesHint =
@@ -152,6 +162,7 @@ export const registerSearchNotes = (
             return `${i + 1}. #${r.id} [${stamp(r)}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +
+        register +
         mirrorHint +
         seriesHint +
         flashbackHint +

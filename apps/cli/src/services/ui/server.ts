@@ -17,11 +17,13 @@ import {
   getNote,
   listSignals,
   type MemexClient,
+  type RegisterScope,
   refreshInferenceStaleness,
   restampInference,
   rewriteInference,
   setInferenceStatus,
   setNoteEvidence,
+  setRegister,
   setSignalStatus,
 } from '@memex/db';
 import { writeDerivesFrom } from '@memex/utils';
@@ -45,6 +47,12 @@ import {
 } from './notes.ts';
 import { buildOverview } from './overview.ts';
 import { PAGE } from './page.ts';
+import {
+  buildRegister,
+  buildRegisterHistory,
+  buildRegisterSubjects,
+  scopeFromParams,
+} from './register.ts';
 import { evidenceBatch } from './repair.ts';
 import { buildRules } from './rules.ts';
 import type { NoteStatus } from './status.ts';
@@ -140,7 +148,11 @@ export type ApiErrorCode =
   | 'edit-rejected'
   | 'invalid-note-id'
   | 'unknown-client'
-  | 'config-write-failed';
+  | 'config-write-failed'
+  | 'invalid-scope'
+  | 'empty-value'
+  | 'empty-subject'
+  | 'empty-predicate';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
@@ -248,6 +260,40 @@ export const route = async (
       return declined ? json({ ok: true }) : bad(404, 'not-found');
     }
     return bad(404, 'not-found');
+  }
+  if (method === 'GET' && url.pathname === '/api/register') {
+    return json(buildRegisterSubjects(client));
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/register/')) {
+    const subject = decodeURIComponent(url.pathname.slice('/api/register/'.length));
+    const predicate = url.searchParams.get('predicate');
+    if (predicate === null) return json(buildRegister(client, subject));
+
+    const scope = scopeFromParams(
+      url.searchParams.get('scope'),
+      url.searchParams.get('start'),
+      url.searchParams.get('end'),
+    );
+    if (scope === null) return bad(400, 'invalid-scope');
+    return json(buildRegisterHistory(client, subject, predicate, scope));
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/register/')) {
+    const subject = decodeURIComponent(url.pathname.slice('/api/register/'.length));
+    const body = asRecord(payload);
+    const predicate = text(body?.predicate);
+    const value = text(body?.value);
+    if (predicate === undefined) return bad(400, 'empty-predicate');
+    if (value === undefined) return bad(400, 'empty-value');
+
+    const scope: RegisterScope | null = scopeFromParams(
+      typeof body?.scope === 'string' ? body.scope : null,
+      typeof body?.start === 'string' ? body.start : null,
+      typeof body?.end === 'string' ? body.end : null,
+    );
+    if (scope === null) return bad(400, 'invalid-scope');
+
+    const written = setRegister(client, { subject, predicate, value, scope, author: 'person' });
+    return written.ok ? json(buildRegister(client, subject)) : bad(400, written.reason);
   }
   if (method === 'GET' && url.pathname === '/api/mcp') {
     return json(readMcpConnections(deps.mcp.home, deps.mcp.serverPath));
