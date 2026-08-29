@@ -428,11 +428,17 @@ const chatQuery = (target: ChatTarget | null) => {
 };
 
 export const api = {
-  chat: (message: string, target: ChatTarget | null, operationId: string) =>
-    post<ChatReply>(`/api/chat${chatQuery(target)}`, { message, operationId }),
+  chat: (
+    message: string,
+    target: ChatTarget | null,
+    operationId: string,
+    choice: { provider: string; model: string },
+    history: { said: string; outcome: string }[],
+  ) => post<ChatReply>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, history }),
   cancelChat: (operationId: string) =>
     post<{ stopped: boolean }>('/api/chat/cancel', { operationId }),
   applyChat: (ticket: string) => post<ChatReply>('/api/chat/apply', { ticket }),
+  setAppearance: (theme: 'light' | 'dark') => post<{ ok: true }>('/api/appearance', { theme }),
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
   today: () => request<Today>('/api/today'),

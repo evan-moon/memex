@@ -79,7 +79,7 @@ describe('an empty vault', () => {
     const html = render(emptyVault);
 
     expect(html).toContain(t.overview.emptyTitle);
-    expect(html).toContain('/connect');
+    expect(html).toContain('/settings');
     // The daily card is what says "All done.", and it only says it because the
     // rest of the screen renders around it. Nothing here has started, so none
     // of that scaffolding is built.

@@ -250,7 +250,7 @@ export const RegisterSubjectsScreen = () => {
             <Link
               key={row.subject}
               to={`/register/${encodeURIComponent(row.subject)}`}
-              className="flex items-center justify-between rounded-card border border-line bg-surface px-4 py-3 hover:bg-surface-muted"
+              className="glass flex items-center justify-between rounded-card bg-surface px-4 py-3 hover:bg-surface-muted"
             >
               <span className="text-sm font-semibold text-foreground">{row.subject}</span>
               <span className="text-[11px] text-muted">
@@ -290,7 +290,8 @@ export const RegisterScreen = () => {
           the same sentence typed here is about something, and typed into an empty
           chat is a guess. */}
       <Link
-        to={`/chat?subject=${encodeURIComponent(screen.subject)}`}
+        to={`?chat=1&subject=${encodeURIComponent(screen.subject)}`}
+        replace
         className="mt-2 inline-block text-[11px] text-primary hover:underline"
       >
         {t.register.fixHere}

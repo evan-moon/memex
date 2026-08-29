@@ -241,7 +241,7 @@ export const NoteScreen = () => {
         onSaved={setEdited}
         onDismissed={() => setEdited({ ...note, stale: null })}
       />
-      <article className="mt-7">
+      <article className="reading mt-7 rounded-card p-5 sm:p-7">
         {note.content.trim() ? (
           <Markdown links={note.wikiLinks}>{note.content}</Markdown>
         ) : (
@@ -384,9 +384,9 @@ export const SearchScreen = () => {
       <p className="mt-1 text-sm text-muted">{t.search.summary(q, data?.results.length ?? 0)}</p>
 
       {model.data !== null && model.data.kind !== 'ready' && (
-        <p className="mt-3 rounded-card border border-line bg-surface px-3 py-2 text-xs text-muted">
+        <p className="glass mt-3 rounded-card bg-surface px-3 py-2 text-xs text-muted">
           {model.data.kind === 'downloading' ? t.search.modelComing : t.search.modelMissing}{' '}
-          <Link to="/connect" className="text-primary hover:underline">
+          <Link to="/settings" className="text-primary hover:underline">
             {t.search.modelWhere}
           </Link>
         </p>

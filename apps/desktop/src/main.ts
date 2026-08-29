@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { createUiDeps } from '@evan-moon/memex/host';
-import { app, BrowserWindow, protocol, shell } from 'electron';
+import { app, BrowserWindow, nativeTheme, protocol, shell } from 'electron';
 import { PRIVILEGES, SCHEME, serve } from './serve.ts';
 
 const WINDOW = { width: 1200, height: 820, minWidth: 720, minHeight: 520 };
@@ -24,11 +24,10 @@ const createWindow = (url: string) => {
     title: 'memex',
     titleBarStyle: 'hiddenInset',
     // The whole window is vibrant and the page paints over the part that should
-    // not be. An opaque backgroundColor would sit in front of the material and
-    // there would be nothing to see through.
-    vibrancy: 'sidebar',
+    // not be. `backgroundColor` is deliberately absent: setting it at all — even
+    // fully transparent — is what stops vibrancy from applying (electron#32007).
+    vibrancy: 'under-window',
     visualEffectState: 'active',
-    backgroundColor: '#00000000',
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -69,7 +68,15 @@ const createWindow = (url: string) => {
 
 const start = () => {
   deps = createUiDeps();
-  protocol.handle(SCHEME, serve(deps, join(app.getAppPath(), 'dist/renderer'), DEV_SERVER));
+  protocol.handle(
+    SCHEME,
+    serve(deps, join(app.getAppPath(), 'dist/renderer'), {
+      devServer: DEV_SERVER,
+      onAppearance: (theme) => {
+        nativeTheme.themeSource = theme;
+      },
+    }),
+  );
   createWindow(HOME);
 };
 

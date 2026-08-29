@@ -1,20 +1,33 @@
 @import 'tailwindcss';
+/* Bundled rather than linked: the app has no network to fetch a font over, and
+   naming Pretendard in a font stack only worked for readers who happened to
+   have installed it. */
+@import 'pretendard/dist/web/variable/pretendardvariable.css';
 
 /* Ported from opula's design tokens. Light is the default on :root; dark
    overrides it on :root[data-theme='dark'], which wins by specificity (0,2,0
    against 0,1,0) rather than by source order — so the two blocks can sit in
    either order without the theme silently inverting. */
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
   --background: #f2f3f8;
-  --surface: #fbfbfe;
-  --surface-muted: #e9ebf3;
+  --surface: rgb(255 255 255 / 0.66);
+  --surface-muted: rgb(24 28 48 / 0.06);
   --foreground: #2b2c33;
   --muted-foreground: #646773;
   --border: #e1e4ee;
   --border-accent: #cfd3e0;
   --track: #8a8d95;
   --primary: #2a62ad;
+
+  /* Glass. `--background` stays opaque because two places use it as a text
+     colour on a filled button; the translucent panel fill is `--pane`. */
+  --pane: rgb(244 246 252 / 0.62);
+  --reading: #fbfbfe;
+  --glass-line: rgb(255 255 255 / 0.65);
+  --glass-shadow: 0 10px 30px rgb(20 24 40 / 0.10);
+  --glass-blur: 22px;
   --accent-soft: #dbe4f6;
   --positive: #166b57;
   --negative: #a83a58;
@@ -25,14 +38,20 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --background: #15161c;
-  --surface: #1c1d25;
-  --surface-muted: #262831;
+  --surface: rgb(38 40 52 / 0.55);
+  --surface-muted: rgb(255 255 255 / 0.07);
   --foreground: #ececee;
   --muted-foreground: #9293a0;
   --border: #2d2f3a;
   --border-accent: #3b3d4a;
   --track: #61626d;
   --primary: #7aa7ec;
+
+  --pane: rgb(18 19 25 / 0.58);
+  --reading: #1c1d25;
+  --glass-line: rgb(255 255 255 / 0.10);
+  --glass-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  --glass-blur: 22px;
   --accent-soft: #2b3350;
   --positive: #52cca6;
   --negative: #eb8a9e;
@@ -43,6 +62,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-pane: var(--pane);
+  --color-reading: var(--reading);
+  --color-glass-line: var(--glass-line);
   --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted-foreground);
@@ -64,12 +86,41 @@ body {
      should not be see-through paints itself — see .pane. */
   background: transparent;
   color: var(--foreground);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 /* Everything to the right of the sidebar. Opaque, so only the sidebar is
    vibrant and the reading surface stays a flat, predictable colour. */
-.pane { background: var(--background); }
+/* The column beside the sidebar. Tinted rather than filled, so the sidebar
+   still reads as the more transparent of the two the way a Finder window does,
+   and the text on it is not sitting straight on a wallpaper. */
+.pane {
+  background: var(--pane);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+}
+
+/* Anything that floats: cards, the header, overlays. The border does the work
+   that a shadow does on an opaque surface — an edge you can find — and the top
+   highlight is what stops it reading as a flat translucent rectangle. */
+.glass {
+  border: 1px solid var(--glass-line);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 0 var(--glass-line);
+}
+
+/* Long-form text does not float. A note is read for minutes at a time, and a
+   wallpaper moving under the words is the one place this look costs more than
+   it gives. */
+.reading {
+  background: var(--reading);
+  border: 1px solid var(--border);
+}
+
+/* The title bar is hidden, so the window has no handle of its own: the page has
+   to say which of it is one. Anything clickable inside a handle has to say it is
+   not, or it stops being clickable. */
+.drag { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
 
 a { color: inherit; text-decoration: none; }
 

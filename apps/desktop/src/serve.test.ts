@@ -41,7 +41,7 @@ beforeEach(() => {
   handle = serve(deps, root);
 });
 
-const serveWith = (devServer: string) => serve(deps, root, devServer);
+const serveWith = (devServer: string) => serve(deps, root, { devServer });
 
 afterEach(() => {
   client.sqlite.close();
@@ -121,6 +121,40 @@ describe('serving the API', () => {
     const res = await at('/api/note/999999');
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('telling the window which theme the page is showing', () => {
+  it('passes the theme along, because the glass follows the OS and not the page', async () => {
+    const seen: string[] = [];
+    const handle = serve(deps, root, { onAppearance: (theme) => seen.push(theme) });
+
+    const res = await handle(
+      new Request(`${SCHEME}://app/api/appearance`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ theme: 'light' }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(seen).toEqual(['light']);
+  });
+
+  it('refuses a theme it does not know rather than passing it on', async () => {
+    const seen: string[] = [];
+    const handle = serve(deps, root, { onAppearance: (theme) => seen.push(theme) });
+
+    const res = await handle(
+      new Request(`${SCHEME}://app/api/appearance`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ theme: 'sepia' }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(seen).toEqual([]);
   });
 });
 

@@ -25,8 +25,9 @@ import {
   setRegister,
   setSignalStatus,
 } from '@memex/db';
-import type { LlmProvider } from '@memex/llm';
+import type { LlmChoice, LlmProvider } from '@memex/llm';
 import { writeDerivesFrom } from '@memex/utils';
+import type { Said } from '../chat/turn.ts';
 import {
   createLoginRunner,
   installClaudeCode,
@@ -36,6 +37,7 @@ import {
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
+import { isProviderId } from '../llm.ts';
 import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import {
@@ -172,6 +174,7 @@ export type ApiErrorCode =
   | 'empty-predicate'
   | 'empty-message'
   | 'missing-operation'
+  | 'unknown-provider'
   | 'unknown-plan';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
@@ -217,6 +220,25 @@ const loginRunner = (deps: UiDeps) => {
   runners.set(deps, created);
   return created;
 };
+
+// The page names the provider and the model on every turn, so a switch made
+// mid-conversation needs nothing else: the conversation so far travels with it.
+const choiceFrom = (value: unknown): LlmChoice | null => {
+  const asked = asRecord(value);
+  return isProviderId(asked?.provider) && typeof asked?.model === 'string'
+    ? { provider: asked.provider, model: asked.model }
+    : null;
+};
+
+const historyFrom = (value: unknown): Said[] =>
+  Array.isArray(value)
+    ? value.flatMap((turn) => {
+        const one = asRecord(turn);
+        return typeof one?.said === 'string' && typeof one?.outcome === 'string'
+          ? [{ said: one.said, outcome: one.outcome }]
+          : [];
+      })
+    : [];
 
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
   amendment ? { kind: 'amended', by: { id: amendment.id, title: amendment.title } } : null;
@@ -336,8 +358,17 @@ export const route = async (
     const operationId = typeof asked?.operationId === 'string' ? asked.operationId : '';
     if (message === '') return bad(400, 'empty-message');
     if (operationId === '') return bad(400, 'missing-operation');
-    const carried = carriedFrom(new URLSearchParams(url.search));
-    return json(await startChat(deps, chatStateFor(deps), message, carried, operationId));
+    const choice = choiceFrom(asked?.choice);
+    if (choice === null) return bad(400, 'unknown-provider');
+    return json(
+      await startChat(deps, chatStateFor(deps), {
+        message,
+        operationId,
+        choice,
+        carried: carriedFrom(new URLSearchParams(url.search)),
+        history: historyFrom(asked?.history),
+      }),
+    );
   }
   if (method === 'POST' && url.pathname === '/api/chat/cancel') {
     const operationId = asRecord(payload)?.operationId;

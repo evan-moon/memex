@@ -63,7 +63,17 @@ const fromDevServer = (devServer: string, url: URL) =>
       }),
   );
 
-export const serve = (deps: UiDeps, rendererRoot: string, devServer?: string) => {
+export type Shell = {
+  devServer?: string;
+  // The window's material follows the OS appearance, not the page's theme, so
+  // the page has to say which one it is showing or a light theme sits on a dark
+  // pane of glass. Injected rather than imported: `serve` stays free of Electron
+  // and therefore testable without a window.
+  onAppearance?: (theme: 'light' | 'dark') => void;
+};
+
+export const serve = (deps: UiDeps, rendererRoot: string, shell: Shell = {}) => {
+  const { devServer, onAppearance } = shell;
   const index = () => {
     const html = fileUnder(rendererRoot, '/index.html');
     return html === null
@@ -73,6 +83,21 @@ export const serve = (deps: UiDeps, rendererRoot: string, devServer?: string) =>
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
+
+    // A window concern, not a vault one: `route()` answers for the notes and
+    // knows nothing about the glass they are drawn on.
+    if (url.pathname === '/api/appearance' && request.method === 'POST') {
+      const asked = await payloadOf(request);
+      const theme = (asked as { theme?: unknown } | null)?.theme;
+      if (theme !== 'light' && theme !== 'dark') {
+        return new Response('{"error":"unknown-theme"}', {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      onAppearance?.(theme);
+      return new Response('{"ok":true}', { headers: { 'content-type': 'application/json' } });
+    }
 
     if (url.pathname.startsWith('/api/')) {
       return asResponse(await route(deps, request.method, url, await payloadOf(request)));

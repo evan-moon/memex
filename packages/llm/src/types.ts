@@ -1,8 +1,15 @@
 export type LlmModel = 'sonnet' | 'opus' | 'haiku';
 
+export type LlmProviderId = 'claude-code' | 'codex';
+
+// Which CLI answers, and which model it asks for. An empty model means the
+// provider's own default, which is the only honest thing to send Codex: its
+// model list belongs to the account, not to memex.
+export type LlmChoice = { provider: LlmProviderId; model: string };
+
 export type LlmRequest = {
   prompt: string;
-  model: LlmModel;
+  model: string;
   signal?: AbortSignal;
   timeoutMs?: number;
 };

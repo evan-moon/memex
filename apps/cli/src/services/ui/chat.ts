@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import type { LlmChoice } from '@memex/llm';
 import type { ApplyFailure, ChatFailure, Remedy } from '../chat/errors.ts';
 import { remedyFor } from '../chat/errors.ts';
 import type { Carried, Plan } from '../chat/plan.ts';
 import type { Preview, Receipt } from '../chat/render.ts';
 import { previewOf, receiptOf } from '../chat/render.ts';
-import type { ChatDeps } from '../chat/turn.ts';
+import type { ChatDeps, Said } from '../chat/turn.ts';
 import { applyPlan, planTurn } from '../chat/turn.ts';
 
 export type ChatReply =
@@ -40,18 +41,29 @@ const failed = (failure: ChatFailure | ApplyFailure, detail = ''): ChatReply => 
   detail,
 });
 
+export type Asked = {
+  message: string;
+  carried: Carried | null;
+  operationId: string;
+  choice: LlmChoice;
+  history: Said[];
+};
+
 export const startChat = async (
   deps: ChatDeps,
   state: { pending: Pending; running: Running },
-  message: string,
-  carried: Carried | null,
-  operationId: string,
+  asked: Asked,
 ): Promise<ChatReply> => {
+  const { message, carried, operationId, choice, history } = asked;
   const stopper = new AbortController();
   state.running.set(operationId, stopper);
-  const turn = await planTurn(deps, message, carried, stopper.signal).finally(() =>
-    state.running.delete(operationId),
-  );
+  const turn = await planTurn(deps, {
+    message,
+    carried,
+    choice,
+    history,
+    signal: stopper.signal,
+  }).finally(() => state.running.delete(operationId));
 
   if (turn.kind === 'failed') return failed(turn.failure, turn.detail);
   if (turn.kind === 'unmapped') {

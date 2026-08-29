@@ -84,11 +84,7 @@ export const Card = ({
 }: {
   children: React.ReactNode;
   className?: string;
-}) => (
-  <div className={`rounded-card border border-line bg-surface p-4 sm:p-5 ${className}`}>
-    {children}
-  </div>
-);
+}) => <div className={`glass rounded-card bg-surface p-4 sm:p-5 ${className}`}>{children}</div>;
 
 export const Button = ({
   children,

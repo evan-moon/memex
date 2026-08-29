@@ -1,9 +1,12 @@
+import { ArrowUp, FileText, Hash, MessageSquare, Square, SquarePen, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type ChatPreview, type ChatReceipt, type ChatReply, toFailure } from './api.ts';
-import { Button, Card, Page } from './bits.tsx';
+import { Button, Card } from './bits.tsx';
+import { digest } from './chat-history.ts';
 import { targetFrom } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
+import { type Choice, defaultChoice, MODELS } from './models.ts';
 import { useAsync } from './useAsync.ts';
 
 type Exchange = { id: string; said: string; reply: ChatReply | null; discarded?: boolean };
@@ -131,7 +134,7 @@ const Failed = ({
         knowing whether it landed is worse than knowing it did not. */}
     <p className="text-[11px] text-muted">{t.chat.nothingWritten}</p>
     {reply.remedy === 'install' || reply.remedy === 'sign-in' ? (
-      <Link to="/connect" className="inline-block text-xs text-primary hover:underline">
+      <Link to="/settings" className="inline-block text-xs text-primary hover:underline">
         {t.chat.remedy[reply.remedy]}
       </Link>
     ) : null}
@@ -187,13 +190,16 @@ const Reply = ({
   );
 };
 
-export const ChatScreen = () => {
+export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const t = useT();
   const [params] = useSearchParams();
   const target = targetFrom(params);
   const [draft, setDraft] = useState('');
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
+  // This conversation's model, started from the default. Changing it here does
+  // not change what the next conversation starts on — that is the setting.
+  const [choice, setChoice] = useState<Choice>(defaultChoice);
 
   const carriedNote = useAsync(
     () => (target?.kind === 'note' ? api.note(target.id) : Promise.resolve(null)),
@@ -217,8 +223,10 @@ export const ChatScreen = () => {
     setBusy(true);
     setExchanges((all) => [...all, { id, said: message, reply: null }]);
 
+    // The conversation so far goes with the turn, so changing model between one
+    // turn and the next costs nothing: no provider was holding it.
     api
-      .chat(message, target, id)
+      .chat(message, target, id, choice, digest(exchanges))
       .then((reply) => answer(at, reply))
       .catch((cause: unknown) => {
         const { code, detail } = toFailure(cause);
@@ -256,63 +264,136 @@ export const ChatScreen = () => {
 
   const carried =
     target?.kind === 'register'
-      ? t.chat.carriedRegister(target.subject)
+      ? { kind: 'register' as const, label: target.subject }
       : carriedNote.data
-        ? t.chat.carriedNote(carriedNote.data.title)
+        ? { kind: 'note' as const, label: carriedNote.data.title }
         : null;
 
   return (
-    <Page>
-      <h1 className="text-lg font-semibold text-foreground">{t.chat.screenTitle}</h1>
-      <p className="mt-1 text-xs text-muted">{t.chat.intro}</p>
-      {carried ? <p className="mt-2 text-[11px] text-primary">{carried}</p> : null}
-
-      <div className="mt-5 space-y-4">
-        {exchanges.map((exchange, at) => (
-          <Card key={exchange.id} className="space-y-3">
-            <p className="text-sm font-medium">{exchange.said}</p>
-            {exchange.discarded ? (
-              <p className="text-xs text-muted">{t.chat.discarded}</p>
-            ) : exchange.reply === null ? (
-              <p className="text-xs text-muted">{t.chat.thinking}</p>
-            ) : (
-              <Reply
-                reply={exchange.reply}
-                t={t}
-                busy={busy}
-                onApply={(ticket) => apply(at, ticket)}
-                onDiscard={() => discard(at)}
-                onRetry={() => ask(exchange.said)}
-              />
-            )}
-          </Card>
-        ))}
+    // A column, not a page: the composer stays put at the bottom and only the
+    // exchanges scroll, which is what makes it a panel you talk into rather than
+    // a document you scroll to the end of.
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="drag flex items-center justify-between gap-2 px-4 pt-4 pb-1">
+        <h2 className="text-sm font-semibold text-foreground">{t.chat.screenTitle}</h2>
+        <div className="no-drag flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setExchanges([]);
+              setChoice(defaultChoice());
+            }}
+            disabled={exchanges.length === 0}
+            aria-label={t.chat.clear}
+            title={t.chat.clear}
+            className="rounded-md p-1.5 text-muted hover:bg-surface-muted disabled:opacity-30"
+          >
+            <SquarePen size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t.common.close}
+            className="rounded-md p-1.5 text-muted hover:bg-surface-muted"
+          >
+            <X size={15} />
+          </button>
+        </div>
       </div>
 
-      <div className="mt-5 flex gap-2">
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
-          }}
-          rows={2}
-          placeholder={t.chat.placeholder}
-          className="min-w-0 flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-line-strong"
-        />
-        {busy ? (
-          <Button tone="plain" onClick={stop}>
-            {t.chat.stop}
-          </Button>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {exchanges.length === 0 ? (
+          // What the panel is for is said by the placeholder in the composer.
+          // A wall of instructions above an empty conversation is read once and
+          // then in the way forever.
+          <div className="flex h-full items-center justify-center">
+            <MessageSquare size={56} className="text-muted opacity-15" strokeWidth={1.25} />
+          </div>
         ) : (
-          <Button tone="primary" onClick={send}>
-            {t.chat.send}
-          </Button>
+          <div className="space-y-3">
+            {exchanges.map((exchange, at) => (
+              <Card key={exchange.id} className="space-y-3">
+                <p className="text-sm font-medium">{exchange.said}</p>
+                {exchange.discarded ? (
+                  <p className="text-xs text-muted">{t.chat.discarded}</p>
+                ) : exchange.reply === null ? (
+                  <p className="text-xs text-muted">{t.chat.thinking}</p>
+                ) : (
+                  <Reply
+                    reply={exchange.reply}
+                    t={t}
+                    busy={busy}
+                    onApply={(ticket) => apply(at, ticket)}
+                    onDiscard={() => discard(at)}
+                    onRetry={() => ask(exchange.said)}
+                  />
+                )}
+              </Card>
+            ))}
+          </div>
         )}
       </div>
-    </Page>
+
+      <div className="px-3 pb-3">
+        {/* One card, not a field beside a button: what the turn is about and what
+            it will say are the same thing being composed. */}
+        <div className="glass rounded-card bg-surface p-1.5">
+          {carried ? (
+            <div className="flex items-center gap-2 rounded-md bg-surface-muted px-2.5 py-2">
+              {carried.kind === 'register' ? (
+                <Hash size={13} className="shrink-0 text-muted" />
+              ) : (
+                <FileText size={13} className="shrink-0 text-muted" />
+              )}
+              <span className="min-w-0 truncate text-xs">{carried.label}</span>
+            </div>
+          ) : null}
+          <div className="flex items-end gap-2 px-1.5 py-1">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  send();
+                }
+              }}
+              rows={1}
+              placeholder={t.chat.placeholder}
+              className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm outline-none placeholder:text-muted"
+            />
+            <button
+              type="button"
+              onClick={busy ? stop : send}
+              disabled={!busy && draft.trim() === ''}
+              aria-label={busy ? t.chat.stop : t.chat.send}
+              className="mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-background disabled:opacity-30"
+            >
+              {busy ? <Square size={11} fill="currentColor" /> : <ArrowUp size={15} />}
+            </button>
+          </div>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1 px-1">
+          <select
+            value={`${choice.provider}:${choice.model}`}
+            onChange={(event) => {
+              const [provider, model = ''] = event.target.value.split(':');
+              setChoice({ provider: provider as Choice['provider'], model });
+            }}
+            aria-label={t.chat.model}
+            className="cursor-pointer rounded border-0 bg-transparent py-0.5 text-[10px] text-muted outline-none hover:text-foreground"
+          >
+            {MODELS.map((option) => (
+              <option
+                key={`${option.provider}:${option.model}`}
+                value={`${option.provider}:${option.model}`}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
   );
 };

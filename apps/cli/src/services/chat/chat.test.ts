@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { confirmationFor, type Plan, parsePlanDraft } from './plan.ts';
 import { applyPlan, buildPrompt, type ChatDeps, gatherCandidates, planTurn } from './turn.ts';
 
+const CHOICE = { provider: 'claude-code' as const, model: 'sonnet' };
+
 let dbDir: string;
 let client: MemexClient;
 
@@ -217,8 +219,7 @@ describe('a turn', () => {
           '{"action":"set-register","subject":"opula","predicate":"trial.duration","value":"30일"}',
         ),
       ),
-      '30일이야',
-      { kind: 'register', subject: 'opula' },
+      { message: '30일이야', carried: { kind: 'register', subject: 'opula' }, choice: CHOICE },
     );
 
     expect(turn.kind).toBe('plan');
@@ -236,8 +237,7 @@ describe('a turn', () => {
           '{"action":"set-register","subject":"opula","predicate":"trial_length","value":"30일"}',
         ),
       ),
-      '30일이야',
-      { kind: 'register', subject: 'opula' },
+      { message: '30일이야', carried: { kind: 'register', subject: 'opula' }, choice: CHOICE },
     );
 
     if (turn.kind !== 'plan' || turn.plan.kind !== 'set-register') throw new Error('no plan');
@@ -248,7 +248,7 @@ describe('a turn', () => {
   it('refuses to plan a correction to a note that is not there', async () => {
     const turn = await planTurn(
       deps(answering('{"action":"amend-note","amends":9999,"title":"t","content":"c"}')),
-      'that note is wrong',
+      { message: 'that note is wrong', choice: CHOICE },
     );
 
     expect(turn).toMatchObject({ kind: 'unmapped', reason: 'unknown-target' });
@@ -259,7 +259,7 @@ describe('a turn', () => {
 
     const turn = await planTurn(
       deps(answering(`{"action":"rule-decision","noteId":${settled.id},"decision":"approve"}`)),
-      'keep that one',
+      { message: 'keep that one', choice: CHOICE },
     );
 
     expect(turn).toMatchObject({ kind: 'unmapped', reason: 'unknown-target' });
@@ -271,16 +271,66 @@ describe('a turn', () => {
       code: 'not-installed',
     });
 
-    expect(await planTurn(deps(missing), 'anything')).toMatchObject({
+    expect(await planTurn(deps(missing), { message: 'anything', choice: CHOICE })).toMatchObject({
       kind: 'failed',
       failure: 'not-installed',
     });
   });
 
   it('says it understood nothing rather than writing half a plan', async () => {
-    const turn = await planTurn(deps(answering('I think you mean the trial length?')), 'x');
+    const turn = await planTurn(deps(answering('I think you mean the trial length?')), {
+      message: 'x',
+      choice: CHOICE,
+    });
 
     expect(turn).toMatchObject({ kind: 'failed', failure: 'unreadable-plan' });
+  });
+});
+
+describe('carrying the conversation', () => {
+  // No provider is ever handed a conversation it is expected to remember, so
+  // what came before travels in the prompt. Switching provider mid-conversation
+  // is then just the next turn, with nothing to hand over.
+  it('puts what came before into the prompt, whoever is answering', async () => {
+    const prompts: string[] = [];
+    const watching: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: '{"action":"none"}', durationMs: 1 };
+    };
+
+    await planTurn(deps(watching), {
+      message: '30일이야',
+      choice: { provider: 'codex', model: '' },
+      history: [{ said: 'opula 얘기야', outcome: 'nothing was written' }],
+    });
+
+    expect(prompts[0]).toContain('EARLIER IN THIS CONVERSATION');
+    expect(prompts[0]).toContain('opula 얘기야');
+    expect(prompts[0]).toContain('nothing was written');
+  });
+
+  it('says nothing about a conversation that has not started', async () => {
+    const prompts: string[] = [];
+    const watching: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: '{"action":"none"}', durationMs: 1 };
+    };
+
+    await planTurn(deps(watching), { message: 'x', choice: CHOICE });
+
+    expect(prompts[0]).not.toContain('EARLIER IN THIS CONVERSATION');
+  });
+
+  it('asks the provider the turn named, with the model it named', async () => {
+    const asked: { provider: string; model: string }[] = [];
+    const watching: LlmProvider = async ({ model }) => {
+      asked.push({ provider: 'seen', model });
+      return { text: '{"action":"none"}', durationMs: 1 };
+    };
+
+    await planTurn(deps(watching), { message: 'x', choice: { provider: 'codex', model: 'gpt-5' } });
+
+    expect(asked[0]?.model).toBe('gpt-5');
   });
 });
 

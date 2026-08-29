@@ -170,7 +170,7 @@ export const StalePanel = ({
   };
 
   return (
-    <section className="mt-4 rounded-card border border-line bg-surface p-4">
+    <section className="glass mt-4 rounded-card bg-surface p-4">
       <div className="text-sm font-semibold" style={{ color: 'var(--caution)' }}>
         {t.stale.header(note.stale.newer.length)}
       </div>

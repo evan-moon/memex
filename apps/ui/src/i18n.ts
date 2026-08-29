@@ -179,7 +179,7 @@ const en = {
   chat: {
     screenTitle: 'Chat',
     intro: 'Tell me what I got wrong. I show you the change before I make it.',
-    placeholder: 'The opula trial is 30 days now',
+    placeholder: 'Tell me what I got wrong…',
     send: 'Send',
     stop: 'Stop',
     thinking: 'Reading what is on record…',
@@ -215,8 +215,8 @@ const en = {
     unmappedNoSearch:
       'Search is still waiting on the model, so I could only look at values, not notes.',
     nothingWritten: 'Nothing was written.',
-    carriedRegister: (subject: string) => `About ${subject}`,
-    carriedNote: (title: string) => `About “${title}”`,
+    clear: 'New conversation',
+    model: 'Claude Sonnet',
     failure: {
       'not-installed': 'Claude Code is not installed yet.',
       'logged-out': 'Claude Code is signed out.',
@@ -241,6 +241,26 @@ const en = {
     title: 'Set memex up',
     lead: 'memex needs Claude Code to read and write your notes. Install it, sign in, and that is the whole setup.',
     skip: 'Skip for now',
+  },
+  settings: {
+    screenTitle: 'Settings',
+    intro: 'How the app looks, and what it is allowed to reach.',
+    appearance: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    language: 'Language',
+    thinking: 'What does the thinking',
+    thinkingHint:
+      'Correcting a memory in a conversation goes through this. memex never sees a token — each CLI signs in as itself.',
+    defaultOnly:
+      'What a new conversation starts on. You can change it for one conversation in the panel itself.',
+    searchModel: 'Search',
+    searchModelHint:
+      'Reads your notes by meaning. It stays on this machine and runs offline afterwards.',
+    claudeCode: 'Claude Code',
+    claudeCodeHint: 'The part that does the thinking, and how a conversation reaches your memex.',
+    apps: 'Your apps',
+    appsHint: 'Apps that can read and write memex through MCP.',
   },
   connect: {
     screenTitle: 'Connect',
@@ -656,7 +676,7 @@ const ko: typeof en = {
   chat: {
     screenTitle: '대화',
     intro: '제가 잘못 기억한 걸 말해 주세요. 바꾸기 전에 무엇이 바뀌는지 먼저 보여드려요.',
-    placeholder: 'opula 트라이얼 이제 30일이야',
+    placeholder: '제가 잘못 기억한 걸 말해 주세요…',
     send: '보내기',
     stop: '그만두기',
     thinking: '기록을 읽고 있어요…',
@@ -688,8 +708,8 @@ const ko: typeof en = {
       '무엇을 바꿔야 할지 모르겠어요. 어떤 노트인지 또는 어떤 값인지, 그리고 무엇으로 바꿀지 말해 주세요.',
     unmappedNoSearch: '모델을 아직 받는 중이라 노트는 못 보고 값만 봤어요.',
     nothingWritten: '아무것도 쓰지 않았어요.',
-    carriedRegister: (subject) => `${subject} 이야기예요`,
-    carriedNote: (title) => `「${title}」 이야기예요`,
+    clear: '새 대화',
+    model: 'Claude Sonnet',
     failure: {
       'not-installed': '아직 Claude Code가 설치되지 않았어요.',
       'logged-out': 'Claude Code가 로그아웃 상태예요.',
@@ -713,6 +733,24 @@ const ko: typeof en = {
     title: 'memex 설정하기',
     lead: '노트를 읽고 쓰려면 Claude Code가 필요해요. 설치하고 로그인하면 설정은 끝이에요.',
     skip: '나중에 할게요',
+  },
+  settings: {
+    screenTitle: '설정',
+    intro: '앱이 어떻게 보이는지, 그리고 무엇에 닿을 수 있는지.',
+    appearance: '화면',
+    light: '밝게',
+    dark: '어둡게',
+    language: '언어',
+    thinking: '생각을 담당하는 것',
+    thinkingHint:
+      '대화로 기억을 고칠 때 여기를 거쳐요. memex는 토큰을 보지 않아요 — CLI가 자기 자격으로 로그인해요.',
+    defaultOnly: '새 대화가 시작할 모델이에요. 대화 하나만 바꾸는 건 패널 안에서 할 수 있어요.',
+    searchModel: '검색',
+    searchModelHint: '노트를 의미로 읽어요. 이 컴퓨터에 남고, 받고 나면 오프라인으로 돌아요.',
+    claudeCode: 'Claude Code',
+    claudeCodeHint: '생각을 담당하는 부분, 그리고 대화가 memex에 닿는 길이에요.',
+    apps: '내 앱',
+    appsHint: 'MCP로 memex를 읽고 쓸 수 있는 앱들이에요.',
   },
   connect: {
     screenTitle: '연결',

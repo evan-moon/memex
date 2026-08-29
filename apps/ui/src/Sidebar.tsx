@@ -121,7 +121,7 @@ export const Sidebar = ({
           the title bar is hidden. Nothing goes here: the app's name is on the
           window and in the menu bar, and saying it a third time earns nothing.
           Home is the button in the header. */}
-      <div className="h-13" />
+      <div className="drag h-13" />
       <Section label={t.sidebar.topics} count={topics.length}>
         <TopicRows topics={topics} />
       </Section>
@@ -177,16 +177,6 @@ export const Sidebar = ({
           {t.rules.screenTitle}
         </NavLink>
         <NavLink
-          to="/chat"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
-          {t.chat.screenTitle}
-        </NavLink>
-        <NavLink
           to="/register"
           className={({ isActive }) =>
             `block rounded-md px-2 py-2 text-sm ${
@@ -197,14 +187,14 @@ export const Sidebar = ({
           {t.register.screenTitle}
         </NavLink>
         <NavLink
-          to="/connect"
+          to="/settings"
           className={({ isActive }) =>
             `block rounded-md px-2 py-2 text-sm ${
               isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
             }`
           }
         >
-          {t.connect.screenTitle}
+          {t.settings.screenTitle}
         </NavLink>
       </div>
       <p className="mt-3 px-4 text-[11px] leading-5 text-muted">

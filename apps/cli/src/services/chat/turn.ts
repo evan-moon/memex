@@ -13,9 +13,9 @@ import {
   setRegister,
 } from '@memex/db';
 import type { Embedder } from '@memex/embed';
-import { isLlmFailure, type LlmModel, type LlmProvider } from '@memex/llm';
+import { isLlmFailure, type LlmChoice, type LlmProvider } from '@memex/llm';
 import { tagKey } from '@memex/utils';
-import { askClaude } from '../llm.ts';
+import { askWith } from '../llm.ts';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
 import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
@@ -26,8 +26,6 @@ import {
   type PlanDraft,
   parsePlanDraft,
 } from './plan.ts';
-
-export const CHAT_MODEL: LlmModel = 'sonnet';
 
 const NOTE_CANDIDATES = 6;
 const RULE_CANDIDATES = 5;
@@ -40,6 +38,11 @@ export type ChatDeps = {
   vaultPath: string;
   ask?: LlmProvider;
 };
+
+// What was said and what came of it, one line each. The app holds this, not the
+// model: no provider is ever handed a conversation it is expected to remember,
+// so switching from one to another mid-conversation is just the next turn.
+export type Said = { said: string; outcome: string };
 
 export type NoteCandidate = { id: number; title: string; layer: NoteLayer; snippet: string };
 
@@ -137,7 +140,14 @@ const scopeLabel = (scope: RegisterScope) =>
 
 const listOr = (lines: string[], empty: string) => (lines.length > 0 ? lines.join('\n') : empty);
 
-export const buildPrompt = (message: string, candidates: Candidates) =>
+const soFar = (history: Said[]) =>
+  history.length === 0
+    ? ''
+    : `\n=== EARLIER IN THIS CONVERSATION ===\n${history
+        .map((turn) => `they said: ${turn.said}\n  what happened: ${turn.outcome}`)
+        .join('\n')}\n`;
+
+export const buildPrompt = (message: string, candidates: Candidates, history: Said[] = []) =>
   `A person is correcting what an AI recorded about them in their second brain. Below is what they said, and the only things you may act on.
 
 Choose exactly one action and answer with raw JSON, no code fence.
@@ -159,6 +169,7 @@ Choose exactly one action and answer with raw JSON, no code fence.
 
 Write titles and content in the language the person used.
 
+${soFar(history)}
 === WHAT THEY SAID ===
 ${message}
 
@@ -229,16 +240,20 @@ const resolve = (draft: PlanDraft, deps: ChatDeps, candidates: Candidates): Plan
     : null;
 };
 
-export const planTurn = async (
-  deps: ChatDeps,
-  message: string,
-  carried: Carried | null = null,
-  signal?: AbortSignal,
-): Promise<Turn> => {
+export type TurnRequest = {
+  message: string;
+  carried?: Carried | null;
+  choice: LlmChoice;
+  history?: Said[];
+  signal?: AbortSignal;
+};
+
+export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
+  const { message, carried = null, choice, history = [], signal } = request;
   const candidates = await gatherCandidates(deps, carried, message);
-  const answer = await (deps.ask ?? askClaude)({
-    prompt: buildPrompt(message, candidates),
-    model: CHAT_MODEL,
+  const answer = await (deps.ask ?? askWith(choice))({
+    prompt: buildPrompt(message, candidates, history),
+    model: choice.model,
     signal,
   });
 

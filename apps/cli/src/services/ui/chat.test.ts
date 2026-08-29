@@ -40,8 +40,10 @@ const call = (path: string, payload: unknown) =>
   }));
 
 // Every turn carries the name the page gave it, which is also how it is stopped.
+const CHOICE = { provider: 'claude-code', model: 'sonnet' };
+
 const say = (message: string, path = '/api/chat', operationId = 'turn-1') =>
-  call(path, { message, operationId });
+  call(path, { message, operationId, choice: CHOICE });
 
 const setValue = (value: string) =>
   setRegister(client, {
@@ -105,7 +107,7 @@ describe('a turn through the API', () => {
   });
 
   it('refuses a turn with no name, because a nameless turn cannot be stopped', async () => {
-    const { status } = await call('/api/chat', { message: '30일이야' });
+    const { status } = await call('/api/chat', { message: '30일이야', choice: CHOICE });
 
     expect(status).toBe(400);
   });

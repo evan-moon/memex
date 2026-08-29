@@ -16,7 +16,7 @@ import { Today } from './Today.tsx';
 import { ago } from './time.ts';
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
-  <div className="rounded-card border border-line bg-surface p-4">
+  <div className="glass rounded-card bg-surface p-4">
     <div className="text-xs text-muted">{label}</div>
     <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
     {hint ? <div className="mt-1 text-xs text-muted">{hint}</div> : null}
@@ -33,7 +33,7 @@ const EmptyVault = () => {
       <h1 className="text-xl font-semibold tracking-tight">{t.overview.emptyTitle}</h1>
       <p className="mt-2 max-w-prose text-sm text-muted">{t.overview.emptyLead}</p>
       <Link
-        to="/connect"
+        to="/settings"
         className="mt-5 inline-block rounded-md border border-line px-3 py-1.5 text-sm hover:bg-surface-muted"
       >
         {t.overview.emptyAction}
@@ -77,7 +77,7 @@ export const Overview = ({ data }: { data: Data }) => {
         />
       </div>
 
-      <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
+      <section className="glass mt-6 rounded-card bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline gap-2">
           <h2 className="text-sm font-semibold">{t.overview.activityTitle}</h2>
           <span className="text-xs text-muted">{t.overview.activityRange(written, active)}</span>
@@ -129,7 +129,7 @@ export const Overview = ({ data }: { data: Data }) => {
         </div>
       </section>
 
-      <section className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-5">
+      <section className="glass mt-6 rounded-card bg-surface p-4 sm:p-5">
         <h2 className="text-sm font-semibold">{t.overview.stalenessTitle}</h2>
         <p className="mt-1 text-xs text-muted">{t.overview.stalenessHint}</p>
         <div className="mt-3 divide-y divide-line">

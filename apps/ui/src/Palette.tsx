@@ -78,7 +78,7 @@ export const Palette = ({ open, onClose }: { open: boolean; onClose: () => void 
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
-      <div className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-card border border-line bg-surface shadow-xl">
+      <div className="glass relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-card bg-surface">
         <div className="flex items-center gap-2 border-b border-line px-3">
           <Search size={14} className="shrink-0 text-muted" />
           <input

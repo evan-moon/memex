@@ -26,7 +26,7 @@ export class ErrorBoundary extends Component<
         <h1 className="text-lg font-semibold" style={{ color: 'var(--negative)' }}>
           {t.crash.title}
         </h1>
-        <pre className="mt-4 overflow-auto rounded-card border border-line bg-surface p-4 text-xs">
+        <pre className="reading mt-4 overflow-auto rounded-card p-4 text-xs">
           {error.message}
           {'\n\n'}
           {error.stack}
