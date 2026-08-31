@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { createUiDeps } from '@evan-moon/memex/host';
-import { app, BrowserWindow, nativeTheme, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, nativeTheme, protocol, shell } from 'electron';
 import { PRIVILEGES, SCHEME, serve } from './serve.ts';
 
 const WINDOW = { width: 1200, height: 820, minWidth: 720, minHeight: 520 };
@@ -66,8 +66,28 @@ const createWindow = (url: string) => {
   return window;
 };
 
+// The vault is a folder on this machine, so the machine's own chooser is what
+// picks it. Hung off the window as a sheet rather than opened free-floating,
+// and it is the reason this lives here: `serve()` is deliberately Electron-free.
+const PICKER: Electron.OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
+
+const chooseFolder = async () => {
+  const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = window
+    ? await dialog.showOpenDialog(window, PICKER)
+    : await dialog.showOpenDialog(PICKER);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+};
+
 const start = () => {
-  deps = createUiDeps();
+  deps = {
+    ...createUiDeps(),
+    pickFolder: chooseFolder,
+    revealFile: (path: string) => shell.showItemInFolder(path),
+    openFile: (path: string) => {
+      shell.openPath(path).catch(() => {});
+    },
+  };
   protocol.handle(
     SCHEME,
     serve(deps, join(app.getAppPath(), 'dist/renderer'), {

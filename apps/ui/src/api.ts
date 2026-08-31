@@ -13,6 +13,10 @@ export type NoteRef = {
   status?: NoteStatus | null;
 };
 
+export type AmendKind = 'corrects' | 'continues' | 'unknown';
+
+export type AmendedRef = NoteRef & { kind: AmendKind };
+
 export type Companion = { tag: string; shared: number; overlap: number; sameThing: boolean };
 
 export type Topic = {
@@ -72,6 +76,7 @@ export type NoteDetail = {
   tags: string[];
   filePath: string;
   folder: string | null;
+  writable: boolean;
   amendment: Amendment | null;
   wikiLinks: { title: string; id: number }[];
   deadLinks: string[];
@@ -85,8 +90,8 @@ export type NoteDetail = {
   candidateSources: NoteRef[];
   hypotheses: { id: number; title: string; status: string }[];
   stale: { newer: NoteRef[] } | null;
-  supersededBy: NoteRef[];
-  corrects: NoteRef[];
+  supersededBy: AmendedRef[];
+  corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
 };
@@ -341,11 +346,24 @@ export type ModelState =
   | { kind: 'downloading'; loaded: number; total: number }
   | { kind: 'failed'; error: string };
 
-export type ClaudeCodeState =
+export type AssistantState =
   | { kind: 'missing' }
   | { kind: 'unreadable'; binary: string; reason: string }
   | { kind: 'logged-out'; binary: string }
   | { kind: 'ready'; binary: string; method: string | null; plan: string | null };
+
+export type LoginMethod = 'subscription' | 'metered';
+
+export type AppRow = {
+  id: McpClientId;
+  name: string;
+  installed: boolean;
+  methods: LoginMethod[];
+  cli: AssistantState | null;
+  registration: McpRegistration;
+};
+
+export type AppsScreen = { serverPath: string; apps: AppRow[] };
 
 export type LoginState =
   | { kind: 'idle' }
@@ -359,15 +377,36 @@ export type McpRegistration =
   | { kind: 'current' }
   | { kind: 'elsewhere'; command: string };
 
-export type McpClient = {
-  id: McpClientId;
+export type Writer = 'agent' | 'person';
+
+export type TreeNote = { id: number; title: string; writer: Writer };
+
+export type TreeFolder = { path: string; name: string; depth: number; count: number };
+
+export type VaultRoot = {
+  id: string;
   name: string;
-  configPath: string;
-  installed: boolean;
-  registration: McpRegistration;
+  path: string;
+  writable: boolean;
+  folders: TreeFolder[];
+  notes: Record<string, TreeNote[]>;
+  count: number;
 };
 
-export type McpConnections = { serverPath: string; clients: McpClient[] };
+export type VaultTree = { roots: VaultRoot[] };
+
+export type Revision = { sha: string; at: string; subject: string; author: string };
+
+export type History =
+  | { tracked: true; revisions: Revision[] }
+  | { tracked: false; reason: 'no-repo' | 'never-committed' };
+
+export type OnboardingState = {
+  onboardedAt: string | null;
+  vaultPath: string;
+  vaultExists: boolean;
+  canPickFolder: boolean;
+};
 
 export type ChatPreview =
   | {
@@ -414,25 +453,37 @@ export type ChatReceipt =
 
 export type ChatRemedy = 'install' | 'sign-in' | 'billing' | 'retry' | 'rephrase' | 'none';
 
+export type ChatCited = { id: number; title: string };
+
 export type ChatReply =
+  | { kind: 'answer'; text: string; cites: ChatCited[] }
   | { kind: 'done'; receipt: ChatReceipt }
   | { kind: 'confirm'; ticket: string; preview: ChatPreview }
   | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; searchable: boolean }
   | { kind: 'failed'; failure: string; remedy: ChatRemedy; detail: string };
 
-export type ChatTarget = { kind: 'register'; subject: string } | { kind: 'note'; id: number };
+export type ChatTarget =
+  | { kind: 'register'; subject: string }
+  | { kind: 'topic'; tag: string }
+  | { kind: 'note'; id: number };
 
 export type ChatSession = { id: number; title: string; turns: number; lastAt: number };
 
-export type ChatTurn = { id: number; said: string; outcome: string; at: number };
+export type ChatTurn = {
+  id: number;
+  said: string;
+  outcome: string;
+  reply: string | null;
+  at: number;
+};
 
 export type ChatAnswer = ChatReply & { sessionId: number };
 
 const chatQuery = (target: ChatTarget | null) => {
   if (target === null) return '';
-  return target.kind === 'register'
-    ? `?subject=${encodeURIComponent(target.subject)}`
-    : `?note=${target.id}`;
+  if (target.kind === 'register') return `?subject=${encodeURIComponent(target.subject)}`;
+  if (target.kind === 'topic') return `?topic=${encodeURIComponent(target.tag)}`;
+  return `?note=${target.id}`;
 };
 
 export const api = {
@@ -516,10 +567,27 @@ export const api = {
     }),
   model: () => request<ModelState>('/api/model'),
   downloadModel: () => post<ModelState>('/api/model'),
-  claude: () => request<ClaudeCodeState>('/api/claude'),
-  installClaude: () => post<ClaudeCodeState>('/api/claude/install'),
-  loginClaude: (method: 'claudeai' | 'console') =>
-    post<{ login: LoginState; claude: ClaudeCodeState }>('/api/claude/login', { method }),
-  mcp: () => request<McpConnections>('/api/mcp'),
-  connectMcp: (client: McpClientId) => post<McpConnections>('/api/mcp/connect', { client }),
+  apps: () => request<AppsScreen>('/api/apps'),
+  installApp: (app: McpClientId) => post<AppsScreen>('/api/app/install', { app }),
+  loginApp: (app: McpClientId, method: LoginMethod) =>
+    post<{ login: LoginState; apps: AppsScreen }>('/api/app/login', { app, method }),
+  connectApp: (app: McpClientId) => post<AppsScreen>('/api/app/connect', { app }),
+  tree: () => request<VaultTree>('/api/tree'),
+  duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
+  moveNote: (id: number, folder: string) =>
+    post<{ path: string }>(`/api/note/${id}/move`, { folder }),
+  renameNote: (id: number, title: string) =>
+    post<{ path: string }>(`/api/note/${id}/rename`, { title }),
+  deleteNote: (id: number) => post<{ removed: number }>(`/api/note/${id}/delete`),
+  history: (id: number) => request<History>(`/api/history/${id}`),
+  revision: (id: number, sha: string) =>
+    request<{ sha: string; content: string }>(`/api/history/${id}/${sha}`),
+  revealNote: (id: number) => post<{ path: string }>(`/api/note/${id}/reveal`),
+  revealFolder: (root: string, folder: string) =>
+    post<{ path: string }>('/api/folder/reveal', { root, folder }),
+  openNote: (id: number) => post<{ path: string }>(`/api/note/${id}/open`),
+  onboarding: () => request<OnboardingState>('/api/onboarding'),
+  pickFolder: () => post<{ path: string | null }>('/api/onboarding/pick'),
+  chooseVault: (path: string) => post<OnboardingState>('/api/onboarding/vault', { path }),
+  finishOnboarding: () => post<OnboardingState>('/api/onboarding/done'),
 };

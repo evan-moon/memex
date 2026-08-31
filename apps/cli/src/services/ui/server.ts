@@ -2,6 +2,7 @@ import {
   editNote,
   isEditRejection,
   isSaveRejection,
+  removeNote,
   type SearchOptions,
   saveNote,
   searchPage,
@@ -33,16 +34,20 @@ import type { LlmChoice, LlmProvider } from '@memex/llm';
 import { writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
-  installClaudeCode,
+  installAssistant,
+  isAssistantId,
+  isLoginMethod,
   type LoginMethod,
-  readClaudeCode,
-} from '../claude-code/index.ts';
+  loginAttemptFor,
+  readAssistant,
+} from '../assistants/index.ts';
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { isProviderId } from '../llm.ts';
-import { connectMcpClient, isMcpClientId, readMcpConnections } from '../mcp-clients/index.ts';
+import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
+import { readApps } from './apps.ts';
 import {
   applyTicket,
   cancelChat,
@@ -52,6 +57,15 @@ import {
   startChat,
 } from './chat.ts';
 import { buildChores } from './chores.ts';
+import {
+  duplicateNote,
+  folderPath,
+  isFileFailure,
+  moveNote,
+  renameNote,
+  revealPath,
+} from './files.ts';
+import { readHistory, readRevision } from './history.ts';
 import type { ModelRunner } from './model.ts';
 import {
   bodyOf,
@@ -65,6 +79,7 @@ import {
   searchFacets,
   staleStateIds,
 } from './notes.ts';
+import { chooseVault, finishOnboarding, readOnboarding } from './onboarding.ts';
 import { buildOverview } from './overview.ts';
 import {
   buildRegister,
@@ -78,6 +93,7 @@ import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
 import { buildToday } from './today.ts';
 import { buildTopic, buildTopics, topicNotes } from './topics.ts';
+import { buildTree } from './tree.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
 
@@ -167,8 +183,12 @@ export type ApiErrorCode =
   | 'edit-rejected'
   | 'invalid-note-id'
   | 'unknown-client'
+  | 'empty-vault-path'
+  | 'file-op-failed'
   | 'config-write-failed'
-  | 'claude-not-installed'
+  | 'assistant-not-installed'
+  | 'unknown-assistant'
+  | 'login-method-unsupported'
   | 'install-failed'
   | 'login-failed'
   | 'invalid-scope'
@@ -195,9 +215,21 @@ export type UiDeps = {
   // the wiring can be exercised without an account behind it.
   ask?: LlmProvider;
   vaultPath: string;
+  // Onboarding can move the vault while the window is open. The host answers
+  // `vaultPath` afresh each request; this is how it is told what to answer.
+  setVaultPath?: (path: string) => void;
   mcp: { home: string; serverPath: string };
   pathEnv: string;
   openUrl: (url: string) => void;
+  // Handing a path to the desktop: showing it in the file manager, or opening
+  // it in whatever the system says owns a .md. Absent outside the app, where
+  // there is no desktop to hand it to.
+  revealFile?: (path: string) => void;
+  openFile?: (path: string) => void;
+  // Left out by hosts that have no window to hang a sheet off. Where it is
+  // absent the vault screen asks for a typed path instead of offering a button
+  // that cannot open anything.
+  pickFolder?: () => Promise<string | null>;
   model: ModelRunner;
   fillShapes?: () => Promise<void>;
 };
@@ -283,6 +315,82 @@ export const route = async (
 ): Promise<Reply> => {
   const { client, vaultPath } = deps;
 
+  // What a right-click offers. Each one moves a file and the row that points at
+  // it together, so the index never names a path that is not there.
+  const fileOp = (
+    id: number,
+    run: () => { path: string } | { error: string; message: string },
+  ): Reply => {
+    const outcome = run();
+    return isFileFailure(outcome)
+      ? bad(400, 'file-op-failed', outcome.message)
+      : json({ ...outcome, note: noteDetail(client, id, vaultPath) });
+  };
+
+  if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
+    const parts = url.pathname.slice('/api/note/'.length).split('/');
+    const id = Number(parts[0]);
+    const action = parts[1];
+    if (action !== undefined && Number.isFinite(id)) {
+      const asked = asRecord(payload);
+      if (action === 'duplicate') return fileOp(id, () => duplicateNote(client, id, vaultPath));
+      if (action === 'move') {
+        const folder = typeof asked?.folder === 'string' ? asked.folder : '';
+        if (folder === '') return bad(400, 'file-op-failed', 'No folder given.');
+        return fileOp(id, () => moveNote(client, id, folder));
+      }
+      if (action === 'rename') {
+        const title = typeof asked?.title === 'string' ? asked.title : '';
+        return fileOp(id, () => renameNote(client, id, title, vaultPath));
+      }
+      if (action === 'delete') {
+        const note = getNote(client, id);
+        if (!note) return notFound;
+        const rejected = removeNote(client, id, note.filePath, { actor: 'user', vaultPath });
+        return rejected === undefined
+          ? json({ removed: id })
+          : bad(409, 'file-op-failed', rejected.message);
+      }
+      if (action === 'reveal' || action === 'open') {
+        const found = revealPath(client, id);
+        if (isFileFailure(found)) return bad(400, 'file-op-failed', found.message);
+        const hand = action === 'reveal' ? deps.revealFile : deps.openFile;
+        if (hand === undefined) {
+          return bad(400, 'file-op-failed', 'This surface has no desktop to hand a file to.');
+        }
+        hand(found);
+        return json({ path: found });
+      }
+    }
+  }
+
+  // A folder is addressed by the vault it is in and its path inside it, since
+  // it has no id of its own.
+  if (method === 'POST' && url.pathname === '/api/folder/reveal') {
+    const asked = asRecord(payload);
+    const root = typeof asked?.root === 'string' ? asked.root : '';
+    const folder = typeof asked?.folder === 'string' ? asked.folder : '';
+    if (root === '') return bad(400, 'file-op-failed', 'No vault given.');
+    const found = folderPath(root, folder);
+    if (isFileFailure(found)) return bad(400, 'file-op-failed', found.message);
+    if (deps.revealFile === undefined) {
+      return bad(400, 'file-op-failed', 'This surface has no desktop to hand a folder to.');
+    }
+    deps.revealFile(found);
+    return json({ path: found });
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/history/')) {
+    const rest = url.pathname.slice('/api/history/'.length).split('/');
+    const note = getNote(client, Number(rest[0]));
+    if (!note) return notFound;
+    const sha = rest[1];
+    if (sha === undefined) return json(await readHistory(note.filePath));
+    const content = await readRevision(note.filePath, sha);
+    return content === null ? notFound : json({ sha, content });
+  }
+  if (method === 'GET' && url.pathname === '/api/tree') {
+    return json(buildTree(client));
+  }
   if (method === 'GET' && url.pathname === '/api/sidebar') {
     return json({
       counts: layerCounts(client),
@@ -319,31 +427,79 @@ export const route = async (
     }
     return bad(404, 'not-found');
   }
+  const canPickFolder = deps.pickFolder !== undefined;
+
+  if (method === 'GET' && url.pathname === '/api/onboarding') {
+    return json(readOnboarding(canPickFolder));
+  }
+  if (method === 'POST' && url.pathname === '/api/onboarding/pick') {
+    // A cancelled chooser is an answer, not a failure: it means keep what is
+    // already on the screen.
+    const picked = (await deps.pickFolder?.()) ?? null;
+    return json({ path: picked });
+  }
+  if (method === 'POST' && url.pathname === '/api/onboarding/vault') {
+    const asked = asRecord(payload)?.path;
+    const path = typeof asked === 'string' ? asked.trim() : '';
+    if (path === '') return bad(400, 'empty-vault-path');
+    try {
+      const state = chooseVault(path, canPickFolder);
+      deps.setVaultPath?.(state.vaultPath);
+      return json(state);
+    } catch (error) {
+      return bad(500, 'config-write-failed', error instanceof Error ? error.message : undefined);
+    }
+  }
+  if (method === 'POST' && url.pathname === '/api/onboarding/done') {
+    try {
+      return json(finishOnboarding(new Date().toISOString(), canPickFolder));
+    } catch (error) {
+      return bad(500, 'config-write-failed', error instanceof Error ? error.message : undefined);
+    }
+  }
   if (method === 'GET' && url.pathname === '/api/model') {
     return json(deps.model.read());
   }
   if (method === 'POST' && url.pathname === '/api/model') {
     return json(deps.model.start());
   }
-  if (method === 'GET' && url.pathname === '/api/claude') {
-    return json(await readClaudeCode(deps.mcp.home, deps.pathEnv));
-  }
-  if (method === 'POST' && url.pathname === '/api/claude/install') {
-    const outcome = await installClaudeCode();
-    return outcome.ok
-      ? json(await readClaudeCode(deps.mcp.home, deps.pathEnv))
-      : bad(502, 'install-failed', outcome.error);
-  }
-  if (method === 'POST' && url.pathname === '/api/claude/login') {
-    const state = await readClaudeCode(deps.mcp.home, deps.pathEnv);
-    if (state.kind === 'missing') return bad(400, 'claude-not-installed');
+  const apps = () => readApps(deps.mcp.home, deps.mcp.serverPath, deps.pathEnv);
 
-    const asked = asRecord(payload)?.method;
-    const how: LoginMethod = asked === 'console' ? 'console' : 'claudeai';
-    const started = await loginRunner(deps).start(state.binary, how);
+  if (method === 'GET' && url.pathname === '/api/apps') {
+    return json(await apps());
+  }
+  if (method === 'POST' && url.pathname === '/api/app/install') {
+    const id = asRecord(payload)?.app;
+    if (!isAssistantId(id)) return bad(400, 'unknown-assistant');
+    const outcome = await installAssistant(id);
+    return outcome.ok ? json(await apps()) : bad(502, 'install-failed', outcome.error);
+  }
+  if (method === 'POST' && url.pathname === '/api/app/login') {
+    const asked = asRecord(payload);
+    const id: unknown = asked?.app;
+    if (!isAssistantId(id)) return bad(400, 'unknown-assistant');
+
+    const state = await readAssistant(id, deps.mcp.home, deps.pathEnv);
+    if (state.kind === 'missing') return bad(400, 'assistant-not-installed');
+
+    const how: LoginMethod = isLoginMethod(asked?.method) ? asked.method : 'subscription';
+    const attempt = loginAttemptFor(id, how, state.binary);
+    if (attempt === null) return bad(400, 'login-method-unsupported');
+
+    const started = await loginRunner(deps).start(attempt);
     return started.kind === 'failed'
       ? bad(502, 'login-failed', started.error)
-      : json({ login: started, claude: await readClaudeCode(deps.mcp.home, deps.pathEnv) });
+      : json({ login: started, apps: await apps() });
+  }
+  if (method === 'POST' && url.pathname === '/api/app/connect') {
+    const target = asRecord(payload)?.app;
+    if (!isMcpClientId(target)) return bad(400, 'unknown-client');
+    try {
+      connectMcpClient(deps.mcp.home, deps.mcp.serverPath, target);
+      return json(await apps());
+    } catch (error) {
+      return bad(500, 'config-write-failed', error instanceof Error ? error.message : undefined);
+    }
   }
   if (method === 'POST' && url.pathname === '/api/chat') {
     const asked = asRecord(payload);
@@ -420,19 +576,6 @@ export const route = async (
 
     const written = setRegister(client, { subject, predicate, value, scope, author: 'person' });
     return written.ok ? json(buildRegister(client, subject)) : bad(400, written.reason);
-  }
-  if (method === 'GET' && url.pathname === '/api/mcp') {
-    return json(readMcpConnections(deps.mcp.home, deps.mcp.serverPath));
-  }
-  if (method === 'POST' && url.pathname === '/api/mcp/connect') {
-    const target = asRecord(payload)?.client;
-    if (!isMcpClientId(target)) return bad(400, 'unknown-client');
-    try {
-      const connections = connectMcpClient(deps.mcp.home, deps.mcp.serverPath, target);
-      return connections === null ? bad(400, 'unknown-client') : json(connections);
-    } catch (error) {
-      return bad(500, 'config-write-failed', error instanceof Error ? error.message : undefined);
-    }
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));

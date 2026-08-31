@@ -39,7 +39,10 @@ export const mcpClientSpecs = (home: string): McpClientSpec[] => [
   },
   {
     id: 'codex',
-    name: 'Codex',
+    // The CLI is Codex; the account it signs into is ChatGPT, and that is the
+    // name the reader knows. Both, because either alone leaves someone looking
+    // for the other.
+    name: 'Codex (ChatGPT)',
     format: 'toml',
     configPath: join(home, '.codex/config.toml'),
     markerPath: join(home, '.codex'),

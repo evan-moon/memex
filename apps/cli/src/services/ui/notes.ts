@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
 import { amendmentSuggestion } from '@memex/core';
 import {
+  type AmendKind,
   evidenceFor,
   evidenceStaleness,
   findRelatedNotes,
@@ -10,11 +11,13 @@ import {
   getBacklinks,
   getNote,
   inferencesCiting,
+  kindOfEdge,
   listSignals,
   type MemexClient,
   type NoteLayer,
   parseTags,
 } from '@memex/db';
+import { inVault } from '@memex/utils';
 import { type NoteStatus, statusesFor } from './status.ts';
 
 export type NoteRef = {
@@ -25,6 +28,8 @@ export type NoteRef = {
   at: number;
   status?: NoteStatus | null;
 };
+
+export type AmendedRef = NoteRef & { kind: AmendKind };
 
 export type NoteDetail = {
   id: number;
@@ -37,6 +42,7 @@ export type NoteDetail = {
   author: string;
   filePath: string;
   folder: string | null;
+  writable: boolean;
   amendment: ReturnType<typeof amendmentSuggestion> | null;
   wikiLinks: { title: string; id: number }[];
   deadLinks: string[];
@@ -51,8 +57,8 @@ export type NoteDetail = {
   candidateSources: NoteRef[];
   hypotheses: { id: number; title: string; status: string }[];
   stale: { newer: NoteRef[] } | null;
-  supersededBy: NoteRef[];
-  corrects: NoteRef[];
+  supersededBy: AmendedRef[];
+  corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
 };
@@ -244,12 +250,13 @@ export const noteDetail = (
   const corrects = (
     client.sqlite
       .prepare(
-        `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt
+        `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt,
+                l.source AS edge
          FROM note_links l JOIN notes n ON n.id = l.target_id
          WHERE l.source_id = ? AND l.source IN ('amends', 'corrects', 'continues')`,
       )
-      .all(id) as RawNote[]
-  ).map(toRef);
+      .all(id) as (RawNote & { edge: string })[]
+  ).map(({ edge, ...row }) => ({ ...toRef(row), kind: kindOfEdge(edge) }));
 
   return {
     id: note.id,
@@ -262,6 +269,9 @@ export const noteDetail = (
     tags: parseTags(note.tags),
     filePath: note.filePath,
     folder: folderOf(note.filePath, vaultPath),
+    // Borrowed files are read here and written by whatever made them. Saying so
+    // is what lets the screen leave out a pencil that could only fail.
+    writable: inVault(note.filePath, vaultPath),
     amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
     wikiLinks: outgoingWikiLinks(client, id),
     deadLinks: findUnresolvedLinks(client, note.content),
@@ -278,9 +288,10 @@ export const noteDetail = (
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,
-      layer: 'past',
-      author: 'person',
+      layer: 'past' as const,
+      author: 'person' as const,
       at: a.authoredAt,
+      kind: a.kind,
     })),
     corrects,
     backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),

@@ -3,8 +3,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findClaudeBinary } from './binary.ts';
-import { fetchInstaller, runInstaller } from './install.ts';
-import { createLoginRunner } from './login.ts';
 import { readClaudeCode } from './status.ts';
 
 let home: string;
@@ -75,104 +73,5 @@ describe('reading the state', () => {
 
     expect(state.kind).toBe('unreadable');
     expect(state.kind === 'unreadable' && state.reason).toContain('unknown command');
-  });
-});
-
-describe('fetching the installer', () => {
-  it('refuses anything that is not first-party over TLS', async () => {
-    expect(await fetchInstaller('http://claude.ai/install.sh')).toEqual({
-      ok: false,
-      error: 'Refusing to run a script fetched over http:',
-    });
-    expect((await fetchInstaller('not a url')).ok).toBe(false);
-  });
-});
-
-describe('running the installer', () => {
-  it('passes the version through and reports what the script printed', async () => {
-    const result = await runInstaller('#!/bin/bash\necho "installing $1"\n', 'stable');
-
-    expect(result).toEqual({ ok: true, output: 'installing stable\n' });
-  });
-
-  it('keeps the tail of the output when the script fails', async () => {
-    const result = await runInstaller('#!/bin/bash\necho "no space left" >&2\nexit 1\n');
-
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toContain('no space left');
-  });
-
-  it('runs the file rather than a command string, so a version cannot become code', async () => {
-    const marker = join(home, 'pwned');
-    const result = await runInstaller(
-      '#!/bin/bash\nprintf "%s" "$1" > /dev/null\n',
-      `stable; touch ${marker}`,
-    );
-
-    expect(result.ok).toBe(true);
-    expect(findClaudeBinary(home, '')).toBeNull();
-    expect(() => rmSync(marker)).toThrow();
-  });
-});
-
-describe('the login runner', () => {
-  it('opens the page the CLI printed, rather than leaving the reader waiting', async () => {
-    const binary = putBinary(
-      join(home, '.local/bin/claude'),
-      `echo "Open https://claude.ai/oauth/authorize?code=abc to continue"; sleep 0.2`,
-    );
-    const opened: string[] = [];
-    const runner = createLoginRunner((url) => opened.push(url));
-
-    const state = await runner.start(binary, 'claudeai');
-
-    expect(state).toEqual({
-      kind: 'waiting',
-      url: 'https://claude.ai/oauth/authorize?code=abc',
-    });
-    expect(opened).toEqual(['https://claude.ai/oauth/authorize?code=abc']);
-    runner.cancel();
-  });
-
-  it('opens one URL when the CLI wraps it in a terminal hyperlink', async () => {
-    const url = 'https://claude.ai/oauth/authorize?code=abc';
-    const binary = putBinary(
-      join(home, '.local/bin/claude'),
-      `printf 'visit: \\033]8;;%s\\a%s\\033]8;;\\a\\n' '${url}' '${url}'; sleep 0.2`,
-    );
-    const opened: string[] = [];
-    const runner = createLoginRunner((seen) => opened.push(seen));
-
-    const state = await runner.start(binary, 'claudeai');
-
-    expect(state).toEqual({ kind: 'waiting', url });
-    expect(opened).toEqual([url]);
-    runner.cancel();
-  });
-
-  it('waits for the end of a URL that arrives in two pieces', async () => {
-    const binary = putBinary(
-      join(home, '.local/bin/claude'),
-      `printf 'visit: https://claude.ai/oauth/auth'; sleep 0.3; printf 'orize?code=abc\\n'; sleep 0.2`,
-    );
-    const opened: string[] = [];
-    const runner = createLoginRunner((seen) => opened.push(seen));
-
-    const state = await runner.start(binary, 'claudeai');
-
-    expect(state).toEqual({
-      kind: 'waiting',
-      url: 'https://claude.ai/oauth/authorize?code=abc',
-    });
-    expect(opened).toEqual(['https://claude.ai/oauth/authorize?code=abc']);
-    runner.cancel();
-  });
-
-  it('reports a binary that will not start instead of waiting on it', async () => {
-    const runner = createLoginRunner();
-
-    const state = await runner.start(join(home, 'nothing-here'), 'claudeai');
-
-    expect(state.kind).toBe('failed');
   });
 });

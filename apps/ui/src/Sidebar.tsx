@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import type { NoteRef, Sidebar as SidebarData, Topic } from './api.ts';
+import type { NoteRef, Sidebar as SidebarData, Topic, VaultTree } from './api.ts';
 import { useT } from './i18n.ts';
+import { Tree } from './Tree.tsx';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-1.5 truncate rounded-md py-1.5 pl-7 pr-2 text-xs ${
@@ -106,11 +107,15 @@ const TopicRows = ({ topics }: { topics: Topic[] }) => {
 export const Sidebar = ({
   data,
   topics,
+  tree,
   onNavigate,
+  onHistory,
 }: {
   data: SidebarData;
   topics: Topic[];
+  tree: VaultTree | null;
   onNavigate?: () => void;
+  onHistory: (note: { id: number; title: string }) => void;
 }) => {
   const t = useT();
   const stale = new Set(data.stale);
@@ -122,6 +127,16 @@ export const Sidebar = ({
           window and in the menu bar, and saying it a third time earns nothing.
           Home is the button in the header. */}
       <div className="drag h-13" />
+      {/* The vault first, the way a file manager opens. What memex worked out
+          from the notes — topics, what is believed, guidance — comes after the
+          shelf they are actually on. */}
+      {tree === null ? null : (
+        <Section label={t.tree.title} count={tree.roots.length} defaultOpen>
+          <div className="px-2">
+            <Tree tree={tree} onNavigate={onNavigate} onHistory={onHistory} />
+          </div>
+        </Section>
+      )}
       <Section label={t.sidebar.topics} count={topics.length}>
         <TopicRows topics={topics} />
       </Section>

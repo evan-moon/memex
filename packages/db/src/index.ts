@@ -144,6 +144,7 @@ export {
   getNote,
   getNoteByFilePath,
   insertNote,
+  kindOfEdge,
   linkAmendment,
   listAllFolders,
   listAllTags,

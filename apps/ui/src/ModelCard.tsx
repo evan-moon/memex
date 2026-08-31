@@ -15,7 +15,13 @@ const Bar = ({ loaded, total }: { loaded: number; total: number }) => (
   </div>
 );
 
-export const ModelCard = () => {
+export const ModelCard = ({
+  onState,
+  meanwhile,
+}: {
+  onState?: (state: ModelState) => void;
+  meanwhile?: string;
+} = {}) => {
   const t = useT();
   const [round, setRound] = useState(0);
   const { data, failure } = useAsync(() => api.model(), String(round));
@@ -24,6 +30,12 @@ export const ModelCard = () => {
 
   const state = live ?? data;
   const downloading = state?.kind === 'downloading';
+
+  // The card already knows how the download is going; a screen that gates on it
+  // should not spawn a second poller to find out the same thing.
+  useEffect(() => {
+    if (state !== null) onState?.(state);
+  }, [state, onState]);
 
   useEffect(() => {
     if (!downloading) return;
@@ -85,7 +97,7 @@ export const ModelCard = () => {
       )}
 
       {error !== null && <p className="text-xs text-danger">{error}</p>}
-      <p className="text-[11px] text-muted">{t.model.meanwhile}</p>
+      <p className="text-[11px] text-muted">{meanwhile ?? t.model.meanwhile}</p>
     </Card>
   );
 };
