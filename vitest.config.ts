@@ -6,6 +6,7 @@ const fromHere = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
+      '@evan-moon/memex/host': fromHere('./apps/cli/src/host.ts'),
       '@memex/core': fromHere('./packages/core/src/index.ts'),
       '@memex/db': fromHere('./packages/db/src/index.ts'),
       '@memex/embed': fromHere('./packages/embed/src/index.ts'),

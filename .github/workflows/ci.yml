@@ -24,6 +24,11 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
+      # One test asks whether the CLI can find the built MCP server, which is a
+      # question about build output and cannot be answered without one.
+      - name: Build workspaces
+        run: yarn build
+
       - name: Run unit tests
         run: yarn test
 
