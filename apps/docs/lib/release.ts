@@ -21,15 +21,23 @@ type GitHubRelease = {
 
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
 
-export const latestDesktopRelease = async (): Promise<DesktopRelease | null> => {
-  const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
-    headers: { Accept: 'application/vnd.github+json' },
-    next: { revalidate: CACHE_SECONDS },
-  });
-  if (!response.ok) return null;
+// The pages that call this are prerendered, so an unreachable GitHub is a
+// failed build unless it is caught here. Not knowing the version costs a line
+// under the button; not building costs the whole site.
+const releases = async (): Promise<GitHubRelease[]> => {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
+      headers: { Accept: 'application/vnd.github+json' },
+      next: { revalidate: CACHE_SECONDS },
+    });
+    return response.ok ? await response.json() : [];
+  } catch {
+    return [];
+  }
+};
 
-  const releases = (await response.json()) as GitHubRelease[];
-  for (const release of releases) {
+export const latestDesktopRelease = async (): Promise<DesktopRelease | null> => {
+  for (const release of await releases()) {
     if (release.draft || release.prerelease) continue;
     if (!release.tag_name.startsWith(DESKTOP_TAG)) continue;
 
