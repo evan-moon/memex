@@ -36,7 +36,8 @@
     "files": [
       "dist/**/*",
       "!**/*.map",
-      "!**/.turbo/**"
+      "!**/.turbo/**",
+      "!**/better_sqlite3-node.node"
     ],
     "mac": {
       "category": "public.app-category.productivity",

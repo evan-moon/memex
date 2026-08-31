@@ -83,11 +83,11 @@ jobs:
           rm -f /tmp/cert-probe.p12
 
       # `yarn install` fetches better-sqlite3's prebuilt for Node's ABI, and the
-      # app runs on Electron's. Packaging without this swap produces a signed,
-      # notarized dmg that dies on launch with ERR_DLOPEN_FAILED — every check
-      # after this one passes on it, because none of them start the app.
-      - name: Build the native module for Electron
-        run: yarn native:electron
+      # app runs on Electron's. Packaging without the Electron build produces a
+      # signed, notarized dmg that dies on launch with ERR_DLOPEN_FAILED — every
+      # check after this one passes on it, because none of them start the app.
+      - name: Build the native module for both runtimes
+        run: yarn native
 
       - name: Package
         working-directory: apps/desktop
@@ -133,11 +133,24 @@ jobs:
         working-directory: apps/desktop
         run: |
           APP="release/mac-arm64/memex.app"
-          NATIVE="$APP/Contents/Resources/app/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+          RELEASE="$APP/Contents/Resources/app/node_modules/better-sqlite3/build/Release"
+          NATIVE="$RELEASE/better_sqlite3-electron.node"
+          if [ ! -f "$NATIVE" ]; then
+            echo "The packaged app has no Electron build of better-sqlite3 at $NATIVE." >&2
+            echo "'yarn native' writes it; the packaging step ran without it." >&2
+            exit 1
+          fi
           if ! ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/memex" \
                -e "process.dlopen({ exports: {} }, process.argv[1])" "$NATIVE" 2>/dev/null; then
             echo "The packaged better-sqlite3 does not load under Electron." >&2
-            echo "It was built for Node's ABI; run 'yarn native:electron' before packaging." >&2
+            echo "It was built for Node's ABI; run 'yarn native' before packaging." >&2
+            exit 1
+          fi
+          # The Node build has no reader inside the app and is excluded from it.
+          # Shipping it would mean the filter stopped working, and the app would
+          # be carrying two megabytes it can never load.
+          if [ -f "$RELEASE/better_sqlite3-node.node" ]; then
+            echo "The packaged app ships the Node build it cannot load." >&2
             exit 1
           fi
 
