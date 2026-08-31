@@ -110,6 +110,14 @@ const indexFile = async (
   const content = readFileSync(filePath, 'utf8');
   const { title, body, tags: fmTags, layer } = extractNote(content, filePath);
 
+  // A skeleton somebody fills in later is not a note. Blacklisting a folder
+  // called `templates` would be wrong — a vault may keep real notes in one —
+  // so what gives it away is the title: no person names a note `$title`.
+  if (isPlaceholderTitle(title)) {
+    stats.skipped++;
+    return;
+  }
+
   const relDir = relative(dirPath, dirname(filePath));
   const folder = relDir && !relDir.startsWith('..') ? relDir : undefined;
   const category = extractCategory(folder);
@@ -157,6 +165,14 @@ const indexFile = async (
     }
   }
 };
+
+// `$title`, `{{ title }}`, `<%* tp.file.title %>` — every template engine's way
+// of saying "a title goes here".
+// A dollar opens a placeholder only before an identifier: `$title` is one,
+// `$5만 디컨센트레이션 코어 매수` is a note about money.
+const PLACEHOLDER = /^\s*(\$[A-Za-z_]|\{\{|<%|\[%)/;
+
+export const isPlaceholderTitle = (title: string): boolean => PLACEHOLDER.test(title);
 
 const IGNORE_DIRS = [
   'node_modules',

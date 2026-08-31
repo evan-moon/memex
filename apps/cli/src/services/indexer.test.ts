@@ -11,7 +11,7 @@ import {
   openDb,
 } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { indexDirectory } from './indexer.ts';
+import { indexDirectory, isPlaceholderTitle } from './indexer.ts';
 
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
 
@@ -202,5 +202,24 @@ describe('indexDirectory', () => {
 
     expect(stats.added).toBe(1);
     expect(getNoteByFilePath(client, join(nested, 'README.md'))).toBeUndefined();
+  });
+});
+
+// A blog repository ships the skeleton its posts are made from, and memex reads
+// that repository. The skeleton is not one of the posts.
+describe('template files', () => {
+  it('knows a placeholder title from a real one', () => {
+    expect(isPlaceholderTitle('$title')).toBe(true);
+    expect(isPlaceholderTitle('{{ title }}')).toBe(true);
+    expect(isPlaceholderTitle('<%* tp.file.title %>')).toBe(true);
+    expect(isPlaceholderTitle('  $TITLE')).toBe(true);
+  });
+
+  // The rule has to be narrow enough that a note about money, or one that opens
+  // with a wiki link, is still a note.
+  it('leaves alone a title that merely starts oddly', () => {
+    expect(isPlaceholderTitle('$5만 디컨센트레이션 코어 매수')).toBe(false);
+    expect(isPlaceholderTitle('[[Obsidian]] 정합성 재편')).toBe(false);
+    expect(isPlaceholderTitle('memex 저장 아키텍처')).toBe(false);
   });
 });
