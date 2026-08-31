@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import AnalyticsInit from './_components/AnalyticsInit';
 import HeaderNav from './_components/HeaderNav';
 import './globals.css';
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ colorScheme: 'dark' }}
     >
       <body>
+        <AnalyticsInit />
         <HeaderNav />
         {children}
         <Analytics />

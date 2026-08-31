@@ -1,4 +1,24 @@
-export default function Home() {
+import GetTheApp, { type GetTheAppCopy } from './_components/GetTheApp';
+import { latestDesktopRelease } from '../lib/release';
+import { NOTIFY_ENDPOINT } from '../lib/notify';
+
+const GET_THE_APP: GetTheAppCopy = {
+  download: 'Download for Mac',
+  requirement: 'Apple silicon · macOS 13+',
+  windowsHeading: 'memex runs on Mac today.',
+  windowsBody: 'Leave your email and you will hear from us the day the Windows build lands.',
+  emailPlaceholder: 'you@example.com',
+  notify: 'Notify me',
+  notifying: 'Sending…',
+  notified: 'You are on the list. We will write once, when it ships.',
+  notifyFailed: 'That did not go through. Try again in a moment.',
+  watchReleases: 'Watch releases on GitHub →',
+};
+
+export default async function Home() {
+  const release = await latestDesktopRelease();
+  const version = release?.version ?? null;
+
   return (
     <main className="page">
       {/* ── Hero ──────────────────────────────────────────────── */}
@@ -16,7 +36,7 @@ export default function Home() {
           cloud, no API keys.
         </p>
         <div className="hero-actions">
-          <code className="install">npm install -g @evan-moon/memex</code>
+          <GetTheApp copy={GET_THE_APP} version={version} notifyEndpoint={NOTIFY_ENDPOINT} />
           <a
             href="https://github.com/evan-moon/memex"
             target="_blank"
@@ -243,10 +263,10 @@ export default function Home() {
           <div className="step">
             <div className="step-num">1</div>
             <div>
-              <div className="step-title">Install</div>
+              <div className="step-title">Install the app</div>
               <div className="step-desc">
-                Install the CLI globally. On first run, the embedding model (~450MB) is downloaded
-                once to{' '}
+                Download it, drag it to Applications, open it. On first run, the embedding model
+                (~450MB) is downloaded once to{' '}
                 <code
                   style={{
                     fontFamily: 'var(--font-geist-mono)',
@@ -260,7 +280,9 @@ export default function Home() {
                 </code>
                 .
               </div>
-              <span className="step-code">npm install -g @evan-moon/memex</span>
+              <a className="step-code step-code-link" href="/download/mac">
+                Download for Mac ↓
+              </a>
             </div>
           </div>
           <div className="step">
@@ -268,9 +290,11 @@ export default function Home() {
             <div>
               <div className="step-title">Connect to Claude</div>
               <div className="step-desc">
-                Register memex as an MCP server. Works with both Claude Code and Claude Desktop.
+                The app registers memex as an MCP server for you. Works with both Claude Code and
+                Claude Desktop. Prefer the terminal? Install the CLI with{' '}
+                <code className="step-inline">npm i -g @evan-moon/memex</code> and run{' '}
+                <code className="step-inline">memex mcp install</code>.
               </div>
-              <span className="step-code">memex mcp install</span>
             </div>
           </div>
           <div className="step">

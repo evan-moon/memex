@@ -1,4 +1,24 @@
-export default function KoHome() {
+import GetTheApp, { type GetTheAppCopy } from '../_components/GetTheApp';
+import { latestDesktopRelease } from '../../lib/release';
+import { NOTIFY_ENDPOINT } from '../../lib/notify';
+
+const GET_THE_APP: GetTheAppCopy = {
+  download: 'Mac용 다운로드',
+  requirement: 'Apple silicon · macOS 13 이상',
+  windowsHeading: '아직 Mac에서만 쓸 수 있어요.',
+  windowsBody: '이메일을 남기면 윈도우 버전이 나온 날 알려드릴게요.',
+  emailPlaceholder: 'you@example.com',
+  notify: '알림 받기',
+  notifying: '보내는 중…',
+  notified: '신청됐어요. 나오는 날 한 번만 보낼게요.',
+  notifyFailed: '전송이 안 됐어요. 잠시 후 다시 시도해 주세요.',
+  watchReleases: 'GitHub 릴리스 구독하기 →',
+};
+
+export default async function KoHome() {
+  const release = await latestDesktopRelease();
+  const version = release?.version ?? null;
+
   return (
     <main className="page">
       {/* ── Hero ──────────────────────────────────────────────── */}
@@ -15,7 +35,7 @@ export default function KoHome() {
           키도 필요 없습니다.
         </p>
         <div className="hero-actions">
-          <code className="install">npm install -g @evan-moon/memex</code>
+          <GetTheApp copy={GET_THE_APP} version={version} notifyEndpoint={NOTIFY_ENDPOINT} />
           <a
             href="https://github.com/evan-moon/memex"
             target="_blank"
@@ -237,9 +257,9 @@ export default function KoHome() {
           <div className="step">
             <div className="step-num">1</div>
             <div>
-              <div className="step-title">설치</div>
+              <div className="step-title">앱 설치</div>
               <div className="step-desc">
-                CLI를 전역으로 설치합니다. 첫 실행 시 임베딩 모델(~450MB)이
+                내려받아 응용 프로그램으로 옮기고 실행하세요. 첫 실행 시 임베딩 모델(~450MB)이
                 <code
                   style={{
                     fontFamily: 'var(--font-geist-mono)',
@@ -253,7 +273,9 @@ export default function KoHome() {
                 </code>
                 에 한 번만 다운로드됩니다.
               </div>
-              <span className="step-code">npm install -g @evan-moon/memex</span>
+              <a className="step-code step-code-link" href="/download/mac">
+                Mac용 다운로드 ↓
+              </a>
             </div>
           </div>
           <div className="step">
@@ -261,9 +283,11 @@ export default function KoHome() {
             <div>
               <div className="step-title">Claude에 연결</div>
               <div className="step-desc">
-                memex를 MCP 서버로 등록합니다. Claude Code와 Claude Desktop 모두 지원합니다.
+                앱이 memex를 MCP 서버로 등록해 줍니다. Claude Code와 Claude Desktop 모두
+                지원합니다. 터미널이 편하다면{' '}
+                <code className="step-inline">npm i -g @evan-moon/memex</code>로 CLI를 설치하고{' '}
+                <code className="step-inline">memex mcp install</code>을 실행하세요.
               </div>
-              <span className="step-code">memex mcp install</span>
             </div>
           </div>
           <div className="step">
