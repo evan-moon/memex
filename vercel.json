@@ -1,6 +1,6 @@
 {
   "buildCommand": "yarn workspace @memex/docs build",
-  "outputDirectory": "apps/docs/.next",
+  "outputDirectory": ".next",
   "installCommand": "corepack yarn install",
   "framework": "nextjs"
 }
