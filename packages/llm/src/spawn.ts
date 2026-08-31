@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process';
 import type { LlmFailureCode, LlmRequest } from './types.ts';
 
-// Long enough that a slow answer is not cut off, short enough that a machine
-// with no route to the provider does not wait forever: neither CLI reports being
-// offline, they simply never come back.
-const DEFAULT_TIMEOUT_MS = 120_000;
+// Silence, not duration. A total deadline has to be set to the longest answer
+// anyone is willing to wait for, and then it kills the ones that take longer —
+// which is how a draft that took seven minutes came back as a timeout. What
+// separates a slow answer from a machine with no route to the provider is that
+// one of them is still talking: neither CLI reports being offline, they simply
+// go quiet and never come back.
+const DEFAULT_SILENCE_MS = 120_000;
 
 export type Ran = { stdout: string; stderr: string; code: number | null };
 
@@ -22,8 +25,9 @@ export const carriedCode = (error: unknown): LlmFailureCode | undefined => {
 export const runCli = (
   binary: string,
   args: string[],
-  request: Pick<LlmRequest, 'signal' | 'timeoutMs'>,
+  request: Pick<LlmRequest, 'signal' | 'silenceMs'>,
   cwd?: string,
+  onOut?: (chunk: string) => void,
 ): Promise<Ran> =>
   new Promise((resolve, reject) => {
     const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd });
@@ -35,7 +39,7 @@ export const runCli = (
     const finish = (act: () => void) => {
       if (settled.done) return;
       settled.done = true;
-      clearTimeout(timer);
+      clearTimeout(quiet.timer);
       request.signal?.removeEventListener('abort', cancel);
       act();
     };
@@ -49,19 +53,31 @@ export const runCli = (
       stop('cancelled', 'Stopped');
     }
 
-    const timer = setTimeout(
-      () => stop('timeout', 'The provider did not answer in time'),
-      request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    );
+    const silence = request.silenceMs ?? DEFAULT_SILENCE_MS;
+    const wait = () => setTimeout(() => stop('timeout', 'The provider went quiet'), silence);
+    const quiet = { timer: wait() };
+
+    // Every byte the child produces buys it another window, so a run that is
+    // writing keeps its turn for as long as it keeps writing.
+    const heard = () => {
+      if (settled.done) return;
+      clearTimeout(quiet.timer);
+      quiet.timer = wait();
+    };
+
     request.signal?.addEventListener('abort', cancel, { once: true });
 
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
+      const text = String(chunk);
+      stdout += text;
+      heard();
+      onOut?.(text);
     });
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
+      heard();
     });
     child.on('error', (error) => finish(() => reject(error)));
     child.on('close', (code) => finish(() => resolve({ stdout, stderr, code })));

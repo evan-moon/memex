@@ -39,6 +39,12 @@ const call = (path: string, payload: unknown) =>
     body: JSON.parse(String(reply.body)),
   }));
 
+const get = (path: string) =>
+  route(host, 'GET', new URL(path, 'http://localhost'), null).then((reply) => ({
+    status: reply.status,
+    body: JSON.parse(String(reply.body)),
+  }));
+
 // Every turn carries the name the page gave it, which is also how it is stopped.
 const CHOICE = { provider: 'claude-code', model: 'sonnet' };
 
@@ -142,6 +148,64 @@ describe('stopping a turn', () => {
     const { body } = await call('/api/chat/cancel', { operationId: 'never-ran' });
 
     expect(body).toEqual({ stopped: false });
+  });
+});
+
+describe('what a turn is doing while it runs', () => {
+  const held = { release: () => {} };
+
+  // Two rounds: the first looks something up, the second stops on the answer
+  // and waits. What progress says in between is what a person waiting seven
+  // minutes would have been reading instead of a spinner.
+  const looking = (): LlmProvider => {
+    const rounds = { at: 0 };
+    return async ({ onPartial }) => {
+      rounds.at += 1;
+      if (rounds.at === 1) {
+        onPartial?.('{"action":"sea');
+        onPartial?.('{"action":"search","query":"opula"');
+        return { text: '{"action":"search","query":"opula","limit":5}', durationMs: 1 };
+      }
+      onPartial?.('{"action":"answer"');
+      return new Promise((resolve) => {
+        held.release = () =>
+          resolve({ text: '{"action":"answer","text":"ok","cites":[]}', durationMs: 1 });
+      });
+    };
+  };
+
+  it('says what it has looked up, before it has an answer', async () => {
+    host = deps(looking());
+    const turn = say('opula 어떻게 됐어', '/api/chat', 'turn-slow');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const { body } = await get('/api/chat/progress?operationId=turn-slow');
+
+    expect(body.running).toBe(true);
+    // The half-written action is not one of them: a step said before the model
+    // has committed to it is a step that can turn out to be wrong.
+    expect(body.steps).toEqual([
+      { kind: 'thinking' },
+      { kind: 'acting', action: 'search' },
+      { kind: 'searched', query: 'opula', found: 0 },
+      { kind: 'thinking' },
+      { kind: 'acting', action: 'answer' },
+    ]);
+
+    held.release();
+    await turn;
+  });
+
+  it('has nothing to say about a turn that already answered', async () => {
+    const { body } = await get('/api/chat/progress?operationId=turn-slow');
+
+    expect(body).toEqual({ running: false, steps: [] });
+  });
+
+  it('refuses to look up a turn with no name', async () => {
+    const { status } = await get('/api/chat/progress');
+
+    expect(status).toBe(400);
   });
 });
 

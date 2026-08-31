@@ -479,6 +479,18 @@ export type ChatTurn = {
 
 export type ChatAnswer = ChatReply & { sessionId: number };
 
+// What the turn is doing while it does it. A turn can run for minutes and
+// answers once, so this is asked for separately, under the same id the page
+// already uses to stop one.
+export type ChatStep =
+  | { kind: 'thinking' }
+  | { kind: 'acting'; action: string }
+  | { kind: 'searched'; query: string; found: number }
+  | { kind: 'skill'; title: string }
+  | { kind: 'read'; count: number };
+
+export type ChatProgress = { running: boolean; steps: ChatStep[] };
+
 const chatQuery = (target: ChatTarget | null) => {
   if (target === null) return '';
   if (target.kind === 'register') return `?subject=${encodeURIComponent(target.subject)}`;
@@ -499,6 +511,8 @@ export const api = {
   chatSession: (id: number) => request<ChatTurn[]>(`/api/chat/session/${id}`),
   forgetChatSession: (id: number) =>
     request<{ removed: boolean }>(`/api/chat/session/${id}`, { method: 'DELETE' }),
+  chatProgress: (operationId: string) =>
+    request<ChatProgress>(`/api/chat/progress?operationId=${encodeURIComponent(operationId)}`),
   cancelChat: (operationId: string) =>
     post<{ stopped: boolean }>('/api/chat/cancel', { operationId }),
   applyChat: (ticket: string) => post<ChatReply>('/api/chat/apply', { ticket }),

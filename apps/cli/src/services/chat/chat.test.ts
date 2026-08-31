@@ -12,7 +12,7 @@ import {
 } from '@memex/db';
 import type { LlmProvider } from '@memex/llm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { confirmationFor, type Plan, parsePlanDraft } from './plan.ts';
+import { committedAction, confirmationFor, type Plan, parsePlanDraft } from './plan.ts';
 import { applyPlan, buildPrompt, type ChatDeps, gatherCandidates, planTurn } from './turn.ts';
 
 const CHOICE = { provider: 'claude-code' as const, model: 'sonnet' };
@@ -88,6 +88,22 @@ describe('reading a plan out of an answer', () => {
     ).toBeNull();
     expect(parsePlanDraft('{"action":"delete-note","noteId":12}')).toBeNull();
     expect(parsePlanDraft('not json at all')).toBeNull();
+  });
+});
+
+describe('naming the action before the answer is whole', () => {
+  it('reads the word the model has committed to', () => {
+    expect(committedAction('{"action":"answer","text":"두 건')).toBe('answer');
+    expect(committedAction('{"action": "new-note", "title"')).toBe('new-note');
+  });
+
+  // Half a word is not a decision. A step drawn from one is a sentence the
+  // screen has to take back, which is worse than the spinner it replaced.
+  it('says nothing until the word is finished, or is not one it knows', () => {
+    expect(committedAction('{"action":"ans')).toBeNull();
+    expect(committedAction('{"acti')).toBeNull();
+    expect(committedAction('{"action":"delete-note"')).toBeNull();
+    expect(committedAction('')).toBeNull();
   });
 });
 

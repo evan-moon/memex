@@ -13,7 +13,7 @@ import { remedyFor } from '../chat/errors.ts';
 import type { Carried, Plan } from '../chat/plan.ts';
 import type { Preview, Receipt } from '../chat/render.ts';
 import { previewOf, receiptOf } from '../chat/render.ts';
-import type { ChatDeps, Cited, Said } from '../chat/turn.ts';
+import type { ChatDeps, Cited, Said, Step } from '../chat/turn.ts';
 import { applyPlan, planTurn } from '../chat/turn.ts';
 
 export type ChatReply =
@@ -55,7 +55,19 @@ export type Pending = Map<string, { plan: Plan; turnId: number }>;
 // page made up. Neither transport carries a cancel of its own — a protocol
 // handler is not told the page stopped listening, and an IPC invoke cannot be
 // aborted either — so stopping has to be a request like any other.
-export type Running = Map<string, AbortController>;
+//
+// The steps it has taken hang off the same key, and are read the same way. A
+// turn that runs for seven minutes answers once; what it is doing in the
+// meantime is a question of its own, and the id is already the name for it.
+export type Running = Map<string, { stopper: AbortController; steps: Step[] }>;
+
+// A turn nobody is running has no steps, which is also what an id the page
+// invented and never sent looks like. Both are the same answer: there is
+// nothing in flight under that name.
+export const chatProgress = (running: Running, operationId: string) => {
+  const held = running.get(operationId);
+  return { running: held !== undefined, steps: held?.steps ?? [] };
+};
 
 const remember = (pending: Pending, plan: Plan, turnId: number) => {
   const ticket = randomUUID();
@@ -105,13 +117,15 @@ export const startChat = async (
   const history = asSaid(sessionTurns(deps.client, session));
 
   const stopper = new AbortController();
-  state.running.set(operationId, stopper);
+  const steps: Step[] = [];
+  state.running.set(operationId, { stopper, steps });
   const turn = await planTurn(deps, {
     message,
     carried,
     choice,
     history,
     signal: stopper.signal,
+    onStep: (step) => steps.push(step),
   }).finally(() => state.running.delete(operationId));
 
   const record = (reply: ChatReply) =>
@@ -185,7 +199,7 @@ export const applyTicket = async (
 // Aborting a turn nobody is running is not an error: the answer arrived first,
 // or the page asked twice. Either way there is nothing left to stop.
 export const cancelChat = (running: Running, operationId: string) => {
-  running.get(operationId)?.abort();
+  running.get(operationId)?.stopper.abort();
   return running.delete(operationId);
 };
 

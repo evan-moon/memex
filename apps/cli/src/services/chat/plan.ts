@@ -165,6 +165,28 @@ export const parsePlanDraft = (raw: string): PlanDraft | null => {
   }
 };
 
+const ACTIONS: PlanDraft['action'][] = [
+  'set-register',
+  'amend-note',
+  'new-note',
+  'rule-decision',
+  'answer',
+  'search',
+  'read',
+  'use-skill',
+  'none',
+];
+
+// The action is the first field the model writes, so it is known long before
+// the payload under it is. That is what a turn has to say while it is still
+// running: an answer being written and a note being written are the same wait
+// otherwise, and neither is distinguishable from a window that has stopped.
+export const committedAction = (partial: string): PlanDraft['action'] | null => {
+  const match = partial.match(/"action"\s*:\s*"([a-z-]+)"/);
+  const named = match?.[1];
+  return ACTIONS.find((action) => action === named) ?? null;
+};
+
 // One case writes without asking: a value already on screen, under a key that
 // already exists, on the subject the conversation was opened on. Everything
 // else is shown first.

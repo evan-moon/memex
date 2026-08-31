@@ -52,6 +52,7 @@ import {
   applyTicket,
   cancelChat,
   carriedFrom,
+  chatProgress,
   type Pending,
   type Running,
   startChat,
@@ -529,6 +530,13 @@ export const route = async (
     if (method === 'GET') {
       return sessionExists(client, id) ? json(sessionTurns(client, id)) : notFound;
     }
+  }
+  // Asked while the turn it is about is still running, so it cannot be part of
+  // the answer: the answer is the thing being waited for.
+  if (method === 'GET' && url.pathname === '/api/chat/progress') {
+    const operationId = url.searchParams.get('operationId') ?? '';
+    if (operationId === '') return bad(400, 'missing-operation');
+    return json(chatProgress(chatStateFor(deps).running, operationId));
   }
   if (method === 'POST' && url.pathname === '/api/chat/cancel') {
     const operationId = asRecord(payload)?.operationId;

@@ -4,11 +4,11 @@ import {
   declineRule,
   getNote,
   listRules,
-  parseTags,
   type MemexClient,
   matchRegisterSubjects,
   type Note,
   type NoteLayer,
+  parseTags,
   type RegisterScope,
   readRegister,
   setRegister,
@@ -23,6 +23,7 @@ import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
   type Carried,
   type Confirmation,
+  committedAction,
   confirmationFor,
   type Plan,
   type PlanDraft,
@@ -91,6 +92,17 @@ export type Lookup =
   | { kind: 'searched'; query: string; found: NoteCandidate[] }
   | { kind: 'read'; notes: { id: number; title: string; body: string }[] }
   | { kind: 'skill'; title: string; body: string };
+
+// What the turn is doing, while it does it. A turn runs several rounds and one
+// of them can take minutes on its own, so the wait is only bearable if it says
+// what it is waiting for. Nothing here is new work — these are the steps the
+// loop already took, spoken instead of kept.
+export type Step =
+  | { kind: 'thinking' }
+  | { kind: 'acting'; action: PlanDraft['action'] }
+  | { kind: 'searched'; query: string; found: number }
+  | { kind: 'skill'; title: string }
+  | { kind: 'read'; count: number };
 
 export type Turn =
   | { kind: 'plan'; plan: Plan; confirmation: Confirmation; candidates: Candidates }
@@ -370,6 +382,7 @@ export type TurnRequest = {
   choice: LlmChoice;
   history?: Said[];
   signal?: AbortSignal;
+  onStep?: (step: Step) => void;
 };
 
 const asCandidate = (note: Note): NoteCandidate => ({
@@ -409,12 +422,20 @@ const runRead = (deps: ChatDeps, ids: number[], budget: number): Lookup => ({
 // Only a skill the prompt offered can be loaded, and only an approved one —
 // the list is the whole permission. An id the model reached for otherwise is a
 // rule nobody agreed to run.
-const runSkill = (deps: ChatDeps, id: number, candidates: Candidates): Lookup | null => {
+const runSkill = (
+  deps: ChatDeps,
+  id: number,
+  candidates: Candidates,
+): Extract<Lookup, { kind: 'skill' }> | null => {
   const offered = candidates.skills.find((skill) => skill.id === id);
   const note = offered ? getNote(deps.client, id) : undefined;
   return note === undefined
     ? null
-    : { kind: 'skill', title: note.title, body: bodyOf(note.content, note.title).slice(0, SKILL_CHARS) };
+    : {
+        kind: 'skill',
+        title: note.title,
+        body: bodyOf(note.content, note.title).slice(0, SKILL_CHARS),
+      };
 };
 
 const notesOf = (lookup: Lookup) =>
@@ -426,6 +447,7 @@ const notesOf = (lookup: Lookup) =>
 
 export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
   const { message, carried = null, choice, history = [], signal } = request;
+  const report = request.onStep ?? (() => {});
   const candidates = await gatherCandidates(deps, carried, message);
   const ask = deps.ask ?? askWith(choice);
 
@@ -440,10 +462,22 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
     // says there is nothing left and asks for the answer, so forty notes read
     // are forty notes answered from rather than thrown away.
     const left = readsLeft > 0 ? MAX_LOOKUPS - round : 0;
+    report({ kind: 'thinking' });
+
+    // The action is named in the provider's first few words and the payload
+    // under it takes the rest of the minutes, so this is what turns a spinner
+    // into a sentence.
+    const said: { action: PlanDraft['action'] | null } = { action: null };
     const answer = await ask({
       prompt: buildPrompt(message, candidates, history, lookups, left),
       model: choice.model,
       signal,
+      onPartial: (text) => {
+        const action = committedAction(text);
+        if (action === null || action === said.action) return;
+        said.action = action;
+        report({ kind: 'acting', action });
+      },
     });
 
     if (isLlmFailure(answer)) {
@@ -465,6 +499,7 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
     if (draft.action === 'use-skill' && left > 0) {
       const loaded = runSkill(deps, draft.id, candidates);
       if (loaded !== null) {
+        report({ kind: 'skill', title: loaded.title });
         lookups.push(loaded);
         continue;
       }
@@ -476,6 +511,11 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
           ? await runSearch(deps, draft)
           : runRead(deps, draft.ids, readsLeft);
       const seen = notesOf(lookup);
+      report(
+        lookup.kind === 'searched'
+          ? { kind: 'searched', query: lookup.query, found: lookup.found.length }
+          : { kind: 'read', count: seen.length },
+      );
       readsLeft -= seen.length;
       for (const note of seen) shown.set(note.id, note.title);
       lookups.push(lookup);

@@ -46,7 +46,7 @@ describe('the Claude Code provider', () => {
     expect(passed).toContain('{"mcpServers":{}}');
     expect(passed).toContain('say something');
     expect(passed).toContain('sonnet');
-    expect(passed).toContain('json');
+    expect(passed).toContain('stream-json');
   });
 
   it('does not leave the model waiting on input that is never coming', async () => {
@@ -85,12 +85,48 @@ describe('the Claude Code provider', () => {
     }
   });
 
-  it('gives up on a call that never comes back, rather than waiting with it', async () => {
+  it('gives up on a provider that has gone quiet, rather than waiting with it', async () => {
     const ask = createClaudeCode(fakeBinary('sleep 30'));
 
-    const result = failure(await ask({ ...ASK, timeoutMs: 200 }));
+    const result = failure(await ask({ ...ASK, silenceMs: 200 }));
 
     expect(result.code).toBe('timeout');
+  });
+
+  // The seven-minute draft that came back as a timeout. It was never silent —
+  // it was writing the whole way — so the run that outlives its window is the
+  // one thing this had to stop killing.
+  it('lets an answer run long as long as it keeps writing', async () => {
+    const line = (text: string) =>
+      `{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"${text}"}}}`;
+    const ask = createClaudeCode(
+      fakeBinary(
+        `for i in $(seq 1 14); do echo '${line('.')}'; sleep 0.25; done;` +
+          `echo '{"type":"result","result":"done","duration_ms":700}'`,
+      ),
+    );
+
+    // Three and a half seconds of writing under a two second window. A total
+    // deadline would have killed this run twice over; silence does not touch
+    // it, because it was never silent for longer than a quarter of a second.
+    expect(await ask({ ...ASK, silenceMs: 2000 })).toEqual({ text: 'done', durationMs: 700 });
+    // Outliving a deadline is the whole claim, so this one outlives vitest's.
+  }, 20_000);
+
+  it('hands over the answer as it is written, not only once it is whole', async () => {
+    const line = (text: string) =>
+      `{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"${text}"}}}`;
+    const seen: string[] = [];
+    const ask = createClaudeCode(
+      fakeBinary(
+        `echo '${line('one ')}'; echo '${line('two')}';` +
+          `echo '{"type":"result","result":"one two","duration_ms":5}'`,
+      ),
+    );
+
+    await ask({ ...ASK, onPartial: (text) => seen.push(text) });
+
+    expect(seen).toEqual(['one ', 'one two']);
   });
 
   it('stops when the reader stops it, and says so', async () => {

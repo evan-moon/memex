@@ -1,5 +1,5 @@
 import { ArrowUp, FileText, Hash, MessageSquare, Square, SquarePen, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   api,
@@ -7,11 +7,13 @@ import {
   type ChatReceipt,
   type ChatReply,
   type ChatSession,
+  type ChatStep,
   type ChatTurn,
   toFailure,
 } from './api.ts';
 import { Button } from './bits.tsx';
 import { asShown, parseReply } from './chat-replay.ts';
+import { shownSteps, stepLine } from './chat-steps.ts';
 import { targetOnScreen } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
@@ -261,6 +263,32 @@ const Reply = ({
   );
 };
 
+// Often enough that a step lands while it is still news, rarely enough that a
+// seven-minute turn is not answered three hundred times.
+const PROGRESS_MS = 1200;
+
+// What a turn has done so far, while it is still doing it. The last line is
+// what is happening; the ones above it are what it took to get there, and they
+// are the difference between a wait a person can read and a wait they can only
+// sit through.
+const Waiting = ({ steps, t }: { steps: ChatStep[]; t: Strings }) => {
+  const shown = shownSteps(steps);
+  if (shown.length === 0) return <p className="text-xs text-muted">{t.chat.thinking}</p>;
+
+  return (
+    <div className="space-y-0.5">
+      {shown.map((one, showing) => (
+        <p
+          key={one.at}
+          className={showing === shown.length - 1 ? 'text-xs text-muted' : 'text-xs text-muted/55'}
+        >
+          {stepLine(one.step, t)}
+        </p>
+      ))}
+    </div>
+  );
+};
+
 // The conversations there are, and which one this is. Aside puts a switcher
 // where a title would go; this one is only worth having because the transcripts
 // behind it are real.
@@ -307,7 +335,28 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const [choice, setChoice] = useState<Choice>(defaultChoice);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [round, setRound] = useState(0);
+  const [steps, setSteps] = useState<ChatStep[]>([]);
   const { data: sessions } = useAsync(() => api.chatSessions(), `${round}`);
+
+  const waitingId = exchanges.find((one) => one.reply === null)?.id ?? null;
+
+  // Asked for rather than pushed. A turn can run for minutes and answers once,
+  // and neither transport under this page can send a second thing down the same
+  // request — so what it is doing in the meantime is a request of its own, on
+  // the id the turn is already named by.
+  useEffect(() => {
+    if (waitingId === null) return;
+    setSteps([]);
+    const tick = () => {
+      api
+        .chatProgress(waitingId)
+        .then((progress) => setSteps(progress.steps))
+        .catch(() => {});
+    };
+    tick();
+    const timer = setInterval(tick, PROGRESS_MS);
+    return () => clearInterval(timer);
+  }, [waitingId]);
 
   const startFresh = () => {
     setExchanges([]);
@@ -366,8 +415,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const stop = () => {
-    const waiting = exchanges.find((one) => one.reply === null);
-    if (waiting) api.cancelChat(waiting.id).catch(() => {});
+    if (waitingId !== null) api.cancelChat(waitingId).catch(() => {});
   };
 
   const send = () => {
@@ -455,7 +503,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
                   ) : exchange.discarded ? (
                     <p className="text-xs text-muted">{t.chat.discarded}</p>
                   ) : exchange.reply === null || exchange.reply === undefined ? (
-                    <p className="text-xs text-muted">{t.chat.thinking}</p>
+                    <Waiting steps={exchange.id === waitingId ? steps : []} t={t} />
                   ) : (
                     <Reply
                       reply={exchange.reply}
