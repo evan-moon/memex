@@ -285,6 +285,16 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // `outcome` is written for the next turn's prompt, and a transcript reopened
+    // later was showing a person that sentence. What they saw is its own record:
+    // the same reply, re-rendered by the screen that drew it the first time.
+    version: 16,
+    name: 'chat_turns.reply',
+    up: (sqlite) => {
+      addColumnIfMissing(sqlite, 'chat_turns', 'reply', 'reply TEXT');
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

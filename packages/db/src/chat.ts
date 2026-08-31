@@ -2,7 +2,15 @@ import type { MemexClient } from './client.ts';
 
 export type ChatSession = { id: number; title: string; turns: number; lastAt: number };
 
-export type ChatTurn = { id: number; said: string; outcome: string; at: number };
+export type ChatTurn = {
+  id: number;
+  said: string;
+  outcome: string;
+  // What the person saw, as the screen drew it. Absent on turns recorded before
+  // this was kept, which is why the screen still falls back to `outcome`.
+  reply: string | null;
+  at: number;
+};
 
 const TITLE_CHARS = 60;
 
@@ -22,12 +30,14 @@ export const startSession = (client: MemexClient, said: string, now = Date.now()
 export const recordTurn = (
   client: MemexClient,
   sessionId: number,
-  turn: { said: string; outcome: string },
+  turn: { said: string; outcome: string; reply?: string },
   now = Date.now(),
 ): number => {
   const { lastInsertRowid } = client.sqlite
-    .prepare('INSERT INTO chat_turns (session_id, said, outcome, created_at) VALUES (?, ?, ?, ?)')
-    .run(sessionId, turn.said, turn.outcome, now);
+    .prepare(
+      'INSERT INTO chat_turns (session_id, said, outcome, reply, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(sessionId, turn.said, turn.outcome, turn.reply ?? null, now);
   client.sqlite.prepare('UPDATE chat_sessions SET updated_at = ? WHERE id = ?').run(now, sessionId);
   return Number(lastInsertRowid);
 };
@@ -35,14 +45,21 @@ export const recordTurn = (
 // A proposal is written down the moment it is made, and pressing it changes what
 // that turn settled rather than adding a second one — the reader made one
 // request, and a transcript that shows two is a transcript that lies about it.
-export const restateTurn = (client: MemexClient, turnId: number, outcome: string): void => {
-  client.sqlite.prepare('UPDATE chat_turns SET outcome = ? WHERE id = ?').run(outcome, turnId);
+export const restateTurn = (
+  client: MemexClient,
+  turnId: number,
+  outcome: string,
+  reply?: string,
+): void => {
+  client.sqlite
+    .prepare('UPDATE chat_turns SET outcome = ?, reply = ? WHERE id = ?')
+    .run(outcome, reply ?? null, turnId);
 };
 
 export const sessionTurns = (client: MemexClient, sessionId: number): ChatTurn[] =>
   client.sqlite
     .prepare(
-      'SELECT id, said, outcome, created_at AS at FROM chat_turns WHERE session_id = ? ORDER BY id',
+      'SELECT id, said, outcome, reply, created_at AS at FROM chat_turns WHERE session_id = ? ORDER BY id',
     )
     .all(sessionId) as ChatTurn[];
 
