@@ -3,8 +3,6 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-export const INSTALLER_URL = 'https://claude.ai/install.sh';
-
 const MAX_SCRIPT_BYTES = 512 * 1024;
 
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -15,7 +13,7 @@ export type ScriptFetch = { ok: true; script: string } | { ok: false; error: str
 // make by eye are made here instead: first-party origin over TLS, a size a
 // shell script could plausibly be, and a shebang. `curl | bash` can make none
 // of them, because nothing has read the bytes before they execute.
-export const fetchInstaller = async (url = INSTALLER_URL): Promise<ScriptFetch> => {
+export const fetchInstaller = async (url: string): Promise<ScriptFetch> => {
   const parsed = ((): URL | null => {
     try {
       return new URL(url);
@@ -48,15 +46,17 @@ export const fetchInstaller = async (url = INSTALLER_URL): Promise<ScriptFetch> 
 
 export type InstallRun = { ok: true; output: string } | { ok: false; error: string };
 
-// bash is given a file, never a command string: nothing here is assembled by
-// concatenation, so there is no place for the version argument to become code.
-export const runInstaller = (script: string, version = 'stable'): Promise<InstallRun> =>
+// The script is executed, never handed to a named shell: one installer declares
+// `#!/bin/bash` and uses `[[ ]]`, the other declares `#!/bin/sh`, and picking
+// either one for both breaks the other wherever /bin/sh is not bash. It is still
+// a file rather than a command string, so no argument can become code.
+export const runInstaller = (script: string, args: string[] = []): Promise<InstallRun> =>
   new Promise((resolve) => {
-    const dir = mkdtempSync(join(tmpdir(), 'memex-claude-install-'));
+    const dir = mkdtempSync(join(tmpdir(), 'memex-install-'));
     const path = join(dir, 'install.sh');
     writeFileSync(path, script, { encoding: 'utf8', mode: 0o700 });
 
-    const child = spawn('/bin/bash', [path, version], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(path, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const timer = setTimeout(() => child.kill(), INSTALL_TIMEOUT_MS);
 
     let output = '';
@@ -83,7 +83,7 @@ export const runInstaller = (script: string, version = 'stable'): Promise<Instal
     );
   });
 
-export const installClaudeCode = async (version = 'stable', url = INSTALLER_URL) => {
+export const install = async (url: string, args: string[] = []) => {
   const fetched = await fetchInstaller(url);
-  return fetched.ok ? runInstaller(fetched.script, version) : fetched;
+  return fetched.ok ? runInstaller(fetched.script, args) : fetched;
 };

@@ -277,6 +277,120 @@ describe('a turn', () => {
     });
   });
 
+  it('answers a question instead of calling it a change it could not map', async () => {
+    const note = addNote('발견 공급량 실측', 'past');
+    const turn = await planTurn(
+      deps(
+        answering(
+          JSON.stringify({
+            action: 'answer',
+            text: '한 노트에 리서치와 결정이 같이 들어 있어요.',
+            cites: [note.id],
+          }),
+        ),
+      ),
+      {
+        message: '맥락이 여러 개인데 한 노트로 표시된 게 있어?',
+        carried: { kind: 'note', id: note.id },
+        choice: CHOICE,
+      },
+    );
+
+    expect(turn).toMatchObject({
+      kind: 'answer',
+      text: '한 노트에 리서치와 결정이 같이 들어 있어요.',
+      cites: [{ id: note.id, title: '발견 공급량 실측' }],
+    });
+  });
+
+  // An id that was never on the page is the one citation a reader cannot check,
+  // because it looks exactly like one they can.
+  it('drops a citation that was not among the notes it was shown', async () => {
+    const turn = await planTurn(
+      deps(answering(JSON.stringify({ action: 'answer', text: '답', cites: [9999] }))),
+      { message: '뭐가 있어?', choice: CHOICE },
+    );
+
+    expect(turn).toMatchObject({ kind: 'answer', cites: [] });
+  });
+
+  it('writes nothing when it answers', async () => {
+    const before = client.sqlite.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number };
+    await planTurn(deps(answering(JSON.stringify({ action: 'answer', text: '답', cites: [] }))), {
+      message: '뭐가 있어?',
+      choice: CHOICE,
+    });
+    const after = client.sqlite.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number };
+
+    expect(after.n).toBe(before.n);
+  });
+
+  // The list a turn starts with is what search put in front of it. A question
+  // about the vault as a whole is not answerable from that list, so the model
+  // has to be able to go and look, and what it finds has to come back to it.
+  it('runs the search it asked for and hands the result back', async () => {
+    addNote('발견 공급량 실측', 'past');
+    const prompts: string[] = [];
+    const replies = [
+      JSON.stringify({ action: 'search', query: '발견 공급량', limit: 5 }),
+      JSON.stringify({ action: 'answer', text: '찾았어요', cites: [] }),
+    ];
+    const ask: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: replies[prompts.length - 1] ?? replies[1], durationMs: 1 };
+    };
+
+    const turn = await planTurn(deps(ask), { message: '전체에서 찾아줘', choice: CHOICE });
+
+    expect(turn).toMatchObject({ kind: 'answer', text: '찾았어요' });
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('WHAT YOU HAVE LOOKED UP');
+    expect(prompts[1]).toContain('searched "발견 공급량"');
+  });
+
+  it('lets a note it went and read be cited', async () => {
+    const note = addNote('세 엔진', 'past');
+    const replies = [
+      JSON.stringify({ action: 'read', ids: [note.id] }),
+      JSON.stringify({ action: 'answer', text: '읽었어요', cites: [note.id] }),
+    ];
+    let at = 0;
+    const ask: LlmProvider = async () => ({ text: replies[at++] ?? replies[1], durationMs: 1 });
+
+    expect(await planTurn(deps(ask), { message: '읽어줘', choice: CHOICE })).toMatchObject({
+      kind: 'answer',
+      cites: [{ id: note.id, title: '세 엔진' }],
+    });
+  });
+
+  // Unbounded is the whole risk of letting a model drive the looking. The turn
+  // ends whether or not the model decides it is finished.
+  it('stops looking after the budget runs out', async () => {
+    let calls = 0;
+    const ask: LlmProvider = async () => {
+      calls += 1;
+      return { text: JSON.stringify({ action: 'search', query: '또', limit: 5 }), durationMs: 1 };
+    };
+
+    const turn = await planTurn(deps(ask), { message: '계속 찾아', choice: CHOICE });
+
+    expect(turn).toMatchObject({ kind: 'unmapped' });
+    expect(calls).toBeLessThanOrEqual(7);
+  });
+
+  it('tells the model when it has no lookups left', async () => {
+    const prompts: string[] = [];
+    const ask: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: JSON.stringify({ action: 'search', query: '또', limit: 5 }), durationMs: 1 };
+    };
+
+    await planTurn(deps(ask), { message: '계속 찾아', choice: CHOICE });
+
+    expect(prompts[0]).toContain('LOOKUPS LEFT');
+    expect(prompts.at(-1)).toContain('None. Answer from what you have');
+  });
+
   it('says it understood nothing rather than writing half a plan', async () => {
     const turn = await planTurn(deps(answering('I think you mean the trial length?')), {
       message: 'x',

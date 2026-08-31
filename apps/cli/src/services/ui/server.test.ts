@@ -521,28 +521,66 @@ describe('POST /api/dangling/dismiss', () => {
   });
 });
 
-describe('mcp connections', () => {
-  const get = () => route(deps, 'GET', new URL('/api/mcp', 'http://localhost'), null);
+describe('the apps that can reach memex', () => {
+  const get = () => route(deps, 'GET', new URL('/api/apps', 'http://localhost'), null);
 
-  it('reports which clients this machine has and which already point here', async () => {
-    const before = body(await get());
+  // One list, so a row carries both what the app is and what memex can do for
+  // it. Splitting these across two screens said the same thing twice.
+  it('reports every app on one list, with what memex can offer each', async () => {
+    const before = body(await get()) as {
+      serverPath: string;
+      apps: { id: string; methods: string[]; cli: unknown; registration: { kind: string } }[];
+    };
 
     expect(before.serverPath).toBe('/repo/apps/mcp/dist/index.js');
-    expect(before.clients).toHaveLength(4);
+    expect(before.apps.map((a) => a.id)).toEqual([
+      'claude-desktop',
+      'claude-code',
+      'codex',
+      'cursor',
+    ]);
 
-    const reply = await post('/api/mcp/connect', { client: 'cursor' });
-    const after = body(reply) as { clients: { id: string; registration: { kind: string } }[] };
-
-    expect(reply.status).toBe(200);
-    expect(after.clients.find((c) => c.id === 'cursor')?.registration).toEqual({ kind: 'current' });
-    expect(after.clients.find((c) => c.id === 'codex')?.registration).toEqual({ kind: 'absent' });
+    // memex can install and sign these two in; for the others it can only write
+    // the config file, and the row must not offer a button that lies.
+    expect(before.apps.find((a) => a.id === 'claude-code')?.methods).toEqual([
+      'subscription',
+      'metered',
+    ]);
+    expect(before.apps.find((a) => a.id === 'codex')?.methods).toEqual(['subscription']);
+    expect(before.apps.find((a) => a.id === 'cursor')?.methods).toEqual([]);
+    expect(before.apps.find((a) => a.id === 'cursor')?.cli).toBeNull();
   });
 
-  it('refuses a client it does not know', async () => {
-    const reply = await post('/api/mcp/connect', { client: 'notepad' });
+  it('writes the registration and answers with the whole list again', async () => {
+    const reply = await post('/api/app/connect', { app: 'cursor' });
+    const after = body(reply) as { apps: { id: string; registration: { kind: string } }[] };
+
+    expect(reply.status).toBe(200);
+    expect(after.apps.find((a) => a.id === 'cursor')?.registration).toEqual({ kind: 'current' });
+    expect(after.apps.find((a) => a.id === 'codex')?.registration).toEqual({ kind: 'absent' });
+  });
+
+  it('refuses an app it does not know', async () => {
+    const reply = await post('/api/app/connect', { app: 'notepad' });
 
     expect(reply.status).toBe(400);
     expect(body(reply)).toMatchObject({ error: { code: 'unknown-client' } });
+  });
+
+  it('refuses to start a sign-in there is nothing to sign in to', async () => {
+    const reply = await post('/api/app/login', { app: 'codex', method: 'subscription' });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'assistant-not-installed' } });
+  });
+
+  // The id decides which CLI gets run, so an app memex has no installer for has
+  // to stop here rather than reach a spawn.
+  it('refuses to install an app it has no installer for', async () => {
+    const reply = await post('/api/app/install', { app: 'cursor' });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'unknown-assistant' } });
   });
 });
 
@@ -641,22 +679,6 @@ describe('a key measured by period', () => {
       changes: 1,
       heads: [{ value: '1,250' }],
     });
-  });
-});
-
-describe('claude code onboarding', () => {
-  it('reports a machine that has no Claude Code, without guessing why', async () => {
-    const reply = await route(deps, 'GET', new URL('/api/claude', 'http://localhost'), null);
-
-    expect(reply.status).toBe(200);
-    expect(body(reply)).toEqual({ kind: 'missing' });
-  });
-
-  it('refuses to start a sign-in there is nothing to sign in to', async () => {
-    const reply = await post('/api/claude/login', { method: 'claudeai' });
-
-    expect(reply.status).toBe(400);
-    expect(body(reply)).toMatchObject({ error: { code: 'claude-not-installed' } });
   });
 });
 

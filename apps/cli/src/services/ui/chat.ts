@@ -13,10 +13,11 @@ import { remedyFor } from '../chat/errors.ts';
 import type { Carried, Plan } from '../chat/plan.ts';
 import type { Preview, Receipt } from '../chat/render.ts';
 import { previewOf, receiptOf } from '../chat/render.ts';
-import type { ChatDeps, Said } from '../chat/turn.ts';
+import type { ChatDeps, Cited, Said } from '../chat/turn.ts';
 import { applyPlan, planTurn } from '../chat/turn.ts';
 
 export type ChatReply =
+  | { kind: 'answer'; text: string; cites: Cited[] }
   | { kind: 'done'; receipt: Receipt }
   | { kind: 'confirm'; ticket: string; preview: Preview }
   | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; searchable: boolean }
@@ -28,6 +29,9 @@ export const outcomeOf = (reply: ChatReply): string => {
   if (reply.kind === 'failed')
     return `it could not be done (${reply.failure}); nothing was written`;
   if (reply.kind === 'unmapped') return 'it was not understood; nothing was written';
+  // The answer itself, because the next turn reads this and a question already
+  // answered is context the reader expects to be able to build on.
+  if (reply.kind === 'answer') return `they were told: ${reply.text}`;
   if (reply.kind === 'confirm') return 'a change was proposed and is waiting to be pressed';
 
   const { receipt } = reply;
@@ -59,6 +63,11 @@ const remember = (pending: Pending, plan: Plan, turnId: number) => {
   for (const stale of [...pending.keys()].slice(0, -PENDING_LIMIT)) pending.delete(stale);
   return ticket;
 };
+
+// A ticket dies with the process that handed it out, so a proposal read back
+// later is a record of what was offered rather than something still pressable.
+export const forReplay = (reply: ChatReply): ChatReply =>
+  reply.kind === 'confirm' ? { ...reply, ticket: '' } : reply;
 
 const failed = (failure: ChatFailure | ApplyFailure, detail = ''): ChatReply => ({
   kind: 'failed',
@@ -106,10 +115,20 @@ export const startChat = async (
   }).finally(() => state.running.delete(operationId));
 
   const record = (reply: ChatReply) =>
-    recordTurn(deps.client, session, { said: message, outcome: outcomeOf(reply) });
+    recordTurn(deps.client, session, {
+      said: message,
+      outcome: outcomeOf(reply),
+      reply: JSON.stringify(forReplay(reply)),
+    });
 
   if (turn.kind === 'failed') {
     const reply = failed(turn.failure, turn.detail);
+    record(reply);
+    return { ...reply, sessionId: session };
+  }
+
+  if (turn.kind === 'answer') {
+    const reply: ChatReply = { kind: 'answer', text: turn.text, cites: turn.cites };
     record(reply);
     return { ...reply, sessionId: session };
   }
@@ -159,7 +178,7 @@ export const applyTicket = async (
   const reply: ChatReply = applied.ok
     ? { kind: 'done', receipt: receiptOf(applied.wrote) }
     : failed(applied.reason);
-  restateTurn(deps.client, held.turnId, outcomeOf(reply));
+  restateTurn(deps.client, held.turnId, outcomeOf(reply), JSON.stringify(forReplay(reply)));
   return reply;
 };
 
@@ -173,6 +192,8 @@ export const cancelChat = (running: Running, operationId: string) => {
 export const carriedFrom = (params: URLSearchParams): Carried | null => {
   const subject = params.get('subject');
   if (subject !== null && subject.trim().length > 0) return { kind: 'register', subject };
+  const topic = params.get('topic');
+  if (topic !== null && topic.trim().length > 0) return { kind: 'topic', tag: topic };
   const note = Number(params.get('note'));
   return Number.isInteger(note) && note > 0 ? { kind: 'note', id: note } : null;
 };

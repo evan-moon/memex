@@ -1,11 +1,6 @@
 import { spawn } from 'node:child_process';
+import type { AssistantState } from '../assistants/types.ts';
 import { findClaudeBinary } from './binary.ts';
-
-export type ClaudeCodeState =
-  | { kind: 'missing' }
-  | { kind: 'unreadable'; binary: string; reason: string }
-  | { kind: 'logged-out'; binary: string }
-  | { kind: 'ready'; binary: string; method: string | null; plan: string | null };
 
 const STATUS_TIMEOUT_MS = 15_000;
 
@@ -47,7 +42,7 @@ const run = (binary: string, args: string[]) =>
 // not recognise becomes `unreadable` rather than `logged-out`. Telling someone
 // they are signed out when they are signed in sends them to fix what is not
 // broken; `unreadable` sends them to the manual instructions instead.
-export const readClaudeCode = async (home: string, pathEnv = ''): Promise<ClaudeCodeState> => {
+export const readClaudeCode = async (home: string, pathEnv = ''): Promise<AssistantState> => {
   const binary = findClaudeBinary(home, pathEnv);
   if (binary === null) return { kind: 'missing' };
 

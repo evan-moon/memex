@@ -13,6 +13,11 @@ export type MemexSource = {
 export type MemexConfig = {
   vault_path: string;
   sources: MemexSource[];
+  // When the person finished setting the app up, not when it was installed. A
+  // missing file and a file written by the CLI both read as "not yet", which is
+  // what the app wants: the only thing that clears the door is having walked
+  // through it.
+  onboarded_at: string | null;
 };
 
 export const MODEL_CACHE_DIR = join(CONFIG_DIR, 'models');
@@ -20,7 +25,11 @@ export const MODEL_CACHE_DIR = join(CONFIG_DIR, 'models');
 export const expandPath = (p: string): string =>
   p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
 
-const DEFAULT_CONFIG: MemexConfig = { vault_path: DEFAULT_VAULT_PATH, sources: [] };
+const DEFAULT_CONFIG: MemexConfig = {
+  vault_path: DEFAULT_VAULT_PATH,
+  sources: [],
+  onboarded_at: null,
+};
 
 export const loadConfig = (): MemexConfig => {
   if (!existsSync(CONFIG_PATH)) return DEFAULT_CONFIG;

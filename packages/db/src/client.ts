@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import { applyMigrations } from './migrations.ts';
+import { sqliteBinding } from './native.ts';
 import * as schema from './schema.ts';
 
 export { EMBEDDING_DIM };
@@ -17,7 +18,7 @@ export type MemexClient = {
 export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
 
-  const sqlite = new Database(join(dbDir, 'memex.db'));
+  const sqlite = new Database(join(dbDir, 'memex.db'), { nativeBinding: sqliteBinding() });
   sqliteVec.load(sqlite);
 
   sqlite.exec(`

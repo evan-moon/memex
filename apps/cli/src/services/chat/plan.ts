@@ -1,7 +1,10 @@
 import type { RegisterScope } from '@memex/db';
 import { tagKey } from '@memex/utils';
 
-export type Carried = { kind: 'register'; subject: string } | { kind: 'note'; id: number };
+export type Carried =
+  | { kind: 'register'; subject: string }
+  | { kind: 'topic'; tag: string }
+  | { kind: 'note'; id: number };
 
 // What the model is allowed to come back with. Deleting is not here: a
 // correction tool that can be talked into removing the thing it was asked to
@@ -20,7 +23,19 @@ export type PlanDraft =
       tags: string[];
     }
   | { action: 'rule-decision'; noteId: number; decision: 'approve' | 'decline' }
+  | { action: 'answer'; text: string; cites: number[] }
+  | { action: 'search'; query: string; limit: number | null }
+  | { action: 'read'; ids: number[] }
   | { action: 'none' };
+
+// `search` and `read` are not here either, for a plainer reason: they are not
+// what the turn decided, they are what it needed on the way. The loop runs them
+// and asks again, so nothing downstream ever sees one.
+
+// `answer` is not here on purpose. A plan is a write, and everything downstream
+// of one — preview, ticket, confirm, receipt — exists to put a person between
+// the sentence and the change. An answer changes nothing, so routing it through
+// that machinery would only teach the machinery to carry things it must not.
 
 // The executable form. `scope` and `newPredicate` are not in the draft because
 // the model does not decide them: the app reads them off the candidate it
@@ -93,6 +108,31 @@ const draftFrom = (parsed: Record<string, unknown>): PlanDraft | null => {
           tags: stringList(parsed.tags),
         }
       : null;
+  }
+
+  if (parsed.action === 'answer') {
+    const answer = text(parsed.text);
+    return answer
+      ? {
+          action: 'answer',
+          text: answer,
+          cites: Array.isArray(parsed.cites)
+            ? parsed.cites.filter((cite): cite is number => id(cite) !== null)
+            : [],
+        }
+      : null;
+  }
+
+  if (parsed.action === 'search') {
+    const query = text(parsed.query);
+    return query ? { action: 'search', query, limit: id(parsed.limit) } : null;
+  }
+
+  if (parsed.action === 'read') {
+    const ids = Array.isArray(parsed.ids)
+      ? parsed.ids.filter((one): one is number => id(one) !== null)
+      : [];
+    return ids.length > 0 ? { action: 'read', ids } : null;
   }
 
   if (parsed.action === 'rule-decision') {

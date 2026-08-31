@@ -17,6 +17,7 @@ import { isLlmFailure, type LlmChoice, type LlmProvider } from '@memex/llm';
 import { tagKey } from '@memex/utils';
 import { askWith } from '../llm.ts';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
+import { topicNotes } from '../ui/topics.ts';
 import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
   type Carried,
@@ -31,6 +32,15 @@ const NOTE_CANDIDATES = 6;
 const RULE_CANDIDATES = 5;
 const SNIPPET_CHARS = 200;
 const DETAIL_CHARS = 300;
+
+// The model can look past what it was handed, and the loop that lets it has to
+// end whether or not the model decides it is finished. Rounds bound the calls,
+// reads bound how much vault one turn can pull into a prompt, and the search
+// limit stops one query from spending the read budget by itself.
+const MAX_LOOKUPS = 6;
+const MAX_READS = 40;
+const MAX_SEARCH = 20;
+const READ_CHARS = 1500;
 
 export type ChatDeps = {
   client: MemexClient;
@@ -62,8 +72,15 @@ export type Candidates = {
   searchable: boolean;
 };
 
+export type Cited = { id: number; title: string };
+
+export type Lookup =
+  | { kind: 'searched'; query: string; found: NoteCandidate[] }
+  | { kind: 'read'; notes: { id: number; title: string; body: string }[] };
+
 export type Turn =
   | { kind: 'plan'; plan: Plan; confirmation: Confirmation; candidates: Candidates }
+  | { kind: 'answer'; text: string; cites: Cited[]; candidates: Candidates }
   | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; candidates: Candidates }
   | { kind: 'failed'; failure: ChatFailure; detail: string };
 
@@ -93,8 +110,28 @@ const registerCandidates = (
   );
 };
 
+const TOPIC_CANDIDATES = 8;
+
+// What the reader is looking at goes in front of what search found. A topic is
+// a screenful of notes rather than one, so it seeds the list the same way an
+// opened note does — the sentence "these" then means the same thing to the
+// model as it does to the person who typed it.
+const onScreen = (deps: ChatDeps, carried: Carried | null): Note[] => {
+  if (carried?.kind === 'note') {
+    const opened = getNote(deps.client, carried.id);
+    return opened ? [opened] : [];
+  }
+  if (carried?.kind !== 'topic') return [];
+  return topicNotes(deps.client, carried.tag)
+    .slice(0, TOPIC_CANDIDATES)
+    .flatMap((row) => {
+      const note = getNote(deps.client, row.id);
+      return note === undefined ? [] : [note];
+    });
+};
+
 const noteCandidates = async (deps: ChatDeps, carried: Carried | null, message: string) => {
-  const opened = carried?.kind === 'note' ? getNote(deps.client, carried.id) : undefined;
+  const opened = onScreen(deps, carried);
 
   // Search is the only step that needs the embedding model, and it is the only
   // step a register correction can do without. A vault still downloading the
@@ -103,7 +140,7 @@ const noteCandidates = async (deps: ChatDeps, carried: Carried | null, message: 
     () => null,
   );
 
-  const notes = [...(opened ? [opened] : []), ...(found ?? [])];
+  const notes = [...opened, ...(found ?? [])];
 
   return {
     searchable: found !== null,
@@ -147,10 +184,54 @@ const soFar = (history: Said[]) =>
         .map((turn) => `they said: ${turn.said}\n  what happened: ${turn.outcome}`)
         .join('\n')}\n`;
 
-export const buildPrompt = (message: string, candidates: Candidates, history: Said[] = []) =>
-  `A person is correcting what an AI recorded about them in their second brain. Below is what they said, and the only things you may act on.
+const lookupsBlock = (lookups: Lookup[], left: number) => {
+  const done =
+    lookups.length === 0
+      ? ''
+      : `\n=== WHAT YOU HAVE LOOKED UP ===\n${lookups
+          .map((lookup) =>
+            lookup.kind === 'searched'
+              ? `searched "${lookup.query}" →\n${listOr(
+                  lookup.found.map((n) => `  #${n.id} [${n.layer}] ${n.title} — ${n.snippet}`),
+                  '  (nothing)',
+                )}`
+              : lookup.notes.map((n) => `read #${n.id} "${n.title}" →\n${n.body}`).join('\n'),
+          )
+          .join('\n')}\n`;
+
+  return `${done}\n=== LOOKUPS LEFT ===\n${
+    left > 0
+      ? `${left}. Use them when the answer needs more than what is listed above.`
+      : 'None. Answer from what you have, and say what you could not reach.'
+  }\n`;
+};
+
+export const buildPrompt = (
+  message: string,
+  candidates: Candidates,
+  history: Said[] = [],
+  lookups: Lookup[] = [],
+  lookupsLeft = MAX_LOOKUPS,
+) =>
+  `You help a person write and look after their second brain — the notes an AI recorded for them. Below is what they said, and the only things you may act on.
 
 Choose exactly one action and answer with raw JSON, no code fence.
+
+  {"action":"search","query":"...","limit":10}
+    Search the whole vault, not just the notes listed below. What you find comes
+    back to you and you choose again. A question about the vault as a whole is
+    not answerable from the list below — search first.
+
+  {"action":"read","ids":[<id>,...]}
+    Read the full body of notes whose titles you have seen. The text comes back
+    and you choose again. Snippets are cut short; read before judging one.
+
+  {"action":"answer","text":"...","cites":[<id>,...]}
+    They asked something rather than asked for a change. Answer from the notes
+    you have been shown or have looked up, and nothing else, and put the ids you
+    used in "cites". Say what you could not reach instead of filling the gap — a
+    guess here is indistinguishable from a memory. Prefer this over "none" for
+    any question.
 
   {"action":"set-register","subject":"...","predicate":"...","value":"..."}
     A fact whose current value changed. Reuse a subject and predicate spelled exactly as listed below whenever one fits; invent one only when nothing listed is the same fact.
@@ -165,11 +246,12 @@ Choose exactly one action and answer with raw JSON, no code fence.
     Only for a rule listed under RULES AWAITING APPROVAL, and only when the person clearly says whether to keep it.
 
   {"action":"none"}
-    You cannot tell which of the above they mean, or nothing listed matches. Prefer this over guessing.
+    They asked for a change and you cannot tell which one, or nothing listed
+    matches. A question is never this — answer it.
 
 Write titles and content in the language the person used.
 
-${soFar(history)}
+${soFar(history)}${lookupsBlock(lookups, lookupsLeft)}
 === WHAT THEY SAID ===
 ${message}
 
@@ -217,7 +299,8 @@ const resolveRegister = (
 };
 
 const resolve = (draft: PlanDraft, deps: ChatDeps, candidates: Candidates): Plan | null => {
-  if (draft.action === 'none') return null;
+  if (draft.action === 'none' || draft.action === 'answer') return null;
+  if (draft.action === 'search' || draft.action === 'read') return null;
   if (draft.action === 'set-register') return resolveRegister(draft, candidates);
   if (draft.action === 'new-note') {
     const { action: _action, ...rest } = draft;
@@ -248,38 +331,124 @@ export type TurnRequest = {
   signal?: AbortSignal;
 };
 
+const asCandidate = (note: Note): NoteCandidate => ({
+  id: note.id,
+  title: note.title,
+  layer: note.layer,
+  snippet: snippet(note),
+});
+
+const runSearch = async (
+  deps: ChatDeps,
+  draft: Extract<PlanDraft, { action: 'search' }>,
+): Promise<Lookup> => {
+  const limit = Math.min(draft.limit ?? MAX_SEARCH, MAX_SEARCH);
+  const found = await semanticSearch(deps.client, deps.embedder, draft.query, limit).catch(
+    () => [] as Note[],
+  );
+  return { kind: 'searched', query: draft.query, found: found.map(asCandidate) };
+};
+
+const runRead = (deps: ChatDeps, ids: number[], budget: number): Lookup => ({
+  kind: 'read',
+  notes: ids.slice(0, budget).flatMap((id) => {
+    const note = getNote(deps.client, id);
+    return note === undefined
+      ? []
+      : [
+          {
+            id: note.id,
+            title: note.title,
+            body: bodyOf(note.content, note.title).slice(0, READ_CHARS),
+          },
+        ];
+  }),
+});
+
+const notesOf = (lookup: Lookup) =>
+  lookup.kind === 'searched' ? lookup.found : lookup.notes.map(({ body: _body, ...rest }) => rest);
+
 export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
   const { message, carried = null, choice, history = [], signal } = request;
   const candidates = await gatherCandidates(deps, carried, message);
-  const answer = await (deps.ask ?? askWith(choice))({
-    prompt: buildPrompt(message, candidates, history),
-    model: choice.model,
-    signal,
-  });
+  const ask = deps.ask ?? askWith(choice);
 
-  if (isLlmFailure(answer)) {
-    return { kind: 'failed', failure: failureOf(answer), detail: answer.error };
+  // Everything the model has been shown, so a citation can be checked against
+  // what it actually saw rather than taken on trust.
+  const shown = new Map<number, string>(candidates.notes.map((note) => [note.id, note.title]));
+  const lookups: Lookup[] = [];
+  let readsLeft = MAX_READS;
+
+  for (let round = 0; ; round += 1) {
+    // Spending the read budget ends the looking, not the turn: the next prompt
+    // says there is nothing left and asks for the answer, so forty notes read
+    // are forty notes answered from rather than thrown away.
+    const left = readsLeft > 0 ? MAX_LOOKUPS - round : 0;
+    const answer = await ask({
+      prompt: buildPrompt(message, candidates, history, lookups, left),
+      model: choice.model,
+      signal,
+    });
+
+    if (isLlmFailure(answer)) {
+      return { kind: 'failed', failure: failureOf(answer), detail: answer.error };
+    }
+
+    const draft = parsePlanDraft(answer.text);
+    if (draft === null) {
+      return {
+        kind: 'failed',
+        failure: 'unreadable-plan',
+        detail: answer.text.slice(0, DETAIL_CHARS),
+      };
+    }
+
+    // A lookup the budget cannot pay for is not run, and the next prompt says
+    // the budget is gone — so the model answers from what it has rather than
+    // being told no and asking again.
+    if ((draft.action === 'search' || draft.action === 'read') && left > 0) {
+      const lookup =
+        draft.action === 'search'
+          ? await runSearch(deps, draft)
+          : runRead(deps, draft.ids, readsLeft);
+      const seen = notesOf(lookup);
+      readsLeft -= seen.length;
+      for (const note of seen) shown.set(note.id, note.title);
+      lookups.push(lookup);
+      continue;
+    }
+
+    if (draft.action === 'answer') {
+      return {
+        kind: 'answer',
+        text: draft.text,
+        // An id the model reached for that was never on the page is the one
+        // shape a reader cannot check, because it looks exactly like one they
+        // can.
+        cites: draft.cites.flatMap((id) => {
+          const title = shown.get(id);
+          return title === undefined ? [] : [{ id, title }];
+        }),
+        candidates,
+      };
+    }
+
+    const plan = resolve(draft, deps, candidates);
+    if (plan !== null) {
+      return { kind: 'plan', plan, confirmation: confirmationFor(plan, carried), candidates };
+    }
+
+    if (draft.action !== 'search' && draft.action !== 'read') {
+      return {
+        kind: 'unmapped',
+        reason: draft.action === 'none' ? 'none' : 'unknown-target',
+        candidates,
+      };
+    }
+
+    // Out of budget and still asking to look. Nothing left to do but say so.
+    return { kind: 'unmapped', reason: 'none', candidates };
   }
-
-  const draft = parsePlanDraft(answer.text);
-  if (draft === null) {
-    return {
-      kind: 'failed',
-      failure: 'unreadable-plan',
-      detail: answer.text.slice(0, DETAIL_CHARS),
-    };
-  }
-
-  const plan = resolve(draft, deps, candidates);
-  if (plan === null) {
-    return {
-      kind: 'unmapped',
-      reason: draft.action === 'none' ? 'none' : 'unknown-target',
-      candidates,
-    };
-  }
-
-  return { kind: 'plan', plan, confirmation: confirmationFor(plan, carried), candidates };
 };
 
 export type Wrote =

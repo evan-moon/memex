@@ -138,6 +138,122 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--accent);
 }
 
+/* ── Get the app ──────────────────────────── */
+
+.get-app {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #0a0a0a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0.8rem 1.5rem;
+  border-radius: 10px;
+  transition: filter 0.15s, transform 0.15s;
+}
+
+.download:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.download-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.notify {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--subtle);
+  max-width: 440px;
+}
+
+.notify-heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.notify-body {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.notify-form {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.notify-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.notify-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.notify-input::placeholder { color: var(--muted); }
+
+.notify-submit {
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.notify-submit:hover { filter: brightness(1.08); }
+.notify-submit:disabled { opacity: 0.6; cursor: default; }
+
+.notify-done {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-top: 0.35rem;
+}
+
+.notify-error {
+  font-size: 0.8rem;
+  color: #f87171;
+}
+
+.notify-fallback {
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: 0.35rem;
+}
+
 /* ── Claude Desktop UI mockup ─────────────── */
 
 @keyframes card-in {
@@ -557,6 +673,26 @@ a { color: inherit; text-decoration: none; }
   border-radius: 5px;
   display: inline-block;
   margin-top: 0.4rem;
+}
+
+.step-code-link {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  padding: 0.4rem 0.9rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.step-code-link:hover { background: var(--accent); color: #0a0a0a; }
+
+.step-inline {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.82em;
+  background: var(--code-bg);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
 }
 
 /* ── Privacy ──────────────────────────────── */

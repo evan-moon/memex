@@ -249,3 +249,150 @@ a { color: inherit; text-decoration: none; }
 }
 .doc-th { background: var(--surface-muted); font-weight: 650; }
 .doc-table tr:last-child .doc-td { border-bottom: none; }
+
+
+/* Onboarding. The rest of the app is a tool someone comes back to every day, so
+   it is dense and quiet. This is the one screen a person sees once, and it gets
+   the room, the type and the motion that would be noise anywhere else. */
+.onboard-ground {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background);
+}
+.onboard-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.9;
+  will-change: transform;
+  animation: onboard-drift 26s ease-in-out infinite alternate;
+}
+.onboard-blob-a {
+  width: 42rem; height: 42rem; top: -14rem; left: -10rem;
+  background: color-mix(in oklab, var(--primary) 80%, transparent);
+}
+.onboard-blob-b {
+  width: 36rem; height: 36rem; bottom: -12rem; right: -6rem;
+  background: color-mix(in oklab, var(--brand) 72%, transparent);
+  animation-duration: 34s; animation-delay: -8s;
+}
+.onboard-blob-c {
+  width: 28rem; height: 28rem; top: 26%; right: 20%;
+  background: color-mix(in oklab, var(--positive) 55%, transparent);
+  animation-duration: 40s; animation-delay: -16s;
+  opacity: 0.6;
+}
+@keyframes onboard-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(4rem, -3rem, 0) scale(1.15); }
+}
+
+/* The colour is the room; the words sit on a wash of the page's own background
+   so they keep their contrast without the gradient going grey behind them. A
+   second blur here would flatten the blobs into one muddy field, so there is
+   none — they are already soft. */
+.onboard-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--background) 55%, transparent),
+    color-mix(in oklab, var(--background) 78%, transparent)
+  );
+}
+
+/* A serif for the one sentence per screen that is the screen. The stack is all
+   system faces — the app has no network to fetch a font over. */
+.onboard-display {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, ui-serif, serif;
+  font-size: clamp(2rem, 4.2vw, 2.9rem);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  font-weight: 500;
+  /* One sentence per screen, so the break belongs where the line lengths even
+     out rather than wherever the box happens to end — otherwise a headline
+     leaves a single syllable stranded on its own line. */
+  text-wrap: balance;
+  /* Korean breaks anywhere by default, which splits a word down the middle:
+     "폴더" became "폴" and "더" on two lines. keep-all breaks at spaces, which
+     in Korean is the boundary between 어절. */
+  word-break: keep-all;
+}
+
+.onboard-lead {
+  word-break: keep-all;
+}
+.onboard-eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.onboard-rise {
+  animation: onboard-rise 0.72s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes onboard-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* The bar is the only thing on screen that says how much is left, so it is the
+   only thing that moves when a step lands. */
+.onboard-tick {
+  height: 2px;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  transition: background-color 0.45s ease, flex-grow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.onboard-tick-done { background: var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-blob { animation: none; }
+  .onboard-rise { animation: none; }
+  .onboard-tick { transition: none; }
+}
+
+
+/* The editor. CodeMirror paints its own DOM, so what belongs here is only what
+   the theme cannot reach: the box the editor sits in. */
+.memex-editor {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--reading);
+  padding: 0.9rem 1rem;
+  min-height: 20rem;
+}
+.memex-editor:focus-within {
+  border-color: var(--border-accent);
+}
+
+
+/* Tailwind v4's preflight dropped the pointer cursor browsers used to give a
+   button, so every clickable thing in the app was showing an arrow. Saying it
+   once here beats spelling `cursor-pointer` at every call site and forgetting
+   at some of them. */
+button:not(:disabled),
+[role='button'],
+summary,
+label[for],
+select,
+input[type='checkbox'],
+input[type='radio'] {
+  cursor: pointer;
+}
+button:disabled { cursor: not-allowed; }
+a[href] { cursor: pointer; }
+input[type='text'], input[type='search'], textarea, .cm-content { cursor: text; }
+
+
+/* A context menu sits over whatever it was opened on, so it is the one floating
+   surface that must not be see-through. */
+.memex-menu {
+  background: var(--reading);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.2);
+}

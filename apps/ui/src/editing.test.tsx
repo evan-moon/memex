@@ -6,6 +6,7 @@ import { NoteItem } from './bits.tsx';
 import { correctionDraft, missingNoteDraft } from './drafts.ts';
 import { Composer, NoteEditor } from './editing.tsx';
 import { dictionaries, setLocale } from './i18n.ts';
+import { isDirty, patchFor } from './patch.ts';
 
 const t = dictionaries.en;
 
@@ -19,6 +20,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   updatedAt: Date.now(),
   tags: ['one', 'two'],
   filePath: '/vault/note.md',
+  writable: true,
   deadLinks: [],
   evidence: [],
   candidateSources: [],
@@ -40,43 +42,49 @@ const render = (element: React.ReactElement) => {
 };
 
 describe('NoteEditor', () => {
+  // The body now lives in CodeMirror, which paints nothing until it is in a
+  // browser. What static markup can still answer is whether the form was seeded
+  // with this note rather than an empty one.
   it('opens on what the note already says', () => {
-    const html = render(
-      <NoteEditor note={note()} onSaved={() => undefined} onCancel={() => undefined} />,
-    );
+    const html = render(<NoteEditor note={note()} onSaved={() => undefined} />);
     expect(html).toContain('value="a plan"');
-    expect(html).toContain('value="one, two"');
-    expect(html).toContain('the body');
-    expect(html).toMatch(/<option value="state"[^>]*selected/);
+    // Tags and layer live behind Properties, folded away like the frontmatter
+    // block next door. The title is the document's first line, so it is not.
+    expect(html).toContain(t.edit.properties);
+    expect(html).not.toContain('value="one, two"');
   });
 
+  // There is no Save button to disable any more — the pause between keystrokes
+  // commits. What stands in for it is the patch: an untouched note produces one
+  // with nothing in it, and nothing gets written.
   it('will not save a note nobody has changed', () => {
-    const html = render(
-      <NoteEditor note={note()} onSaved={() => undefined} onCancel={() => undefined} />,
-    );
-    expect(html).toMatch(new RegExp(`disabled[^>]*>${t.edit.save}`));
-  });
-});
+    const untouched = note();
+    const patch = patchFor(untouched, {
+      title: untouched.title,
+      tags: untouched.tags.join(', '),
+      layer: untouched.layer,
+      body: untouched.content,
+    });
 
-describe('the body field', () => {
-  it('paints the markdown behind the text a person types', () => {
-    const html = render(
-      <NoteEditor
-        note={note({ content: '## 배경\n\nsee [[Some Note]]' })}
-        onSaved={() => undefined}
-        onCancel={() => undefined}
-      />,
-    );
-    expect(html).toContain('var(--brand)');
-    expect(html).toContain('[[Some Note]]');
+    expect(isDirty(patch)).toBe(false);
   });
 
-  it('leaves the typed text itself transparent, so only one copy is visible', () => {
-    const html = render(
-      <NoteEditor note={note()} onSaved={() => undefined} onCancel={() => undefined} />,
-    );
-    expect(html).toContain('text-transparent');
-    expect(html).toContain('caret-foreground');
+  it('reports only the field that moved', () => {
+    const before = note();
+    const patch = patchFor(before, {
+      title: before.title,
+      tags: before.tags.join(', '),
+      layer: before.layer,
+      body: 'something else',
+    });
+
+    expect(patch).toEqual({
+      title: undefined,
+      tags: undefined,
+      layer: undefined,
+      body: 'something else',
+    });
+    expect(isDirty(patch)).toBe(true);
   });
 });
 
@@ -92,14 +100,20 @@ describe('Composer', () => {
     },
   });
 
-  it('starts a correction from the amendment the server proposed', () => {
+  // The body is CodeMirror's now, and it paints nothing outside a browser. What
+  // the draft carries is the part worth protecting anyway: a correction opens
+  // already pointing back at the note it corrects.
+  it('starts a correction that points back at the note', () => {
     const draft = correctionDraft(past, t);
     expect(draft).not.toBeNull();
     if (!draft) return;
 
+    expect(draft.title).toBe('[Amendment] what happened');
+    expect(draft.body).toContain('[[what happened]]');
+    expect(draft.amends).toBe(past.id);
+
     const html = render(<Composer draft={draft} note={past} onCancel={() => undefined} />);
     expect(html).toContain('[Amendment] what happened');
-    expect(html).toContain('[[what happened]]');
     expect(html).toContain('projects/memex');
   });
 

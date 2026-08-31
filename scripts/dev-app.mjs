@@ -13,8 +13,8 @@ were; Electron owns everything else. The window still loads memex://app/ — the
 protocol handler asks Vite for the page instead of reading it off disk, so /api
 goes the same way it does in a packaged build.
 
-Leaves better-sqlite3 built for Electron. Run \`yarn native:node\` before the
-tests, or they die with ERR_DLOPEN_FAILED.`;
+Nothing here is swapped. better-sqlite3 keeps a build per runtime, so the CLI,
+the MCP server and the tests go on working while the app is up.`;
 
 if (process.argv.includes('--help')) {
   console.log(usage);

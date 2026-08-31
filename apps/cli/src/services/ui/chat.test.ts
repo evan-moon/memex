@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { type MemexClient, openDb, readRegister, setRegister } from '@memex/db';
 import type { LlmProvider } from '@memex/llm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { carriedFrom } from './chat.ts';
+import { carriedFrom, forReplay } from './chat.ts';
 import { route, type UiDeps } from './server.ts';
 
 let dbDir: string;
@@ -175,5 +175,33 @@ describe('pressing the button', () => {
 
     expect(status).toBe(410);
     expect(readRegister(client, 'opula')[0]?.events).toBe(2);
+  });
+});
+
+describe('what a reopened conversation shows', () => {
+  // `outcome` is written for the next turn's prompt. A person reopening a
+  // conversation was being shown that sentence — English, and prefixed for a
+  // reader that is not them.
+  it('keeps the reply the screen drew, beside the line the prompt reads', () => {
+    expect(forReplay({ kind: 'answer', text: '두 건이에요', cites: [] })).toEqual({
+      kind: 'answer',
+      text: '두 건이에요',
+      cites: [],
+    });
+  });
+
+  it('strips the ticket, because a proposal cannot be pressed later', () => {
+    const preview = {
+      kind: 'new-note' as const,
+      title: 't',
+      body: 'b',
+      folder: null,
+      layer: 'past' as const,
+      tags: [],
+    };
+    expect(forReplay({ kind: 'confirm', ticket: 'live-ticket', preview })).toMatchObject({
+      kind: 'confirm',
+      ticket: '',
+    });
   });
 });

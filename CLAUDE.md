@@ -30,8 +30,31 @@ still loads `memex://app/` — the handler asks Vite for the page instead of rea
 `/api` goes the same way it does in a packaged build. `yarn desktop` is the same thing without Vite,
 which is what to reach for when the question is about packaging rather than the screen.
 
-Both leave better-sqlite3 built for Electron's ABI. Run `yarn native:node` before the tests, or they
-die with `ERR_DLOPEN_FAILED`.
+better-sqlite3 is built against V8's ABI, so one build cannot serve both runtimes. `yarn native`
+keeps two — `better_sqlite3-node.node` and `better_sqlite3-electron.node`, side by side in
+`node_modules/better-sqlite3/build/Release` — and `openDb` names the one it can load. The app, the
+MCP server and the tests all run at the same time; nothing is swapped, and nothing has to be put
+back. `dev:app`, `desktop` and `package:mac` run it for you, and it does nothing when both builds
+are already there for the current Node and Electron.
+
+A packaged app carries only the Electron build, and a checkout that never ran the script has only
+the one file `yarn install` fetched. In both cases `openDb` names nothing and `bindings` decides, as
+it did before.
+
+Vite hot-reloads the page and nothing else. Everything the window talks to reaches it through a
+build chain that a restart only half re-runs:
+
+```
+apps/cli/src/services/**  →  yarn workspace @evan-moon/memex build  →  apps/cli/dist/host.js
+apps/desktop/src/main.ts imports @evan-moon/memex/host — the dist file, not the source
+        →  tsup bundles it into apps/desktop/dist/main.js  →  Electron
+```
+
+`dev-app.mjs` builds the desktop bundle once at startup and never touches `apps/cli/dist`. So a
+change under `apps/cli/src/services/**` (chat, the API routes) needs **`yarn workspace
+@evan-moon/memex build` first, then a restart** — restarting alone rebundles the stale dist. The
+tell is a screen showing your new markup while answering with the old logic; confirm with
+`grep -c '<a string you just wrote>' apps/desktop/dist/main.js`.
 
 There is no browser path and no port. The window loads `memex://app/`, and
 `apps/desktop/src/serve.ts` answers every request — `/api/*` by handing it to `route()` unchanged,

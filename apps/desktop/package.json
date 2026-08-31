@@ -1,6 +1,6 @@
 {
   "name": "@memex/desktop",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./dist/main.js",
@@ -36,7 +36,8 @@
     "files": [
       "dist/**/*",
       "!**/*.map",
-      "!**/.turbo/**"
+      "!**/.turbo/**",
+      "!**/better_sqlite3-node.node"
     ],
     "mac": {
       "category": "public.app-category.productivity",

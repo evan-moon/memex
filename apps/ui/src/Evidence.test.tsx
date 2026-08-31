@@ -17,6 +17,7 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   updatedAt: Date.now(),
   tags: [],
   filePath: '/vault/note.md',
+  writable: true,
   folder: null,
   amendment: null,
   wikiLinks: [],

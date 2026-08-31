@@ -10,27 +10,23 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import {
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api,
   type Overview as OverviewData,
   type Sidebar as SidebarData,
   type Topic,
+  type VaultTree,
 } from './api.ts';
 import { ChatPanel } from './Chat.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
-import { firstRunSettled, gateFrom, settleFirstRun } from './first-run.ts';
+import { HistoryPanel } from './History.tsx';
 import { HypothesisScreen } from './Hypothesis.tsx';
 import { goBack, goForward, useHistory } from './history.ts';
 import { useLocale } from './i18n.ts';
+import { Onboarding } from './Onboarding.tsx';
 import { Overview } from './Overview.tsx';
+import { gateFrom } from './onboarding.ts';
 import { Palette } from './Palette.tsx';
 import { railShown, rememberRail } from './panels.ts';
 import { RegisterScreen, RegisterSubjectsScreen } from './Register.tsx';
@@ -39,6 +35,7 @@ import { RulesScreen } from './Rules.tsx';
 import { SettingsScreen } from './Settings.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
+import { Tabs } from './Tabs.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
 import { TodayScreen } from './Today.tsx';
@@ -52,6 +49,8 @@ export const App = () => {
   const [sidebar, setSidebar] = useState<SidebarData | null>(null);
   const [topics, setTopics] = useState<Topic[] | null>(null);
   const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [tree, setTree] = useState<VaultTree | null>(null);
+  const [history, setHistory] = useState<{ id: number; title: string } | null>(null);
   const [palette, setPalette] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [rail, setRail] = useState(railShown);
@@ -61,7 +60,6 @@ export const App = () => {
     setRail(!rail);
     rememberRail(!rail);
   };
-  const [settled, setSettled] = useState(firstRunSettled);
   const [params, setParams] = useSearchParams();
 
   // Open-ness lives in the URL rather than in a context. It survives a reload,
@@ -80,26 +78,16 @@ export const App = () => {
     setParams(next, { replace: true });
   };
 
-  // Loaded beside the app rather than with it. `claude auth status` is a child
-  // process with a fifteen-second timeout of its own, and a machine where it
-  // hangs would otherwise be a machine where memex never finishes loading.
-  const { data: claude, failure: claudeFailure } = useAsync(() => api.claude(), 'claude');
-  const gate = gateFrom({ claude, failed: claudeFailure !== null }, settled);
-
-  // Settled by having seen it done, not by the gate happening to be open: a
-  // probe that failed opens the gate for this launch without deciding that
-  // setup is behind them.
-  useEffect(() => {
-    if (claude?.kind !== 'ready' || settled) return;
-    settleFirstRun();
-    setSettled(true);
-  }, [claude, settled]);
-
-  const skipFirstRun = () => {
-    settleFirstRun();
-    setSettled(true);
-    navigate('/');
-  };
+  // One local file read, so it answers before the window has anything to paint.
+  // Whether setup is behind them is not a question the probes can settle — a
+  // machine that already had Claude Code signed in was never walked through it.
+  const [round, setRound] = useState(0);
+  const [walked, setWalked] = useState(false);
+  const { data: onboarding, failure: onboardingFailure } = useAsync(
+    () => api.onboarding(),
+    `onboarding-${round}`,
+  );
+  const gate = gateFrom(onboarding, onboardingFailure !== null, walked);
 
   useEffect(() => {
     Promise.all([api.sidebar(), api.topics(), api.overview()]).then(([s, t, o]) => {
@@ -107,6 +95,12 @@ export const App = () => {
       setTopics(t);
       setOverview(o);
     });
+    // Loaded beside the rest: the tree is every note in the vault, so it is the
+    // one call that grows with the vault rather than with the screen.
+    api
+      .tree()
+      .then(setTree)
+      .catch(() => {});
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the path is the trigger, not an input — dropping it would leave the menu open across navigation
@@ -138,6 +132,22 @@ export const App = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  if (gate === 'unknown') {
+    return <div className="p-10 text-sm text-muted">{t.common.loading}</div>;
+  }
+
+  // Not a route and not a redirect. Setup is the whole window until it is done,
+  // because a sidebar around it is a set of doors that lead nowhere yet.
+  if (gate === 'needed') {
+    return (
+      <Onboarding
+        state={onboarding}
+        onRetry={() => setRound((n) => n + 1)}
+        onDone={() => setWalked(true)}
+      />
+    );
+  }
+
   if (!sidebar || !topics || !overview) {
     return <div className="p-10 text-sm text-muted">{t.common.loading}</div>;
   }
@@ -152,7 +162,7 @@ export const App = () => {
         }`}
       >
         <div className="h-full w-64">
-          <Sidebar data={sidebar} topics={topics} />
+          <Sidebar data={sidebar} topics={topics} tree={tree} onHistory={setHistory} />
         </div>
       </aside>
 
@@ -165,12 +175,19 @@ export const App = () => {
             onClick={() => setDrawer(false)}
           />
           <div className="pane absolute inset-y-0 left-0 w-72 border-r border-glass-line">
-            <Sidebar data={sidebar} topics={topics} onNavigate={() => setDrawer(false)} />
+            <Sidebar
+              data={sidebar}
+              topics={topics}
+              tree={tree}
+              onHistory={setHistory}
+              onNavigate={() => setDrawer(false)}
+            />
           </div>
         </div>
       ) : null}
 
       <Palette open={palette} onClose={() => setPalette(false)} />
+      {history === null ? null : <HistoryPanel note={history} onClose={() => setHistory(null)} />}
 
       <div className="pane flex min-w-0 flex-1 flex-col">
         <header className="drag flex items-center gap-2 border-b border-glass-line bg-surface/40 px-3 py-2 backdrop-blur-xl sm:px-5">
@@ -257,21 +274,11 @@ export const App = () => {
           </button>
         </header>
 
+        <Tabs />
         <main className="min-h-0 flex-1 overflow-y-auto">
           <ErrorBoundary key={location.pathname} t={t}>
             <Routes>
-              <Route
-                path="/"
-                element={
-                  gate === 'needed' ? (
-                    <Navigate to="/settings" replace />
-                  ) : gate === 'clear' ? (
-                    <Overview data={overview} topics={topics} />
-                  ) : (
-                    <div className="p-10 text-sm text-muted">{t.common.loading}</div>
-                  )
-                }
-              />
+              <Route path="/" element={<Overview data={overview} topics={topics} />} />
               <Route path="/today" element={<TodayScreen />} />
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
@@ -283,10 +290,7 @@ export const App = () => {
               <Route path="/rules" element={<RulesScreen />} />
               <Route path="/register" element={<RegisterSubjectsScreen />} />
               <Route path="/register/:subject" element={<RegisterScreen />} />
-              <Route
-                path="/settings"
-                element={<SettingsScreen gated={gate === 'needed'} onSkip={skipFirstRun} />}
-              />
+              <Route path="/settings" element={<SettingsScreen />} />
               <Route path="/inference/:id" element={<HypothesisScreen />} />
               <Route path="*" element={<NotFoundScreen />} />
             </Routes>

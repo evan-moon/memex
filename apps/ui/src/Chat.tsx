@@ -1,17 +1,20 @@
 import { ArrowUp, FileText, Hash, MessageSquare, Square, SquarePen, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   api,
   type ChatPreview,
   type ChatReceipt,
   type ChatReply,
   type ChatSession,
+  type ChatTurn,
   toFailure,
 } from './api.ts';
-import { Button, Card } from './bits.tsx';
-import { targetFrom } from './chat-target.ts';
+import { Button } from './bits.tsx';
+import { asShown, parseReply } from './chat-replay.ts';
+import { targetOnScreen } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
+import { Markdown } from './Markdown.tsx';
 import { type Choice, defaultChoice, MODELS } from './models.ts';
 import { useAsync } from './useAsync.ts';
 
@@ -24,6 +27,16 @@ type Exchange = {
   reply?: ChatReply | null;
   outcome?: string;
   discarded?: boolean;
+};
+
+// A reopened conversation shows what the person saw, not the line the next
+// prompt reads. `outcome` is still the fallback: turns recorded before the
+// reply was kept have nothing else to show.
+const replayed = (turn: ChatTurn): Exchange => {
+  const reply = parseReply(turn.reply);
+  return reply
+    ? { id: `past-${turn.id}`, said: turn.said, reply }
+    : { id: `past-${turn.id}`, said: turn.said, outcome: turn.outcome };
 };
 
 const Field = ({ label, value }: { label: string; value: string }) => (
@@ -161,6 +174,37 @@ const Failed = ({
   </div>
 );
 
+// An answer is the one reply that changes nothing, so it carries no button and
+// no ticket. What it does carry is where it came from: the notes it was read
+// out of, named so the reader can go and disagree with one.
+const AnswerBody = ({
+  reply,
+  t,
+}: {
+  reply: Extract<ChatReply, { kind: 'answer' }>;
+  t: Strings;
+}) => (
+  <div className="space-y-2">
+    <div className="text-sm">
+      <Markdown links={reply.cites}>{reply.text}</Markdown>
+    </div>
+    {reply.cites.length > 0 ? (
+      <div className="space-y-1 border-t border-line pt-2">
+        <p className="text-[11px] text-muted">{t.chat.readFrom}</p>
+        {reply.cites.map((cite) => (
+          <Link
+            key={cite.id}
+            to={`/note/${cite.id}`}
+            className="block text-xs text-primary leading-snug"
+          >
+            {cite.title}
+          </Link>
+        ))}
+      </div>
+    ) : null}
+  </div>
+);
+
 const Reply = ({
   reply,
   t,
@@ -177,6 +221,7 @@ const Reply = ({
   onRetry: () => void;
 }) => {
   if (reply.kind === 'failed') return <Failed reply={reply} t={t} onRetry={onRetry} />;
+  if (reply.kind === 'answer') return <AnswerBody reply={reply} t={t} />;
   if (reply.kind === 'unmapped') {
     return (
       <div className="space-y-1">
@@ -188,6 +233,17 @@ const Reply = ({
     );
   }
   if (reply.kind === 'done') return <ReceiptBody receipt={reply.receipt} t={t} />;
+
+  // A proposal read back out of an old conversation has no ticket left to press.
+  // It is shown as what was offered and never taken, which is what happened.
+  if (reply.ticket === '') {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-muted">{t.chat.expired}</p>
+        <PreviewBody preview={reply.preview} t={t} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -241,7 +297,8 @@ const Conversations = ({
 export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const t = useT();
   const [params] = useSearchParams();
-  const target = targetFrom(params);
+  const { pathname } = useLocation();
+  const target = targetOnScreen(params, pathname);
   const [draft, setDraft] = useState('');
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
@@ -263,11 +320,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
     setChoice(defaultChoice());
     api
       .chatSession(id)
-      .then((turns) =>
-        setExchanges(
-          turns.map((turn) => ({ id: `past-${turn.id}`, said: turn.said, outcome: turn.outcome })),
-        ),
-      )
+      .then((turns) => setExchanges(turns.map(replayed)))
       .catch(() => setExchanges([]));
   };
 
@@ -390,27 +443,31 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
             <MessageSquare size={56} className="text-muted opacity-15" strokeWidth={1.25} />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-6">
             {exchanges.map((exchange, at) => (
-              <Card key={exchange.id} className="space-y-3">
-                <p className="text-sm font-medium">{exchange.said}</p>
-                {exchange.outcome !== undefined ? (
-                  <p className="text-xs text-muted">{exchange.outcome}</p>
-                ) : exchange.discarded ? (
-                  <p className="text-xs text-muted">{t.chat.discarded}</p>
-                ) : exchange.reply === null || exchange.reply === undefined ? (
-                  <p className="text-xs text-muted">{t.chat.thinking}</p>
-                ) : (
-                  <Reply
-                    reply={exchange.reply}
-                    t={t}
-                    busy={busy}
-                    onApply={(ticket) => apply(at, ticket)}
-                    onDiscard={() => discard(at)}
-                    onRetry={() => ask(exchange.said)}
-                  />
-                )}
-              </Card>
+              <div key={exchange.id} className="space-y-2">
+                <p className="rounded-card bg-surface-muted px-3 py-2 text-sm">{exchange.said}</p>
+                <div className="px-1">
+                  {exchange.outcome !== undefined ? (
+                    <div className="text-sm text-muted">
+                      <Markdown>{asShown(exchange.outcome)}</Markdown>
+                    </div>
+                  ) : exchange.discarded ? (
+                    <p className="text-xs text-muted">{t.chat.discarded}</p>
+                  ) : exchange.reply === null || exchange.reply === undefined ? (
+                    <p className="text-xs text-muted">{t.chat.thinking}</p>
+                  ) : (
+                    <Reply
+                      reply={exchange.reply}
+                      t={t}
+                      busy={busy}
+                      onApply={(ticket) => apply(at, ticket)}
+                      onDiscard={() => discard(at)}
+                      onRetry={() => ask(exchange.said)}
+                    />
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}

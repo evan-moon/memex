@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "yarn workspace @evan-moon/memex dev",
-    "dev:app": "yarn native:electron && node scripts/dev-app.mjs",
+    "dev:app": "yarn native && node scripts/dev-app.mjs",
     "dev:docs": "yarn workspace @memex/docs dev",
     "typecheck": "turbo typecheck",
     "build": "turbo build",
@@ -16,10 +16,9 @@
     "check": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "native:node": "node scripts/native-abi.mjs node",
-    "native:electron": "node scripts/native-abi.mjs electron",
-    "desktop": "yarn native:electron && yarn workspace @memex/desktop build && yarn workspace @memex/desktop start",
-    "package:mac": "yarn native:electron && yarn workspace @memex/desktop package; yarn native:node"
+    "native": "node scripts/native-abi.mjs",
+    "desktop": "yarn native && yarn workspace @memex/desktop build && yarn workspace @memex/desktop start",
+    "package:mac": "yarn native && yarn workspace @memex/desktop package"
   },
   "packageManager": "yarn@4.14.1",
   "devDependencies": {

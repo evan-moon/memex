@@ -1,6 +1,10 @@
+import { BookOpen, Lock, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { byKind } from './amendments.ts';
 import {
+  type AmendedRef,
+  type AmendKind,
   type ApiFailure,
   api,
   type Facets,
@@ -19,8 +23,36 @@ import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { rememberVisit } from './recent.ts';
 import { StalePanel } from './StalePanel.tsx';
+import { openTab } from './tabs.ts';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
+
+const AMENDED_TONE: Record<AmendKind, string | undefined> = {
+  corrects: 'var(--negative)',
+  unknown: undefined,
+  continues: undefined,
+};
+
+const AmendedCard = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendKind }) => {
+  const t = useT();
+  const newest = refs.at(-1);
+  if (!newest) return null;
+  const label = {
+    corrects: t.note.correctedBy,
+    unknown: t.note.amendedBy,
+    continues: t.note.continuedBy,
+  }[kind];
+  return (
+    <Card className="mt-4">
+      <div className="text-sm" style={{ color: AMENDED_TONE[kind] }}>
+        {label(refs.length)}
+      </div>
+      <Link to={`/note/${newest.id}`} className="mt-1 block text-sm text-primary">
+        {t.note.newest(newest.title)}
+      </Link>
+    </Card>
+  );
+};
 
 const Pending = ({ failure }: { failure: ApiFailure | null }) => {
   const t = useT();
@@ -163,7 +195,10 @@ export const NoteScreen = () => {
   const note = edited?.id === Number(id) ? edited : data;
 
   useEffect(() => {
-    if (data) rememberVisit({ id: data.id, title: data.title });
+    if (data) {
+      rememberVisit({ id: data.id, title: data.title });
+      openTab({ id: data.id, title: data.title });
+    }
     setEditing(false);
     setDraft(null);
     setAt(null);
@@ -172,11 +207,20 @@ export const NoteScreen = () => {
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
-  const newest = note.supersededBy.at(-1);
+  // Two different reasons a note cannot be written. A record of what happened is
+  // immutable by rule and offers a correction instead; a borrowed file is owned
+  // by whatever made it, and memex only reads it.
+  const borrowed = !note.writable;
+  const editable = note.layer !== 'past' && !borrowed;
   return (
     <Page>
-      <h1 className="text-xl font-semibold leading-snug tracking-tight">{note.title}</h1>
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+      {/* Where the file is, the way a file manager says it. The title is the
+          document's own first line now, so it is not repeated up here. Pinned:
+          the way back to reading should not be something you scroll up to find
+          in a note that runs for pages. */}
+      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-1 py-2 text-xs text-muted backdrop-blur">
+        <span className="text-muted">{note.folder === null ? t.edit.vaultRoot : note.folder}</span>
+        <span className="text-line-strong">/</span>
         <Layer layer={note.layer} />
         {note.author === 'agent' ? <Agent /> : null}
         <Dates at={note.at} updatedAt={note.updatedAt} />
@@ -188,11 +232,27 @@ export const NoteScreen = () => {
         <button type="button" onClick={() => setShowSource(!showSource)} className="text-primary">
           {showSource ? t.note.hideSource : t.note.viewSource}
         </button>
-        <span className="ml-auto">
-          {editing || draft ? null : note.layer === 'past' ? (
-            <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
+        {/* Reading is the default and the pencil turns the page over, the way
+            it does next door. A record of what happened has no pencil: it can
+            only be corrected by a new note. */}
+        <span className="ml-auto flex items-center gap-2">
+          {borrowed ? (
+            <span title={t.note.borrowed} className="flex items-center gap-1 text-muted">
+              <Lock size={12} />
+              {t.note.readonly}
+            </span>
+          ) : draft ? null : editable ? (
+            <button
+              type="button"
+              onClick={() => setEditing(!editing)}
+              title={editing ? t.edit.read : t.edit.start}
+              aria-label={editing ? t.edit.read : t.edit.start}
+              className={`rounded p-1.5 hover:bg-surface-muted ${editing ? 'text-foreground' : 'text-muted'}`}
+            >
+              {editing ? <BookOpen size={15} /> : <Pencil size={15} />}
+            </button>
           ) : (
-            <Button onClick={() => setEditing(true)}>{t.edit.start}</Button>
+            <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
           )}
         </span>
       </div>
@@ -202,16 +262,9 @@ export const NoteScreen = () => {
           {t.threads.open}
         </Link>
       ) : null}
-      {newest ? (
-        <Card className="mt-4">
-          <div className="text-sm" style={{ color: 'var(--negative)' }}>
-            {t.note.correctedBy(note.supersededBy.length)}
-          </div>
-          <Link to={`/note/${newest.id}`} className="mt-1 block text-sm text-primary">
-            {t.note.newest(newest.title)}
-          </Link>
-        </Card>
-      ) : null}
+      <AmendedCard refs={byKind(note.supersededBy, 'corrects')} kind="corrects" />
+      <AmendedCard refs={byKind(note.supersededBy, 'unknown')} kind="unknown" />
+      <AmendedCard refs={byKind(note.supersededBy, 'continues')} kind="continues" />
       {note.corrects.length > 0 ? (
         <Card className="mt-3">
           <div className="text-xs text-muted">{t.note.corrects}</div>
@@ -232,19 +285,9 @@ export const NoteScreen = () => {
           />
         </>
       )}
-      <article className="reading mt-7 rounded-card p-5 sm:p-7">
+      <article className={editing ? 'mt-6' : 'reading mt-7 rounded-card p-5 sm:p-7'}>
         {editing ? (
-          // state and rule are the document. The editor takes its place rather
-          // than opening above it, so the reader is not looking at the old text
-          // and the new text at the same time.
-          <NoteEditor
-            note={note}
-            onSaved={(next) => {
-              setEdited(next);
-              setEditing(false);
-            }}
-            onCancel={() => setEditing(false)}
-          />
+          <NoteEditor note={note} onSaved={setEdited} />
         ) : note.content.trim() ? (
           <Markdown
             links={note.wikiLinks}
