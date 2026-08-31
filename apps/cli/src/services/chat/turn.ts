@@ -4,6 +4,7 @@ import {
   declineRule,
   getNote,
   listRules,
+  parseTags,
   type MemexClient,
   matchRegisterSubjects,
   type Note,
@@ -38,6 +39,12 @@ const DETAIL_CHARS = 300;
 // reads bound how much vault one turn can pull into a prompt, and the search
 // limit stops one query from spending the read budget by itself.
 const MAX_LOOKUPS = 6;
+// A skill is loaded whole rather than snipped: half a set of instructions is
+// worse than none, because the model cannot tell which half it is missing. That
+// makes it the largest thing a prompt carries, and it is carried for the rest
+// of the turn — which is the cost of the model working the way this person does
+// rather than the way it would have guessed.
+const SKILL_CHARS = 16000;
 const MAX_READS = 40;
 const MAX_SEARCH = 20;
 const READ_CHARS = 1500;
@@ -65,10 +72,16 @@ export type RegisterCandidate = {
 
 export type RuleCandidate = { id: number; title: string; snippet: string };
 
+// A way of working the person approved and kept. It is a `rule` note, so it
+// arrives provisional and cannot run until they say it may — the same gate that
+// stops the vault from teaching itself something nobody agreed to.
+export type SkillCandidate = { id: number; title: string; snippet: string };
+
 export type Candidates = {
   notes: NoteCandidate[];
   register: RegisterCandidate[];
   rules: RuleCandidate[];
+  skills: SkillCandidate[];
   searchable: boolean;
 };
 
@@ -76,7 +89,8 @@ export type Cited = { id: number; title: string };
 
 export type Lookup =
   | { kind: 'searched'; query: string; found: NoteCandidate[] }
-  | { kind: 'read'; notes: { id: number; title: string; body: string }[] };
+  | { kind: 'read'; notes: { id: number; title: string; body: string }[] }
+  | { kind: 'skill'; title: string; body: string };
 
 export type Turn =
   | { kind: 'plan'; plan: Plan; confirmation: Confirmation; candidates: Candidates }
@@ -169,8 +183,19 @@ export const gatherCandidates = async (
     rules: listRules(deps.client, 'provisional')
       .slice(0, RULE_CANDIDATES)
       .map((rule) => ({ id: rule.id, title: rule.title, snippet: snippet(rule, DETAIL_CHARS) })),
+    skills: skillCandidates(deps.client),
   };
 };
+
+const SKILL_TAG = tagKey('skill');
+
+// Only approved skills are offered. A provisional one is listed for approval
+// like any other rule, which is the point: the person sees what it says before
+// it can act on their vault.
+export const skillCandidates = (client: MemexClient): SkillCandidate[] =>
+  listRules(client, 'canonical')
+    .filter((rule) => parseTags(rule.tags).some((tag) => tagKey(tag) === SKILL_TAG))
+    .map((rule) => ({ id: rule.id, title: rule.title, snippet: snippet(rule, DETAIL_CHARS) }));
 
 const scopeLabel = (scope: RegisterScope) =>
   scope.kind === 'global' ? 'always' : `${scope.start}..${scope.end}`;
@@ -195,7 +220,9 @@ const lookupsBlock = (lookups: Lookup[], left: number) => {
                   lookup.found.map((n) => `  #${n.id} [${n.layer}] ${n.title} — ${n.snippet}`),
                   '  (nothing)',
                 )}`
-              : lookup.notes.map((n) => `read #${n.id} "${n.title}" →\n${n.body}`).join('\n'),
+              : lookup.kind === 'skill'
+                ? `skill "${lookup.title}" →\n${lookup.body}`
+                : lookup.notes.map((n) => `read #${n.id} "${n.title}" →\n${n.body}`).join('\n'),
           )
           .join('\n')}\n`;
 
@@ -221,6 +248,12 @@ Choose exactly one action and answer with raw JSON, no code fence.
     Search the whole vault, not just the notes listed below. What you find comes
     back to you and you choose again. A question about the vault as a whole is
     not answerable from the list below — search first.
+
+  {"action":"use-skill","id":<id>}
+    A way of working this person has written down and approved. When what they
+    asked for is what a listed skill describes, load it before doing anything
+    else — its instructions come back and you choose again. Follow it; it says
+    how they want this done, which you cannot infer from the request.
 
   {"action":"read","ids":[<id>,...]}
     Read the full body of notes whose titles you have seen. The text comes back
@@ -269,6 +302,12 @@ ${listOr(
   candidates.searchable ? '(none)' : '(search is unavailable; do not refer to notes by id)',
 )}
 
+=== SKILLS ===
+${listOr(
+  candidates.skills.map((s) => `#${s.id} ${s.title} — ${s.snippet}`),
+  '(none)',
+)}
+
 === RULES AWAITING APPROVAL ===
 ${listOr(
   candidates.rules.map((r) => `#${r.id} ${r.title} — ${r.snippet}`),
@@ -313,6 +352,8 @@ const resolve = (draft: PlanDraft, deps: ChatDeps, candidates: Candidates): Plan
       ? { kind: 'amend-note', amends: draft.amends, title: draft.title, content: draft.content }
       : null;
   }
+
+  if (draft.action !== 'rule-decision') return null;
 
   // Approval is the person's, and it only means something if they read the
   // rule. Anything that is not still waiting — already canonical, or not a rule
@@ -365,8 +406,23 @@ const runRead = (deps: ChatDeps, ids: number[], budget: number): Lookup => ({
   }),
 });
 
+// Only a skill the prompt offered can be loaded, and only an approved one —
+// the list is the whole permission. An id the model reached for otherwise is a
+// rule nobody agreed to run.
+const runSkill = (deps: ChatDeps, id: number, candidates: Candidates): Lookup | null => {
+  const offered = candidates.skills.find((skill) => skill.id === id);
+  const note = offered ? getNote(deps.client, id) : undefined;
+  return note === undefined
+    ? null
+    : { kind: 'skill', title: note.title, body: bodyOf(note.content, note.title).slice(0, SKILL_CHARS) };
+};
+
 const notesOf = (lookup: Lookup) =>
-  lookup.kind === 'searched' ? lookup.found : lookup.notes.map(({ body: _body, ...rest }) => rest);
+  lookup.kind === 'searched'
+    ? lookup.found
+    : lookup.kind === 'skill'
+      ? []
+      : lookup.notes.map(({ body: _body, ...rest }) => rest);
 
 export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
   const { message, carried = null, choice, history = [], signal } = request;
@@ -406,6 +462,14 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
     // A lookup the budget cannot pay for is not run, and the next prompt says
     // the budget is gone — so the model answers from what it has rather than
     // being told no and asking again.
+    if (draft.action === 'use-skill' && left > 0) {
+      const loaded = runSkill(deps, draft.id, candidates);
+      if (loaded !== null) {
+        lookups.push(loaded);
+        continue;
+      }
+    }
+
     if ((draft.action === 'search' || draft.action === 'read') && left > 0) {
       const lookup =
         draft.action === 'search'
@@ -438,7 +502,7 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
       return { kind: 'plan', plan, confirmation: confirmationFor(plan, carried), candidates };
     }
 
-    if (draft.action !== 'search' && draft.action !== 'read') {
+    if (draft.action !== 'search' && draft.action !== 'read' && draft.action !== 'use-skill') {
       return {
         kind: 'unmapped',
         reason: draft.action === 'none' ? 'none' : 'unknown-target',

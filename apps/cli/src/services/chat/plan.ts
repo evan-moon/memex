@@ -26,6 +26,7 @@ export type PlanDraft =
   | { action: 'answer'; text: string; cites: number[] }
   | { action: 'search'; query: string; limit: number | null }
   | { action: 'read'; ids: number[] }
+  | { action: 'use-skill'; id: number }
   | { action: 'none' };
 
 // `search` and `read` are not here either, for a plainer reason: they are not
@@ -133,6 +134,11 @@ const draftFrom = (parsed: Record<string, unknown>): PlanDraft | null => {
       ? parsed.ids.filter((one): one is number => id(one) !== null)
       : [];
     return ids.length > 0 ? { action: 'read', ids } : null;
+  }
+
+  if (parsed.action === 'use-skill') {
+    const skill = id(parsed.id);
+    return skill === null ? null : { action: 'use-skill', id: skill };
   }
 
   if (parsed.action === 'rule-decision') {

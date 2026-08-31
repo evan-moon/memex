@@ -7,6 +7,7 @@ import {
   type MemexClient,
   openDb,
   readRegister,
+  serializeTags,
   setRegister,
 } from '@memex/db';
 import type { LlmProvider } from '@memex/llm';
@@ -31,6 +32,17 @@ const deps = (ask?: LlmProvider): ChatDeps => ({
   vaultPath: dbDir,
   ask,
 });
+
+const addSkill = (title: string, body: string, status: 'provisional' | 'canonical' = 'canonical') =>
+  insertNote(client, {
+    title,
+    content: body,
+    filePath: join(dbDir, `${title}.md`),
+    source: 'claude-code',
+    layer: 'rule',
+    tags: serializeTags(['skill']),
+    ruleStatus: status,
+  });
 
 const addNote = (title: string, layer: 'past' | 'state' | 'rule', ruleStatus?: 'provisional') =>
   insertNote(client, {
@@ -526,5 +538,57 @@ describe('applying a plan', () => {
 
     expect(applied.ok).toBe(true);
     expect(getNote(client, waiting.id)?.ruleStatus).toBe('canonical');
+  });
+});
+
+// A skill is a way of working the person wrote down. It is a rule, so it lands
+// provisional and is not offered until they approve it — the same gate that
+// keeps the vault from teaching itself something nobody agreed to.
+describe('a skill the person approved', () => {
+  it('offers an approved one and hands over its instructions when asked', async () => {
+    const skill = addSkill('블로그 초안 쓰기', '1. 볼트에서 재료를 모은다\n2. 내 문체로 쓴다');
+    const prompts: string[] = [];
+    const replies = [
+      JSON.stringify({ action: 'use-skill', id: skill.id }),
+      JSON.stringify({ action: 'answer', text: '따랐어요', cites: [] }),
+    ];
+    const ask: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: replies[prompts.length - 1] ?? replies[1], durationMs: 1 };
+    };
+
+    const turn = await planTurn(deps(ask), { message: '초안 써줘', choice: CHOICE });
+
+    expect(prompts[0]).toContain('=== SKILLS ===');
+    expect(prompts[0]).toContain('블로그 초안 쓰기');
+    expect(prompts[1]).toContain('skill "블로그 초안 쓰기"');
+    expect(prompts[1]).toContain('내 문체로 쓴다');
+    expect(turn).toMatchObject({ kind: 'answer', text: '따랐어요' });
+  });
+
+  it('does not offer one still waiting for approval', async () => {
+    addSkill('승인 안 된 스킬', 'body', 'provisional');
+
+    const candidates = await gatherCandidates(deps(), null, '초안 써줘');
+
+    expect(candidates.skills).toEqual([]);
+    expect(candidates.rules.map((rule) => rule.title)).toContain('승인 안 된 스킬');
+  });
+
+  // The list in the prompt is the whole permission. A rule that is not offered
+  // is not loaded, and the turn ends saying so rather than running it — the
+  // person asks again, which is recoverable; a rule nobody approved is not.
+  it('will not load a rule that was never offered as a skill', async () => {
+    const plain = addNote('그냥 규칙', 'rule');
+    const prompts: string[] = [];
+    const ask: LlmProvider = async ({ prompt }) => {
+      prompts.push(prompt);
+      return { text: JSON.stringify({ action: 'use-skill', id: plain.id }), durationMs: 1 };
+    };
+
+    const turn = await planTurn(deps(ask), { message: '초안 써줘', choice: CHOICE });
+
+    expect(turn).toMatchObject({ kind: 'unmapped' });
+    expect(prompts).toHaveLength(1);
   });
 });

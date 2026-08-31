@@ -32,6 +32,7 @@ const candidates: Candidates = {
     },
   ],
   rules: [{ id: 90, title: 'a rule awaiting approval', snippet: '…' }],
+  skills: [],
   searchable: true,
 };
 
