@@ -1,6 +1,6 @@
-import GetTheApp, { type GetTheAppCopy } from './_components/GetTheApp';
-import { latestDesktopRelease } from '../lib/release';
 import { NOTIFY_ENDPOINT } from '../lib/notify';
+import { latestDesktopRelease } from '../lib/release';
+import GetTheApp, { type GetTheAppCopy } from './_components/GetTheApp';
 
 const GET_THE_APP: GetTheAppCopy = {
   download: 'Download for Mac',

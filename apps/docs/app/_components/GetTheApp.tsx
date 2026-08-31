@@ -52,7 +52,11 @@ export default function GetTheApp({ copy, version, notifyEndpoint }: Props) {
       .catch(() => false);
 
     setNotify(delivered ? 'sent' : 'failed');
-    track({ name: 'form_submit', form: 'windows_notify', result: delivered ? 'success' : 'failed' });
+    track({
+      name: 'form_submit',
+      form: 'windows_notify',
+      result: delivered ? 'success' : 'failed',
+    });
   };
 
   if (!windows) {

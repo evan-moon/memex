@@ -1,6 +1,6 @@
-import GetTheApp, { type GetTheAppCopy } from '../_components/GetTheApp';
-import { latestDesktopRelease } from '../../lib/release';
 import { NOTIFY_ENDPOINT } from '../../lib/notify';
+import { latestDesktopRelease } from '../../lib/release';
+import GetTheApp, { type GetTheAppCopy } from '../_components/GetTheApp';
 
 const GET_THE_APP: GetTheAppCopy = {
   download: 'Mac용 다운로드',
@@ -283,10 +283,9 @@ export default async function KoHome() {
             <div>
               <div className="step-title">Claude에 연결</div>
               <div className="step-desc">
-                앱이 memex를 MCP 서버로 등록해 줍니다. Claude Code와 Claude Desktop 모두
-                지원합니다. 터미널이 편하다면{' '}
-                <code className="step-inline">npm i -g @evan-moon/memex</code>로 CLI를 설치하고{' '}
-                <code className="step-inline">memex mcp install</code>을 실행하세요.
+                앱이 memex를 MCP 서버로 등록해 줍니다. Claude Code와 Claude Desktop 모두 지원합니다.
+                터미널이 편하다면 <code className="step-inline">npm i -g @evan-moon/memex</code>로
+                CLI를 설치하고 <code className="step-inline">memex mcp install</code>을 실행하세요.
               </div>
             </div>
           </div>

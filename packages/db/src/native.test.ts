@@ -26,7 +26,7 @@ describe('picking the native binding', () => {
     expect(sqliteBinding(dir, 'electron')).toBeUndefined();
   });
 
-  it("does not hand one runtime the build made for the other", () => {
+  it('does not hand one runtime the build made for the other', () => {
     const dir = releaseDirWith(['better_sqlite3-node.node']);
 
     expect(sqliteBinding(dir, 'electron')).toBeUndefined();

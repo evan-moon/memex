@@ -38,7 +38,7 @@ const componentsFor = (
       onPick === undefined || here ? (
         <p className="doc-body">{children}</p>
       ) : (
-        // biome-ignore lint/a11y/noStaticElementInteractions: the paragraph is the target, and the button in the header does the same thing for a keyboard
+        // biome-ignore lint/a11y/useKeyWithClickEvents: clicking a paragraph is a shortcut to the correction the header button already starts, quoted rather than empty. Reaching the quote by keyboard would put every paragraph in the tab order, which costs a keyboard reader the whole note to save them one paste.
         <p
           className="doc-body -mx-2 cursor-text rounded px-2 hover:bg-surface-muted"
           onClick={() => onPick(text)}
