@@ -34,18 +34,49 @@ describe('supersededLine', () => {
   });
 
   it('names the one correction', () => {
-    expect(supersededLine([{ id: 7, title: 'fix' }])).toContain('#7 "fix"');
+    expect(supersededLine([{ id: 7, title: 'fix', kind: 'corrects' }])).toContain('#7 "fix"');
   });
 
   it('leads with the newest correction and counts the rest', () => {
     const line = supersededLine([
-      { id: 7, title: 'first' },
-      { id: 8, title: 'second' },
-      { id: 9, title: 'third' },
+      { id: 7, title: 'first', kind: 'corrects' },
+      { id: 8, title: 'second', kind: 'corrects' },
+      { id: 9, title: 'third', kind: 'corrects' },
     ]);
     expect(line).toContain('#9 "third"');
-    expect(line).toContain('2 earlier corrections');
+    expect(line).toContain('2 earlier');
     expect(line).not.toContain('"first"');
+  });
+
+  it('does not call a continuation a correction', () => {
+    const line = supersededLine([{ id: 8, title: 'more', kind: 'continues' }]);
+    expect(line).toContain('continued by #8 "more"');
+    expect(line).not.toContain('superseded');
+    expect(line).not.toContain('corrected');
+  });
+
+  it('does not claim an untyped amendment says the note is wrong', () => {
+    const line = supersededLine([{ id: 8, title: 'later', kind: 'unknown' }]);
+    expect(line).toContain('#8 "later"');
+    expect(line).toContain('did not say');
+    expect(line).not.toContain('superseded');
+  });
+
+  it('reports a correction and a continuation separately', () => {
+    const line = supersededLine([
+      { id: 7, title: 'wrong bit', kind: 'corrects' },
+      { id: 8, title: 'more', kind: 'continues' },
+    ]);
+    expect(line).toContain('corrected by #7 "wrong bit"');
+    expect(line).toContain('continued by #8 "more"');
+  });
+
+  it('leads with the correction even when a continuation is newer', () => {
+    const line = supersededLine([
+      { id: 7, title: 'wrong bit', kind: 'corrects' },
+      { id: 9, title: 'more', kind: 'continues' },
+    ]);
+    expect(line.indexOf('corrected by')).toBeLessThan(line.indexOf('continued by'));
   });
 });
 

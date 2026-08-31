@@ -271,6 +271,20 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 15,
+    name: 'note_invalidations',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS note_invalidations (
+          note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          idx     INTEGER NOT NULL,
+          text    TEXT    NOT NULL,
+          PRIMARY KEY (note_id, idx)
+        );
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

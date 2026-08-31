@@ -74,9 +74,14 @@ The response may include "Flashback" lines pointing to older notes from a differ
       amends_kind: z
         .enum(['corrects', 'continues'])
         .optional()
-        .default('continues')
         .describe(
-          'What this note does to the one in `amends`. "corrects" means the earlier note is now wrong and search should stop returning it on its own. "continues" means it still holds and this adds to it. Choose "corrects" only when something in the earlier note is no longer true — a later note that carries the story forward is "continues".',
+          'What this note does to the one in `amends`. "corrects" means something in the earlier note is no longer true. "continues" means it still holds and this adds to it. Defaults to "continues" — unless `invalidates` names something, which settles it as "corrects".',
+        ),
+      invalidates: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'The claims in the note being amended that are no longer true, each written as the sentence it replaces — not a summary of this note. A correction almost never invalidates a whole note: name only the parts that stopped being true, and leave the rest to stand. Passing anything here makes this a correction.',
         ),
       layer: z
         .enum(['past', 'state', 'rule'])
@@ -84,7 +89,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
           'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
         ),
     },
-    async ({ title, content, folder, tags, source, layer, amends, amends_kind }) => {
+    async ({ title, content, folder, tags, source, layer, amends, amends_kind, invalidates }) => {
       const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
@@ -94,14 +99,28 @@ The response may include "Flashback" lines pointing to older notes from a differ
         layer,
         amends,
         amendKind: amends_kind,
+        invalidates,
       });
       if (isSaveRejection(result)) {
         return { content: [{ type: 'text', text: result.message }], isError: true };
       }
-      const { note, similar, flashbacks, signal, amended, amendsMissing } = result;
+      const {
+        note,
+        similar,
+        flashbacks,
+        signal,
+        amended,
+        amendsMissing,
+        invalidates: invalidated,
+      } = result;
+
+      const invalidatedSection =
+        invalidated && invalidated.length > 0
+          ? `\n\nMarked as no longer true:\n${invalidated.map((claim) => `- ${claim}`).join('\n')}`
+          : '';
 
       const amendSection = amended
-        ? `\n\n🔗 Recorded as an amendment of #${amended.id} "${amended.title}" — searches that surface it will now carry the correction.`
+        ? `\n\n🔗 Recorded as an amendment of #${amended.id} "${amended.title}" — searches that surface it will now carry the correction.${invalidatedSection}`
         : amendsMissing !== undefined
           ? `\n\n⚠️ amends #${amendsMissing} matches no note, so nothing links this correction to what it corrects. Search for the note and save again with the right id.`
           : '';

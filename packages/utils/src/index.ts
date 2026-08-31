@@ -21,6 +21,7 @@ export {
   formatDate,
   stripFrontmatter,
 } from './format.ts';
+export { parseInvalidates, writeInvalidates } from './invalidates.ts';
 export type { CollapsedSeries, SeriesMember } from './series.ts';
 export { collapseSeries, isSameSeries, seriesKey, seriesLabel } from './series.ts';
 export type { TagVariant } from './tags.ts';

@@ -3,6 +3,7 @@ import { CONFIG_DIR, formatDate } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { layerBadge } from '../layer.ts';
+import { amendmentLines } from './search.ts';
 
 export const registerShow = (program: Command) => {
   program
@@ -21,9 +22,8 @@ export const registerShow = (program: Command) => {
 
       console.log();
       console.log(`${layerBadge(note.layer)} ${pc.bold(`# ${note.title}`)}`);
-      if (amendments.length > 0) {
-        console.log(pc.yellow(`⚠ corrected by ${amendments.length} later note(s):`));
-        for (const a of amendments) console.log(pc.yellow(`  #${a.id} ${a.title}`));
+      for (const line of amendmentLines(amendments)) {
+        console.log(line);
       }
       console.log();
       console.log(note.content);

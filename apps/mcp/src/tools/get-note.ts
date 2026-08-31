@@ -1,8 +1,36 @@
-import type { MemexClient } from '@memex/db';
+import type { AmendKind, MemexClient } from '@memex/db';
 import { getAmendments, getBacklinks, getNote } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ownWorkHint, stamp } from './search-notes.ts';
+import { type AmendmentRef, ownWorkHint, stamp } from './search-notes.ts';
+
+const HEADING: Record<AmendKind, string> = {
+  corrects: '⚠️ **Corrected by later notes** — read these before relying on anything above:',
+  unknown:
+    '↔ **Amended by later notes**, which did not say whether they correct or continue — read them before relying on anything above:',
+  continues: '→ **Continued by later notes** — this note still holds:',
+};
+
+const HEADING_ORDER: AmendKind[] = ['corrects', 'unknown', 'continues'];
+
+export const amendmentSections = (amendments: AmendmentRef[]): string =>
+  HEADING_ORDER.map((kind) => ({
+    kind,
+    ofKind: amendments.filter((amendment) => amendment.kind === kind),
+  }))
+    .filter(({ ofKind }) => ofKind.length > 0)
+    .map(
+      ({ kind, ofKind }) =>
+        `\n\n---\n${HEADING[kind]}\n${ofKind
+          .map(
+            (a) =>
+              `- #${a.id} [[${a.title}]]${(a.invalidates ?? [])
+                .map((claim) => `\n  - no longer true: ${claim}`)
+                .join('')}`,
+          )
+          .join('\n')}`,
+    )
+    .join('');
 
 export const registerGetNote = (server: McpServer, client: MemexClient) => {
   server.tool(
@@ -15,13 +43,7 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
 
-      const amendments = getAmendments(client, id);
-      const amendmentSection =
-        amendments.length > 0
-          ? `\n\n---\n⚠️ **Corrected by later notes** — read these before relying on anything above:\n${amendments
-              .map((a) => `- #${a.id} [[${a.title}]]`)
-              .join('\n')}`
-          : '';
+      const amendmentSection = amendmentSections(getAmendments(client, id));
 
       const backlinks = getBacklinks(client, id);
       const backlinkSection =

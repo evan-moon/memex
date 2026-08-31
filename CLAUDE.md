@@ -112,9 +112,11 @@ Call `list_folders` before saving and reuse an existing folder. Do NOT create `d
 
 Correction convention — a `past` note can never be edited, so corrections are new notes. Pass `amends: <id>` whenever you write about something already recorded, and say which of the two things you are doing with `amends_kind`:
 
-- `corrects` — something in the earlier note is no longer true. Search stops returning it on its own and points at the correction.
+- `corrects` — something in the earlier note is no longer true. Search still returns it, carrying a warning that points at the correction.
 - `continues` (the default) — the earlier note still holds and this carries it forward.
 
 Both used to be one edge. A count of 74 pairs found 58% were continuations, which is how 37 notes came to be labelled "no longer true" while still being true. Choosing `corrects` when you only meant to add more puts that label back.
+
+Say *what* stopped being true with `invalidates` — the claims in the amended note that no longer hold, each written as the sentence it replaces. A correction almost never invalidates a whole note: name only the parts that stopped being true, and the rest goes on standing. Passing anything here settles `amends_kind` as `corrects`, so you rarely need to choose that label by hand.
 
 Link convention — a note's filename is its title, so `[[Exact Note Title]]` is the only form that links. Search first and copy the title verbatim; `[[Title|display text]]` when the sentence needs other wording. Never `[[Title]](#1234)`, `[[1234]]`, `[label](path/note.md)`, or `[[some-memory-key]]` — those render as dead text. Reference an id in prose as plain `#1234`. `save_note`/`update_note` report links that resolve to nothing.

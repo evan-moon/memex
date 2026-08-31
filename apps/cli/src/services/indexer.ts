@@ -13,11 +13,18 @@ import {
   parseTags,
   resyncLinkIndexes,
   serializeTags,
+  setNoteInvalidations,
   syncLinks,
   syncNoteEvidence,
   updateNote,
 } from '@memex/db';
-import { authorOfPath, extractCategory, parseDerivesFrom, yamlScalar } from '@memex/utils';
+import {
+  authorOfPath,
+  extractCategory,
+  parseDerivesFrom,
+  parseInvalidates,
+  yamlScalar,
+} from '@memex/utils';
 
 type Embedder = (text: string) => Promise<number[]>;
 
@@ -203,6 +210,8 @@ const resyncEvidence = (client: MemexClient) => {
   for (const note of notes) {
     const declared = parseDerivesFrom(note.content);
     if (declared.length > 0) syncNoteEvidence(client, note.id, declared);
+    const invalidated = parseInvalidates(note.content);
+    if (invalidated.length > 0) setNoteInvalidations(client, note.id, invalidated);
   }
 };
 

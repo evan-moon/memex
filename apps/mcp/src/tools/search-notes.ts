@@ -1,5 +1,6 @@
 import { type Reranker, searchPageMulti } from '@memex/core';
 import {
+  type AmendKind,
   type FlashbackOptions,
   findFlashbacks,
   getAmendmentsFor,
@@ -33,13 +34,44 @@ export const ownWorkHint =
   "user's own words. They are a prior summary and can be stale or wrong. When one " +
   "disagrees with a note the user wrote, the user's note wins.";
 
-export const supersededLine = (corrections: { id: number; title: string }[]): string => {
-  const newest = corrections.at(-1);
-  if (!newest) return '';
-  const earlier = corrections.length - 1;
-  const others = earlier > 0 ? ` (and ${earlier} earlier correction${earlier > 1 ? 's' : ''})` : '';
-  return `\n   ⚠️ superseded — corrected by #${newest.id} "${newest.title}"${others}. Read that before using this note.`;
+export type AmendmentRef = {
+  id: number;
+  title: string;
+  kind: AmendKind;
+  invalidates?: string[];
 };
+
+const invalidatedBy = (amendment: AmendmentRef): string =>
+  amendment.invalidates && amendment.invalidates.length > 0
+    ? ` No longer true: ${amendment.invalidates.map((claim) => `"${claim}"`).join('; ')}.`
+    : '';
+
+const NOTICE: Record<AmendKind, (newest: AmendmentRef, others: string) => string> = {
+  corrects: (newest, others) =>
+    `⚠️ superseded — corrected by #${newest.id} "${newest.title}"${others}. Read that before using this note.`,
+  unknown: (newest, others) =>
+    `↔ amended by #${newest.id} "${newest.title}"${others}, which did not say whether it corrects or continues. Read it before relying on this.`,
+  continues: (newest, others) =>
+    `→ continued by #${newest.id} "${newest.title}"${others}. This note still holds.`,
+};
+
+const NOTICE_ORDER: AmendKind[] = ['corrects', 'unknown', 'continues'];
+
+const noticeFor = (kind: AmendKind, amendments: AmendmentRef[]): string | null => {
+  const ofKind = amendments.filter((amendment) => amendment.kind === kind);
+  const newest = ofKind.at(-1);
+  if (!newest) return null;
+  const earlier = ofKind.length - 1;
+  return (
+    NOTICE[kind](newest, earlier > 0 ? ` (and ${earlier} earlier)` : '') + invalidatedBy(newest)
+  );
+};
+
+export const supersededLine = (amendments: AmendmentRef[]): string =>
+  NOTICE_ORDER.map((kind) => noticeFor(kind, amendments))
+    .filter((notice) => notice !== null)
+    .map((notice) => `\n   ${notice}`)
+    .join('');
 
 export const formatSize = (chars: number): string =>
   chars >= 1000 ? `${(chars / 1000).toFixed(1)}k chars` : `${chars} chars`;

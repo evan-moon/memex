@@ -1,6 +1,7 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
 import { type ChangeKind, recordNoteChange } from './changes.ts';
 import type { MemexClient } from './client.ts';
+import { invalidationsFor } from './invalidations.ts';
 import { dropLinkTargets, dropTitleKeys, syncLinkTargets, syncTitleKeys } from './link-index.ts';
 import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
 
@@ -547,7 +548,13 @@ export const kindOfEdge = (source: string): AmendKind =>
 
 export const AMEND_EDGES = ["'amends'", "'corrects'", "'continues'"].join(', ');
 
-export type Amendment = { id: number; title: string; authoredAt: number; kind: AmendKind };
+export type Amendment = {
+  id: number;
+  title: string;
+  authoredAt: number;
+  kind: AmendKind;
+  invalidates: string[];
+};
 
 // Amendments chain: [Amendment 2] usually corrects [Amendment 1], not the
 // original, so a note is stale if anything downstream of it corrected it —
@@ -585,8 +592,14 @@ export const getAmendmentsFor = (
     amendedId: number;
     edge: string;
   })[];
+  const invalidations = invalidationsFor(client, [...new Set(rows.map((row) => row.id))]);
   return rows.reduce((acc, { amendedId, edge, ...amendment }) => {
-    acc.set(amendedId, [...(acc.get(amendedId) ?? []), { ...amendment, kind: kindOfEdge(edge) }]);
+    const found = {
+      ...amendment,
+      kind: kindOfEdge(edge),
+      invalidates: invalidations.get(amendment.id) ?? [],
+    };
+    acc.set(amendedId, [...(acc.get(amendedId) ?? []), found]);
     return acc;
   }, new Map<number, Amendment[]>());
 };

@@ -1,6 +1,12 @@
 import { spinner } from '@clack/prompts';
 import { searchPage } from '@memex/core';
-import { findFlashbacks, getAmendmentsFor, openDb } from '@memex/db';
+import {
+  type AmendKind,
+  type Amendment,
+  findFlashbacks,
+  getAmendmentsFor,
+  openDb,
+} from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { createLazyReranker } from '@memex/rerank';
 import { CONFIG_DIR, MODEL_CACHE_DIR, stripFrontmatter } from '@memex/utils';
@@ -9,6 +15,25 @@ import pc from 'picocolors';
 import { rerankEnabled } from '../env.ts';
 import { layerBadge } from '../layer.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
+
+const AMENDMENT_LINE: Record<AmendKind, (head: Amendment, others: string) => string> = {
+  corrects: (head, others) => pc.yellow(`⚠ superseded by #${head.id} "${head.title}"${others}`),
+  unknown: (head, others) =>
+    pc.yellow(`↔ amended by #${head.id} "${head.title}"${others} — kind not stated`),
+  continues: (head, others) => pc.dim(`→ continued by #${head.id} "${head.title}"${others}`),
+};
+
+const AMENDMENT_ORDER: AmendKind[] = ['corrects', 'unknown', 'continues'];
+
+export const amendmentLines = (amendments: Amendment[]): string[] =>
+  AMENDMENT_ORDER.flatMap((kind) => {
+    const ofKind = amendments.filter((amendment) => amendment.kind === kind);
+    const newest = ofKind.at(-1);
+    if (!newest) return [];
+    return [
+      AMENDMENT_LINE[kind](newest, ofKind.length > 1 ? ` (+${ofKind.length - 1} earlier)` : ''),
+    ];
+  });
 
 export const registerSearch = (program: Command) => {
   program
@@ -76,11 +101,8 @@ export const registerSearch = (program: Command) => {
           console.log(
             `${pc.bold(`[${note.id}]`)} ${layerBadge(note.layer)} ${pc.bold(note.title)}`,
           );
-          const corrections = amendments.get(note.id) ?? [];
-          const newest = corrections.at(-1);
-          if (newest) {
-            const others = corrections.length > 1 ? ` (+${corrections.length - 1} earlier)` : '';
-            console.log(pc.yellow(`⚠ superseded by #${newest.id} "${newest.title}"${others}`));
+          for (const line of amendmentLines(amendments.get(note.id) ?? [])) {
+            console.log(line);
           }
           const body = stripFrontmatter(note.matchSnippet ?? note.content);
           const preview = body.slice(0, 300).replace(/\s+/g, ' ').trim();

@@ -77,6 +77,11 @@ export {
   setInferenceStatus,
 } from './inferences.ts';
 export {
+  getNoteInvalidations,
+  invalidationsFor,
+  setNoteInvalidations,
+} from './invalidations.ts';
+export {
   findUnresolvedLinks,
   linkTargets,
   resolveLinkTargets,
@@ -115,6 +120,7 @@ export {
 } from './register.ts';
 export type {
   AmendKind,
+  Amendment,
   EmbeddedChunk,
   Flashback,
   FlashbackOptions,

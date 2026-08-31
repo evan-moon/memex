@@ -25,6 +25,7 @@ import {
   type Signal,
   type SimilarNote,
   serializeTags,
+  setNoteInvalidations,
   syncLinks,
   updateNote,
 } from '@memex/db';
@@ -34,6 +35,7 @@ import {
   extractCategory,
   inVault,
   sanitizeFilename,
+  writeInvalidates,
 } from '@memex/utils';
 import { indexNoteVectors } from './vectors.ts';
 
@@ -146,6 +148,7 @@ export const saveNote = async (
     actor?: WriteActor;
     amends?: number;
     amendKind?: 'corrects' | 'continues';
+    invalidates?: string[];
   },
 ): Promise<
   | {
@@ -155,6 +158,7 @@ export const saveNote = async (
       signal?: Signal;
       amended?: Note;
       amendsMissing?: number;
+      invalidates?: string[];
     }
   | RuleWriteRejection
 > => {
@@ -171,22 +175,35 @@ export const saveNote = async (
 
   const authoredAt = parseAuthoredAt(params.title, params.content) ?? undefined;
 
+  const invalidates = (params.invalidates ?? [])
+    .map((claim) => claim.trim())
+    .filter((claim) => claim.length > 0);
+
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(
     filePath,
-    renderNoteFile({
-      title: params.title,
-      content: params.content,
-      tags: params.tags ?? [],
-      layer: params.layer,
-      date: authoredAt ?? Date.now(),
-    }),
+    writeInvalidates(
+      renderNoteFile({
+        title: params.title,
+        content: params.content,
+        tags: params.tags ?? [],
+        layer: params.layer,
+        date: authoredAt ?? Date.now(),
+      }),
+      invalidates,
+    ),
     'utf8',
   );
 
   const category = extractCategory(params.folder);
   const tags = serializeTags(params.tags ?? []);
-  const { actor: _actor, amends: _amends, amendKind: _amendKind, ...noteParams } = params;
+  const {
+    actor: _actor,
+    amends: _amends,
+    amendKind: _amendKind,
+    invalidates: _invalidates,
+    ...noteParams
+  } = params;
   const note = insertNote(client, {
     ...noteParams,
     filePath,
@@ -204,10 +221,14 @@ export const saveNote = async (
   );
   syncLinks(client, note.id, params.content);
 
+  if (invalidates.length > 0) setNoteInvalidations(client, note.id, invalidates);
+
   const amended = params.amends === undefined ? undefined : getNote(client, params.amends);
   // Default `continues`, not `corrects`: the safe half of the claim. Saying a
   // note is wrong when nobody said so is the failure this split exists to end.
-  if (amended) linkAmendment(client, note.id, amended.id, params.amendKind ?? 'continues');
+  // Naming what is no longer true is that saying, so it settles the kind.
+  const amendKind = params.amendKind ?? (invalidates.length > 0 ? 'corrects' : 'continues');
+  if (amended) linkAmendment(client, note.id, amended.id, amendKind);
 
   const flashbacks = findFlashbacks(client, note.id, Date.now(), readFlashbackOptions());
   persistFlashbackLinks(client, note.id, flashbacks);
@@ -225,6 +246,7 @@ export const saveNote = async (
     signal,
     ...(amended ? { amended } : {}),
     ...(params.amends !== undefined && !amended ? { amendsMissing: params.amends } : {}),
+    ...(invalidates.length > 0 ? { invalidates } : {}),
   };
 };
 

@@ -11,6 +11,7 @@ import {
   retrievalCounts,
   saveEmbedding,
 } from '@memex/db';
+import { parseInvalidates } from '@memex/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   editNote,
@@ -475,7 +476,12 @@ describe('saveNote — amendments', () => {
     rmSync(vaultDir, { recursive: true, force: true });
   });
 
-  const save = (title: string, amends?: number, amendKind?: 'corrects' | 'continues') =>
+  const save = (
+    title: string,
+    amends?: number,
+    amendKind?: 'corrects' | 'continues',
+    invalidates?: string[],
+  ) =>
     saveNote(client, stubEmbedder, vaultDir, {
       title,
       content: 'body',
@@ -483,6 +489,7 @@ describe('saveNote — amendments', () => {
       layer: 'past',
       amends,
       amendKind,
+      invalidates,
     });
 
   const edgeBetween = (from: number, to: number) =>
@@ -521,6 +528,39 @@ describe('saveNote — amendments', () => {
 
     expect(fix.amended?.id).toBe(original.note.id);
     expect(getAmendments(client, original.note.id).map((a) => a.id)).toEqual([fix.note.id]);
+  });
+
+  it('settles the kind as corrects when the note names what stopped being true', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const fix = await save('[Amendment] narrower', original.note.id, undefined, [
+      'the whole vault holds only 3~4 discoveries a month',
+    ]);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(edgeBetween(fix.note.id, original.note.id)).toBe('corrects');
+    expect(getAmendments(client, original.note.id)[0].invalidates).toEqual([
+      'the whole vault holds only 3~4 discoveries a month',
+    ]);
+  });
+
+  it('leaves the claims in the file so a reindex can find them again', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const fix = await save('[Amendment] narrower', original.note.id, undefined, ['one claim']);
+    if (isSaveRejection(fix)) throw new Error('unexpected rejection');
+
+    expect(parseInvalidates(readFileSync(fix.note.filePath, 'utf8'))).toEqual(['one claim']);
+  });
+
+  it('keeps continues when a note adds without naming anything as wrong', async () => {
+    const original = await save('original');
+    if (isSaveRejection(original)) throw new Error('unexpected rejection');
+    const later = await save('more about it', original.note.id, undefined, []);
+    if (isSaveRejection(later)) throw new Error('unexpected rejection');
+
+    expect(edgeBetween(later.note.id, original.note.id)).toBe('continues');
+    expect(later.invalidates).toBeUndefined();
   });
 
   it('reports an amends id that matches no note instead of linking nothing', async () => {
