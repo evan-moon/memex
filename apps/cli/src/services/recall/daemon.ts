@@ -1,10 +1,16 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { semanticSearch } from '@memex/core';
-import { openDb } from '@memex/db';
-import { createEmbedder } from '@memex/embed';
+import { logRetrieval, type MemexClient, openDb } from '@memex/db';
+import { createEmbedder, type Embedder } from '@memex/embed';
 import { isDaemonAlive } from './client.ts';
-import { isFilesystemSocket, type RecallHit, recallSocketPath } from './socket.ts';
+import {
+  EMPTY_RECALL_RESPONSE,
+  isFilesystemSocket,
+  isProbeQuery,
+  type RecallHit,
+  recallSocketPath,
+} from './socket.ts';
 
 const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const RECALL_LIMIT = 3;
@@ -12,6 +18,37 @@ const MAX_RECALL_DISTANCE = 0.57;
 
 const isRelevantHit = ({ distance }: { distance: number }) =>
   Number.isFinite(distance) && distance <= MAX_RECALL_DISTANCE;
+
+const recallHits = async (client: MemexClient, embedder: Embedder, query: string) => {
+  const notes = await semanticSearch(client, embedder, query, RECALL_LIMIT).catch(() => []);
+  const hits: RecallHit[] = notes
+    .filter(isRelevantHit)
+    .map(({ id, title, layer }) => ({ id, title, layer }));
+
+  logRetrieval(client, {
+    query,
+    surface: 'recall',
+    noteIds: notes.map(({ id }) => id),
+    injectedIds: hits.map(({ id }) => id),
+  });
+
+  return hits;
+};
+
+export const createRecallServer = (respond: (query: string) => Promise<RecallHit[]>) =>
+  createServer({ allowHalfOpen: true }, (socket) => {
+    const chunks: Buffer[] = [];
+    socket.on('error', () => socket.destroy());
+    socket.on('data', (chunk) => chunks.push(chunk));
+    socket.on('end', async () => {
+      const query = Buffer.concat(chunks).toString('utf8').trim();
+      if (isProbeQuery(query)) {
+        socket.end(EMPTY_RECALL_RESPONSE);
+        return;
+      }
+      socket.end(JSON.stringify(await respond(query)));
+    });
+  });
 
 const removeStaleSocket = (socketPath: string) => {
   if (isFilesystemSocket() && existsSync(socketPath)) unlinkSync(socketPath);
@@ -22,20 +59,7 @@ export const startRecallDaemon = async (configDir: string, modelCacheDir: string
   const client = openDb(configDir);
   const embedder = await createEmbedder(modelCacheDir);
 
-  const server = createServer({ allowHalfOpen: true }, (socket) => {
-    const chunks: Buffer[] = [];
-    socket.on('data', (chunk) => chunks.push(chunk));
-    socket.on('end', async () => {
-      const query = Buffer.concat(chunks).toString('utf8').trim();
-      const notes = await semanticSearch(client, embedder, query, RECALL_LIMIT, {
-        surface: 'recall',
-      }).catch(() => []);
-      const hits: RecallHit[] = notes
-        .filter(isRelevantHit)
-        .map(({ id, title, layer }) => ({ id, title, layer }));
-      socket.end(JSON.stringify(hits));
-    });
-  });
+  const server = createRecallServer((query) => recallHits(client, embedder, query));
 
   const shutdown = () => {
     server.close();

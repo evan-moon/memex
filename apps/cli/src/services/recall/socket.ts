@@ -7,6 +7,12 @@ export const recallSocketPath = (configDir: string) =>
 
 export const isFilesystemSocket = () => process.platform !== 'win32';
 
+export const RECALL_PING = '\u0000ping';
+
+export const EMPTY_RECALL_RESPONSE = '[]';
+
+export const isProbeQuery = (query: string) => query.length === 0 || query === RECALL_PING;
+
 export type RecallHit = {
   id: number;
   title: string;

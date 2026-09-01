@@ -1,18 +1,26 @@
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
-import type { RecallHit } from './socket.ts';
+import { RECALL_PING, type RecallHit } from './socket.ts';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const MIN_PROMPT_LENGTH = 12;
 const MAX_QUERY_LENGTH = 300;
-const SKIPPED_PREFIXES = ['/', '!'];
+const SKIPPED_PREFIXES = [
+  '/',
+  '!',
+  '<task-notification>',
+  '<system-reminder>',
+  'Your claude.ai usage limit',
+];
+const MACHINE_PHRASES = ['a personal second brain', 'look after their second brain'];
 
 export const toRecallQuery = (prompt: string) => prompt.slice(0, MAX_QUERY_LENGTH).trim();
 
 export const isRecallablePrompt = (prompt: string) => {
   const query = toRecallQuery(prompt);
   if (query.length < MIN_PROMPT_LENGTH) return false;
-  return !SKIPPED_PREFIXES.some((prefix) => query.startsWith(prefix));
+  if (SKIPPED_PREFIXES.some((prefix) => query.startsWith(prefix))) return false;
+  return !MACHINE_PHRASES.some((phrase) => query.includes(phrase));
 };
 
 export const formatRecallBlock = (hits: ReadonlyArray<RecallHit>) => {
@@ -29,9 +37,11 @@ export const isDaemonAlive = (socketPath: string) =>
   new Promise<boolean>((resolve) => {
     const probe = createConnection(socketPath)
       .on('connect', () => {
-        probe.destroy();
+        probe.end(RECALL_PING);
+        probe.unref();
         resolve(true);
       })
+      .on('data', () => probe.destroy())
       .on('error', () => resolve(false));
   });
 
