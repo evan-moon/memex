@@ -59,6 +59,58 @@ describe('schema migrations', () => {
     expect(authored_at).toBe(999);
   });
 
+  it('promotes hand-made sidecar tables without losing what they hold', () => {
+    const first = openDb(dir);
+    first.sqlite.exec(`
+      DROP TABLE note_type_labels;
+      DROP TABLE note_cards;
+      CREATE TABLE note_type_labels(note_id integer primary key, type text not null,
+        area text not null, method text not null, confidence text not null, at integer not null);
+      CREATE TABLE note_cards(note_id integer primary key, line text, field text, quality text, at integer);
+      INSERT INTO notes(title, content, file_path, source, created_at, updated_at)
+        VALUES ('a', 'b', '/v/a.md', 'manual', 1, 1);
+      INSERT INTO note_type_labels VALUES (1, '제품작업', '내 제품', 'tag', '약', 5);
+      INSERT INTO note_cards VALUES (1, 'a card line', NULL, NULL, NULL);
+      DELETE FROM index_meta WHERE key = 'schema_version';
+      INSERT INTO index_meta(key, value) VALUES ('schema_version', '18');
+    `);
+    first.sqlite.close();
+
+    const second = openDb(dir);
+    expect(readVersion(second)).toBe(LATEST_SCHEMA_VERSION);
+    expect(
+      second.sqlite.prepare('SELECT * FROM note_type_labels').get() as Record<string, unknown>,
+    ).toMatchObject({ note_id: 1, type: '제품작업', confidence: '약' });
+    expect(
+      second.sqlite.prepare('SELECT * FROM note_cards').get() as Record<string, unknown>,
+    ).toMatchObject({ note_id: 1, line: 'a card line', field: 'none', quality: 'bad' });
+
+    const ddl = second.sqlite
+      .prepare("SELECT sql FROM sqlite_master WHERE name = 'note_cards'")
+      .get() as { sql: string };
+    expect(ddl.sql).toContain('REFERENCES notes(id) ON DELETE CASCADE');
+    second.sqlite.close();
+  });
+
+  it('drops a sidecar row whose note never made it across', () => {
+    const first = openDb(dir);
+    first.sqlite.exec(`
+      DROP TABLE note_type_labels;
+      CREATE TABLE note_type_labels(note_id integer primary key, type text not null,
+        area text not null, method text not null, confidence text not null, at integer not null);
+      INSERT INTO note_type_labels VALUES (404, '제품작업', '내 제품', 'tag', '약', 5);
+      DELETE FROM index_meta WHERE key = 'schema_version';
+      INSERT INTO index_meta(key, value) VALUES ('schema_version', '18');
+    `);
+    first.sqlite.close();
+
+    const second = openDb(dir);
+    expect(second.sqlite.prepare('SELECT COUNT(*) AS n FROM note_type_labels').get()).toEqual({
+      n: 0,
+    });
+    second.sqlite.close();
+  });
+
   it('backfills authored_at across more notes than one batch holds', () => {
     const first = openDb(dir);
     const insert = first.sqlite.prepare(

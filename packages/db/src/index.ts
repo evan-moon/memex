@@ -1,3 +1,5 @@
+export type { CardField, CardQuality, NoteCard } from './card.ts';
+export { extractCard } from './card.ts';
 export {
   type ChangeKind,
   changeHead,
@@ -24,6 +26,15 @@ export {
   setNoteShape,
   shapedNoteIds,
 } from './claims.ts';
+export type {
+  ClassifyInput,
+  ClassifyMethod,
+  Confidence,
+  NoteArea,
+  NoteType,
+  NoteTypeLabel,
+} from './classify.ts';
+export { classifyNote, headingsOf, isNoteType, NOTE_TYPES } from './classify.ts';
 export type { MemexClient } from './client.ts';
 export { EMBEDDING_DIM, openDb } from './client.ts';
 export {
@@ -47,6 +58,14 @@ export {
   setNoteEvidence,
   syncNoteEvidence,
 } from './evidence.ts';
+export type { NoteFacets } from './facets.ts';
+export {
+  dropNoteFacets,
+  getNoteCard,
+  getNoteTypeLabel,
+  resyncNoteFacets,
+  syncNoteFacets,
+} from './facets.ts';
 export {
   type EmbeddingModelStatus,
   ensureEmbeddingModel,

@@ -14,6 +14,7 @@ export {
   semanticSearchMulti,
   type WriteActor,
 } from './note.ts';
+export { missingSlots, SLOTS_BY_TYPE, slotTemplate } from './slots.ts';
 export {
   embedNote,
   indexChunks,

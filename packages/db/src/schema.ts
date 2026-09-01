@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { NOTE_TYPES } from './classify.ts';
 
 export const notes = sqliteTable('notes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -26,6 +27,7 @@ export const notes = sqliteTable('notes', {
   // its own next input, so it lands provisional and is not injected until a
   // person approves it. Null on every other layer.
   ruleStatus: text('rule_status', { enum: ['provisional', 'canonical'] }),
+  type: text('type', { enum: NOTE_TYPES }),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

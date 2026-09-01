@@ -16,6 +16,7 @@ import {
   type NoteAuthor,
   type NoteLayer,
   type NoteSource,
+  type NoteType,
   parseAuthoredAt,
   parseTags,
   proactiveSignalFor,
@@ -27,6 +28,7 @@ import {
   serializeTags,
   setNoteInvalidations,
   syncLinks,
+  syncNoteFacets,
   updateNote,
 } from '@memex/db';
 import {
@@ -37,6 +39,7 @@ import {
   sanitizeFilename,
   writeInvalidates,
 } from '@memex/utils';
+import { missingSlots } from './slots.ts';
 import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -126,9 +129,15 @@ const persistFlashbackLinks = (
 /** Who is driving the write. MCP tool handlers are always 'agent'; only the CLI passes 'user'. */
 export type WriteActor = 'user' | 'agent';
 
+const slotsMissingMessage = (type: NoteType, missing: string[]): string =>
+  `Not saved. A "${type}" note carries a fixed set of sections, and these are missing:\n${missing
+    .map((slot) => `## ${slot}`)
+    .join('\n')}\n\nWrite each one with what this conversation actually settled, then save again.`;
+
 export type RuleWriteRejection =
   | { error: 'RULE_USER_ONLY'; message: string }
-  | { error: 'EXTERNAL_SOURCE'; message: string };
+  | { error: 'EXTERNAL_SOURCE'; message: string }
+  | { error: 'SLOTS_MISSING'; message: string; missingSlots: string[] };
 
 export const isSaveRejection = (
   result: { note: Note } | RuleWriteRejection,
@@ -149,6 +158,7 @@ export const saveNote = async (
     amends?: number;
     amendKind?: 'corrects' | 'continues';
     invalidates?: string[];
+    type?: NoteType;
   },
 ): Promise<
   | {
@@ -167,6 +177,15 @@ export const saveNote = async (
   // proposal is kept; it is the injection that waits for a person to approve it.
   const ruleStatus =
     params.layer === 'rule' ? (params.actor === 'user' ? 'canonical' : 'provisional') : null;
+
+  const missing = params.type === undefined ? [] : missingSlots(params.type, params.content);
+  if (params.type !== undefined && missing.length > 0) {
+    return {
+      error: 'SLOTS_MISSING',
+      message: slotsMissingMessage(params.type, missing),
+      missingSlots: missing,
+    };
+  }
 
   const embedding = await embedder(
     buildEmbeddingText(params.title, params.content, params.folder, params.tags),
@@ -220,6 +239,7 @@ export const saveNote = async (
     embedding,
   );
   syncLinks(client, note.id, params.content);
+  syncNoteFacets(client, note.id, vaultPath);
 
   if (invalidates.length > 0) setNoteInvalidations(client, note.id, invalidates);
 
@@ -532,6 +552,7 @@ export const editNote = async (
     tags: resolvedTags,
   });
   syncLinks(client, id, content);
+  syncNoteFacets(client, id, vaultPath);
 
   const signal = proactiveSignalFor(client, id);
 

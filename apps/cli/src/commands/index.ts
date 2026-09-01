@@ -1,5 +1,5 @@
 import { spinner } from '@clack/prompts';
-import { openDb } from '@memex/db';
+import { openDb, resyncNoteFacets } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
@@ -44,6 +44,8 @@ export const registerIndex = (program: Command) => {
           total.relinked += stats.relinked;
           total.reindexed += stats.reindexed;
         }
+
+        resyncNoteFacets(client, vaultPath);
 
         const parts = [
           total.added > 0 && pc.green(`+${total.added} added`),

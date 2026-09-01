@@ -192,6 +192,40 @@ describe('indexDirectory', () => {
     expect(JSON.parse(getNoteByFilePath(client, filePath)?.tags ?? '[]')).toEqual(['added-in-app']);
   });
 
+  it('keeps an authored date the file cannot state', async () => {
+    const filePath = join(vaultDir, 'undated.md');
+    writeFileSync(filePath, '# Undated\n\nbody', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const note = getNoteByFilePath(client, filePath);
+    expect(note?.authoredAt).toBeNull();
+    if (!note) return;
+
+    const backfilled = Date.parse('2019-03-04');
+    client.sqlite.prepare('UPDATE notes SET authored_at = ? WHERE id = ?').run(backfilled, note.id);
+
+    await indexDirectory(client, stubEmbedder, vaultDir, undefined, true);
+
+    expect(getNoteByFilePath(client, filePath)?.authoredAt).toBe(backfilled);
+  });
+
+  it('lets the frontmatter date overrule a stored authored date', async () => {
+    const filePath = join(vaultDir, 'dated.md');
+    writeFileSync(filePath, '---\ntitle: Dated\ndate: 2021-07-09\n---\n\nbody', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const note = getNoteByFilePath(client, filePath);
+    expect(note?.authoredAt).toBe(Date.parse('2021-07-09'));
+    if (!note) return;
+
+    client.sqlite
+      .prepare('UPDATE notes SET authored_at = ? WHERE id = ?')
+      .run(Date.parse('2001-01-01'), note.id);
+    await indexDirectory(client, stubEmbedder, vaultDir, undefined, true);
+
+    expect(getNoteByFilePath(client, filePath)?.authoredAt).toBe(Date.parse('2021-07-09'));
+  });
+
   it('skips ignored directories even when nested', async () => {
     const nested = join(vaultDir, 'sub', 'node_modules', 'pkg');
     mkdirSync(nested, { recursive: true });

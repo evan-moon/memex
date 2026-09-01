@@ -1,6 +1,7 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
 import { type ChangeKind, recordNoteChange } from './changes.ts';
 import type { MemexClient } from './client.ts';
+import { dropNoteFacets } from './facets.ts';
 import { invalidationsFor } from './invalidations.ts';
 import { dropLinkTargets, dropTitleKeys, syncLinkTargets, syncTitleKeys } from './link-index.ts';
 import { type NewNote, type Note, type NoteAuthor, type NoteLayer, notes } from './schema.ts';
@@ -422,6 +423,7 @@ export const deleteNote = (client: MemexClient, id: number): void => {
   client.sqlite.prepare('DELETE FROM note_links WHERE source_id = ? OR target_id = ?').run(id, id);
   dropTitleKeys(client, id);
   dropLinkTargets(client, id);
+  dropNoteFacets(client, id);
   recordNoteChange(client, id, ['removed']);
   client.db.delete(notes).where(eq(notes.id, id)).run();
 };
@@ -436,7 +438,10 @@ export const updateNote = (
   client: MemexClient,
   id: number,
   patch: Partial<
-    Pick<NewNote, 'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer' | 'author'>
+    Pick<
+      NewNote,
+      'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer' | 'author' | 'type'
+    >
   >,
 ): Note => {
   const [updated] = client.db

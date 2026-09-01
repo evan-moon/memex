@@ -5,6 +5,8 @@ import {
   countRetrievals,
   getAmendments,
   getNote,
+  getNoteCard,
+  getNoteTypeLabel,
   insertNote,
   type MemexClient,
   openDb,
@@ -119,6 +121,74 @@ describe('saveNote — filename is what a wiki link resolves against', () => {
       });
     }
     expect(readdirSync(vaultDir).sort()).toEqual(['Same Title (2).md', 'Same Title.md']);
+  });
+});
+
+describe('saveNote — document type', () => {
+  let dbDir: string;
+  let vaultDir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dbDir = mkdtempSync(join(tmpdir(), 'memex-type-db-'));
+    vaultDir = mkdtempSync(join(tmpdir(), 'memex-type-vault-'));
+    client = openDb(dbDir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(vaultDir, { recursive: true, force: true });
+  });
+
+  const save = (over: Record<string, unknown>) =>
+    saveNote(client, stubEmbedder, vaultDir, {
+      title: 'a note',
+      content: 'body',
+      source: 'claude-code' as const,
+      layer: 'past' as const,
+      ...over,
+    });
+
+  it('refuses a typed note that is missing its sections, and names them', async () => {
+    const result = await save({ type: '세션기록', content: '## Resume\n\n여기부터' });
+    expect(isSaveRejection(result)).toBe(true);
+    if (!isSaveRejection(result)) return;
+    expect(result).toMatchObject({
+      error: 'SLOTS_MISSING',
+      missingSlots: ['오늘 한 작업', '왜', '다음 작업'],
+    });
+    expect(result.message).toContain('## 다음 작업');
+    expect(readdirSync(vaultDir)).toEqual([]);
+  });
+
+  it('saves a typed note whose sections are all there', async () => {
+    const content = '## Resume\na\n## 오늘 한 작업\nb\n## 왜\nc\n## 다음 작업\nd';
+    const result = await save({ type: '세션기록', content });
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(getNote(client, result.note.id)?.type).toBe('세션기록');
+  });
+
+  it('asks nothing of a type that carries no sections', async () => {
+    const result = await save({ type: '학습메모', content: 'just a paragraph about a thing' });
+    expect(isSaveRejection(result)).toBe(false);
+  });
+
+  it('gives a saved note its label and card without a reindex', async () => {
+    const result = await save({
+      type: '학습메모',
+      content: '스프레드는 인자를 건드리지 않고 새 객체를 만든다.',
+    });
+    if (isSaveRejection(result)) return;
+    expect(getNoteTypeLabel(client, result.note.id)).toMatchObject({
+      type: '학습메모',
+      method: 'declared',
+    });
+    expect(getNoteCard(client, result.note.id)).toMatchObject({
+      line: '스프레드는 인자를 건드리지 않고 새 객체를 만든다.',
+      quality: 'good',
+    });
   });
 });
 

@@ -1,7 +1,8 @@
-import { isSaveRejection, saveNote } from '@memex/core';
+import { isSaveRejection, SLOTS_BY_TYPE, saveNote } from '@memex/core';
 import {
   findUnresolvedLinks,
   type MemexClient,
+  NOTE_TYPES,
   type NoteSource,
   recordPresentation,
 } from '@memex/db';
@@ -18,6 +19,10 @@ export const proposalLine = (ruleStatus: string | null): string =>
     ? '\n\n📋 Saved as a proposal — it is NOT in effect. It stays inert until the user approves ' +
       'it under Guidance in the memex app. Tell them it is waiting there.'
     : '';
+
+const SLOT_HELP = Object.entries(SLOTS_BY_TYPE)
+  .map(([type, slots]) => `- ${type}: ${slots.map((slot) => `## ${slot}`).join(' · ')}`)
+  .join('\n');
 
 export const registerSaveNote = (
   server: McpServer,
@@ -42,6 +47,12 @@ export const registerSaveNote = (
 
 Rules of thumb: past tense vs present/future tense, "fact vs intent" axis.
 When in doubt, choose past.
+
+\`type\` is REQUIRED — it is what the note is, not what it is about. Six of the types carry a fixed set of sections, and a save without them is rejected with the list of what to write:
+
+${SLOT_HELP}
+
+The other types — 발행물, 책, 초안, 에세이, 학습메모, 코드문서 — take no required sections.
 
 The response may include "Flashback" lines pointing to older notes from a different context that are semantically similar — surface these to the user when relevant.`,
     {
@@ -83,13 +94,29 @@ The response may include "Flashback" lines pointing to older notes from a differ
         .describe(
           'The claims in the note being amended that are no longer true, each written as the sentence it replaces — not a summary of this note. A correction almost never invalidates a whole note: name only the parts that stopped being true, and leave the rest to stand. Passing anything here makes this a correction.',
         ),
+      type: z
+        .enum(NOTE_TYPES)
+        .describe(
+          'What kind of document this is. Six types require fixed sections in `content` — see the tool description. Choosing the kind is what makes a note readable later; do not reach for 미분류 to skip the sections.',
+        ),
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
           'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
         ),
     },
-    async ({ title, content, folder, tags, source, layer, amends, amends_kind, invalidates }) => {
+    async ({
+      title,
+      content,
+      folder,
+      tags,
+      source,
+      layer,
+      type,
+      amends,
+      amends_kind,
+      invalidates,
+    }) => {
       const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
@@ -97,6 +124,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
         tags,
         source: source as NoteSource,
         layer,
+        type,
         amends,
         amendKind: amends_kind,
         invalidates,

@@ -303,6 +303,71 @@ const MIGRATIONS: readonly Migration[] = [
       sqlite.exec("UPDATE retrieval_log SET injected = 1 WHERE surface <> 'recall'");
     },
   },
+  {
+    version: 18,
+    name: 'notes.type',
+    up: (sqlite) => addColumnIfMissing(sqlite, 'notes', 'type', 'type TEXT'),
+  },
+  {
+    version: 19,
+    name: 'note facets',
+    up: (sqlite) => {
+      const declares = (table: string) =>
+        (
+          sqlite
+            .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+            .get(table) as { sql: string } | undefined
+        )?.sql;
+
+      const labels = declares('note_type_labels');
+      if (labels?.includes('REFERENCES notes') !== true) {
+        sqlite.exec(`
+          CREATE TABLE note_type_labels_rebuilt (
+            note_id    INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+            type       TEXT    NOT NULL,
+            area       TEXT    NOT NULL,
+            method     TEXT    NOT NULL,
+            confidence TEXT    NOT NULL,
+            at         INTEGER NOT NULL
+          );
+        `);
+        if (labels !== undefined) {
+          sqlite.exec(`
+            INSERT OR IGNORE INTO note_type_labels_rebuilt(note_id, type, area, method, confidence, at)
+              SELECT l.note_id, l.type, l.area, l.method, l.confidence, l.at
+              FROM note_type_labels l JOIN notes n ON n.id = l.note_id;
+            DROP TABLE note_type_labels;
+          `);
+        }
+        sqlite.exec('ALTER TABLE note_type_labels_rebuilt RENAME TO note_type_labels');
+      }
+
+      const cards = declares('note_cards');
+      if (cards?.includes('REFERENCES notes') !== true) {
+        sqlite.exec(`
+          CREATE TABLE note_cards_rebuilt (
+            note_id INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+            line    TEXT,
+            field   TEXT    NOT NULL,
+            quality TEXT    NOT NULL,
+            at      INTEGER NOT NULL
+          );
+        `);
+        if (cards !== undefined) {
+          sqlite
+            .prepare(
+              `INSERT OR IGNORE INTO note_cards_rebuilt(note_id, line, field, quality, at)
+                 SELECT c.note_id, c.line, COALESCE(c.field, 'none'), COALESCE(c.quality, 'bad'),
+                        COALESCE(c.at, ?)
+                 FROM note_cards c JOIN notes n ON n.id = c.note_id`,
+            )
+            .run(Date.now());
+          sqlite.exec('DROP TABLE note_cards');
+        }
+        sqlite.exec('ALTER TABLE note_cards_rebuilt RENAME TO note_cards');
+      }
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
