@@ -295,6 +295,14 @@ const MIGRATIONS: readonly Migration[] = [
       addColumnIfMissing(sqlite, 'chat_turns', 'reply', 'reply TEXT');
     },
   },
+  {
+    version: 17,
+    name: 'retrieval_log.injected',
+    up: (sqlite) => {
+      if (!addColumnIfMissing(sqlite, 'retrieval_log', 'injected', 'injected INTEGER')) return;
+      sqlite.exec("UPDATE retrieval_log SET injected = 1 WHERE surface <> 'recall'");
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

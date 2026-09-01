@@ -33,6 +33,28 @@ describe('logRetrieval', () => {
     ]);
   });
 
+  it('marks which results the caller actually put in front of someone', () => {
+    logRetrieval(
+      client,
+      { query: '근거', surface: 'recall', noteIds: [7, 3, 9], injectedIds: [7, 9] },
+      1000,
+    );
+    const rows = client.sqlite
+      .prepare('SELECT note_id AS noteId, injected FROM retrieval_log ORDER BY rank')
+      .all();
+    expect(rows).toEqual([
+      { noteId: 7, injected: 1 },
+      { noteId: 3, injected: 0 },
+      { noteId: 9, injected: 1 },
+    ]);
+  });
+
+  it('counts every result as shown when the caller keeps them all', () => {
+    logRetrieval(client, { query: '근거', surface: 'mcp', noteIds: [7, 3] }, 1000);
+    const rows = client.sqlite.prepare('SELECT injected FROM retrieval_log').all();
+    expect(rows).toEqual([{ injected: 1 }, { injected: 1 }]);
+  });
+
   it('writes nothing when a search returned no results', () => {
     logRetrieval(client, { query: '없는 것', surface: 'cli', noteIds: [] });
     expect(countRetrievals(client)).toBe(0);

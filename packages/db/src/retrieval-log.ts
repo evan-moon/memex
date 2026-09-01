@@ -19,6 +19,7 @@ export type RetrievalEntry = {
   query: string;
   surface: RetrievalSurface;
   noteIds: number[];
+  injectedIds?: number[];
 };
 
 export type RetrievalCount = {
@@ -30,13 +31,22 @@ export type RetrievalCount = {
 export const logRetrieval = (client: MemexClient, entry: RetrievalEntry, at = Date.now()) => {
   if (entry.noteIds.length === 0) return;
   const initiator = initiatorBySurface[entry.surface];
+  const injected = new Set(entry.injectedIds ?? entry.noteIds);
   const insert = client.sqlite.prepare(
-    `INSERT INTO retrieval_log (query, note_id, rank, surface, initiator, at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO retrieval_log (query, note_id, rank, surface, initiator, injected, at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   client.sqlite.transaction(() => {
     entry.noteIds.forEach((noteId, index) => {
-      insert.run(entry.query, noteId, index + 1, entry.surface, initiator, at);
+      insert.run(
+        entry.query,
+        noteId,
+        index + 1,
+        entry.surface,
+        initiator,
+        injected.has(noteId) ? 1 : 0,
+        at,
+      );
     });
   })();
 };
