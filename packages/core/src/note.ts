@@ -9,6 +9,7 @@ import {
   findSimilarByEmbedding,
   getNote,
   insertNote,
+  isNoteType,
   linkAmendment,
   logRetrieval,
   type MemexClient,
@@ -36,6 +37,7 @@ import {
   collapseSeries,
   extractCategory,
   inVault,
+  noteProse,
   sanitizeFilename,
   writeInvalidates,
 } from '@memex/utils';
@@ -137,7 +139,8 @@ const slotsMissingMessage = (type: NoteType, missing: string[]): string =>
 export type RuleWriteRejection =
   | { error: 'RULE_USER_ONLY'; message: string }
   | { error: 'EXTERNAL_SOURCE'; message: string }
-  | { error: 'SLOTS_MISSING'; message: string; missingSlots: string[] };
+  | { error: 'SLOTS_MISSING'; message: string; missingSlots: string[] }
+  | { error: 'EMPTY_BODY'; message: string };
 
 export const isSaveRejection = (
   result: { note: Note } | RuleWriteRejection,
@@ -158,7 +161,7 @@ export const saveNote = async (
     amends?: number;
     amendKind?: 'corrects' | 'continues';
     invalidates?: string[];
-    type?: NoteType;
+    type: NoteType;
   },
 ): Promise<
   | {
@@ -178,8 +181,22 @@ export const saveNote = async (
   const ruleStatus =
     params.layer === 'rule' ? (params.actor === 'user' ? 'canonical' : 'provisional') : null;
 
-  const missing = params.type === undefined ? [] : missingSlots(params.type, params.content);
-  if (params.type !== undefined && missing.length > 0) {
+  if (noteProse(params.content).length === 0) {
+    return {
+      error: 'EMPTY_BODY',
+      message:
+        `"${params.title}" has a title and nothing under it. A note nobody can read is a ` +
+        'filename the search will keep returning. Write what happened, or leave it out.',
+    };
+  }
+
+  // The template is a contract with the agent, not with the person. An agent
+  // writing into the vault is filling a record it will have to read back, and
+  // the sections are what make that readable. A person writing the same note is
+  // correcting something the agent got wrong, and a form to fill in is the
+  // surest way to make them not bother.
+  const missing = params.actor === 'user' ? [] : missingSlots(params.type, params.content);
+  if (missing.length > 0) {
     return {
       error: 'SLOTS_MISSING',
       message: slotsMissingMessage(params.type, missing),
@@ -448,6 +465,8 @@ export type EditNoteRejection =
       };
     }
   | { error: 'RULE_USER_ONLY'; message: string }
+  | { error: 'SLOTS_MISSING'; message: string; missingSlots: string[] }
+  | { error: 'EMPTY_BODY'; message: string }
   | {
       error: 'EXTERNAL_SOURCE';
       message: string;
@@ -522,6 +541,27 @@ export const editNote = async (
       error: 'RULE_USER_ONLY',
       message: 'rule notes can only be edited by the user. Surface your proposed change in chat.',
     };
+  }
+
+  // Sections the agent had to write to save the note are sections it must not
+  // edit back out. Without this the contract holds for exactly one write.
+  if (patch.content !== undefined) {
+    if (noteProse(patch.content).length === 0) {
+      return {
+        error: 'EMPTY_BODY',
+        message: `An edit that empties #${id} leaves a filename behind. Delete it instead.`,
+      };
+    }
+    if (options.actor !== 'user' && isNoteType(note.type)) {
+      const missing = missingSlots(note.type, patch.content);
+      if (missing.length > 0) {
+        return {
+          error: 'SLOTS_MISSING',
+          message: slotsMissingMessage(note.type, missing),
+          missingSlots: missing,
+        };
+      }
+    }
   }
 
   const tags = patch.tags !== undefined ? serializeTags(patch.tags) : undefined;

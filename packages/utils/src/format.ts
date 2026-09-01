@@ -15,6 +15,11 @@ export const stripFrontmatter = (content: string): string => {
   return deeper === withoutRepeatedTitle ? peeled : deeper;
 };
 
+const LEADING_TITLE = /^#[ \t]+[^\n]*(?:\r?\n|$)/;
+
+export const noteProse = (content: string): string =>
+  stripFrontmatter(content).replace(LEADING_TITLE, '').trim();
+
 export const buildEmbeddingText = (
   title: string,
   content: string,

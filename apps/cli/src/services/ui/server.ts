@@ -16,6 +16,7 @@ import {
   getAmendmentsFor,
   getInference,
   getNote,
+  isNoteType,
   listSessions,
   listSignals,
   type MemexClient,
@@ -728,6 +729,7 @@ export const route = async (
         content: found.inference.summary,
         source: 'manual',
         layer: 'state',
+        type: '미분류',
         actor: 'user',
       });
       if (isSaveRejection(result)) return bad(409, 'save-rejected', result.message);
@@ -780,6 +782,7 @@ export const route = async (
       content,
       source: 'manual',
       layer,
+      type: isNoteType(fields?.type) ? fields.type : '미분류',
       folder: text(fields?.folder),
       tags: words(fields?.tags),
       amends: positiveInt(fields?.amends),

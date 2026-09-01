@@ -4,6 +4,7 @@ import {
   buildEmbeddingText,
   extractCategory,
   formatDate,
+  noteProse,
   stripFrontmatter,
 } from './format.ts';
 
@@ -100,6 +101,25 @@ describe('stripFrontmatter', () => {
     expect(stripFrontmatter('---\ntitle: T\n---\n\n# T\n\n---\n\nBody')).toBe(
       '# T\n\n---\n\nBody',
     );
+  });
+});
+
+describe('noteProse', () => {
+  it('finds nothing in a note that is metadata and its own title twice', () => {
+    const shell = '---\ntitle: T\n---\n\n# T\n\n---\ntitle: T\ncategory: memory\n---\n\n# T\n';
+    expect(noteProse(shell)).toBe('');
+  });
+
+  it('finds nothing in a note that is only a title', () => {
+    expect(noteProse('---\ntitle: T\n---\n\n# T')).toBe('');
+  });
+
+  it('returns the prose a note actually carries', () => {
+    expect(noteProse('---\ntitle: T\n---\n\n# T\n\nLG 울트라파인 5k')).toBe('LG 울트라파인 5k');
+  });
+
+  it('counts a heading that says something the title does not', () => {
+    expect(noteProse('# T\n\n## 다음 작업\n\n- 정리')).toBe('## 다음 작업\n\n- 정리');
   });
 });
 

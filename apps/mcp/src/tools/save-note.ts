@@ -120,6 +120,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
       const result = await saveNote(client, embedder, vaultPath, {
         title,
         content,
+        actor: 'agent',
         folder,
         tags,
         source: source as NoteSource,

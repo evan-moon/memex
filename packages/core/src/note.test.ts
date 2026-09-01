@@ -106,6 +106,7 @@ describe('saveNote — filename is what a wiki link resolves against', () => {
       content: 'body',
       source: 'claude-code',
       layer: 'past',
+      type: '미분류',
     });
     expect(isSaveRejection(result)).toBe(false);
     expect(readdirSync(vaultDir)).toContain(`${title}.md`);
@@ -118,6 +119,7 @@ describe('saveNote — filename is what a wiki link resolves against', () => {
         content: 'body',
         source: 'claude-code',
         layer: 'past',
+        type: '미분류',
       });
     }
     expect(readdirSync(vaultDir).sort()).toEqual(['Same Title (2).md', 'Same Title.md']);
@@ -147,8 +149,42 @@ describe('saveNote — document type', () => {
       content: 'body',
       source: 'claude-code' as const,
       layer: 'past' as const,
+      type: '미분류' as const,
       ...over,
     });
+
+  it('refuses a note that is a title and nothing else', async () => {
+    const result = await save({ content: '' });
+    expect(isSaveRejection(result)).toBe(true);
+    if (isSaveRejection(result)) expect(result.error).toBe('EMPTY_BODY');
+  });
+
+  it('refuses a note whose only body is its own metadata and title', async () => {
+    const shell = '---\ntitle: a note\ncategory: memory\n---\n\n# a note\n';
+    const result = await save({ content: shell });
+    expect(isSaveRejection(result)).toBe(true);
+    if (isSaveRejection(result)) expect(result.error).toBe('EMPTY_BODY');
+  });
+
+  it('takes a note that carries one real line', async () => {
+    const result = await save({ content: 'LG 울트라파인 5k, 중고로 사는 것을 추천' });
+    expect(isSaveRejection(result)).toBe(false);
+  });
+
+  it('asks a person for no sections at all — a correction is not a form', async () => {
+    const result = await save({
+      type: '세션기록',
+      content: '아까 그거 opula 아니고 firma였어요',
+      actor: 'user',
+    });
+    expect(isSaveRejection(result)).toBe(false);
+  });
+
+  it('still refuses a person an empty note — that is not a template, it is nothing', async () => {
+    const result = await save({ type: '학습메모', content: '   ', actor: 'user' });
+    expect(isSaveRejection(result)).toBe(true);
+    if (isSaveRejection(result)) expect(result.error).toBe('EMPTY_BODY');
+  });
 
   it('refuses a typed note that is missing its sections, and names them', async () => {
     const result = await save({ type: '세션기록', content: '## Resume\n\n여기부터' });
@@ -219,6 +255,7 @@ describe('editNote — file round-trip', () => {
       filePath,
       source: 'index',
       layer: 'state',
+      type: '미분류',
     });
 
     const newContent = '---\ntitle: Portfolio\ndate: 2026-01-02\n---\n\nholdings: A, B, C';
@@ -239,6 +276,7 @@ describe('editNote — file round-trip', () => {
       filePath: join(vaultDir, 'roadmap.md'),
       source: 'index',
       layer: 'state',
+      type: '미분류',
     });
 
     const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
@@ -280,6 +318,7 @@ describe('editNote — layer guards', () => {
       filePath: join(vaultDir, '1on1.md'),
       source: 'manual',
       layer: 'past',
+      type: '미분류',
     });
 
     const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
@@ -302,6 +341,7 @@ describe('editNote — layer guards', () => {
       filePath: join(vaultDir, 'style.md'),
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
     });
 
     const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
@@ -310,6 +350,69 @@ describe('editNote — layer guards', () => {
     expect(isEditRejection(result)).toBe(true);
     if (!isEditRejection(result)) return;
     expect(result.error).toBe('RULE_USER_ONLY');
+  });
+
+  it('refuses an agent edit that takes the sections back out', async () => {
+    const note = insertNote(client, {
+      title: 'memex 세션',
+      content: '## Resume\na\n## 오늘 한 작업\nb\n## 왜\nc\n## 다음 작업\nd',
+      filePath: join(vaultDir, 'sess.md'),
+      source: 'claude-code',
+      layer: 'state',
+      type: '세션기록',
+    });
+
+    const result = await editNote(client, stubEmbedder, vaultDir, note.id, {
+      content: '## Resume\n\n여기부터',
+    });
+    expect(isEditRejection(result)).toBe(true);
+    if (!isEditRejection(result)) return;
+    expect(result.error).toBe('SLOTS_MISSING');
+  });
+
+  it('lets a person edit the same note into whatever shape they meant', async () => {
+    const note = insertNote(client, {
+      title: 'memex 세션',
+      content: '## Resume\na\n## 오늘 한 작업\nb\n## 왜\nc\n## 다음 작업\nd',
+      filePath: join(vaultDir, 'sess2.md'),
+      source: 'claude-code',
+      layer: 'state',
+      type: '세션기록',
+    });
+
+    const result = await editNote(
+      client,
+      stubEmbedder,
+      vaultDir,
+      note.id,
+      { content: '이건 세션기록이 아니라 그냥 메모였어요' },
+      { actor: 'user' },
+    );
+    expect(isEditRejection(result)).toBe(false);
+  });
+
+  it('refuses an edit that empties a note from either side', async () => {
+    const note = insertNote(client, {
+      title: 'state note',
+      content: 'something',
+      filePath: join(vaultDir, 'st.md'),
+      source: 'manual',
+      layer: 'state',
+      type: '미분류',
+    });
+
+    for (const options of [{ actor: 'user' as const }, {}]) {
+      const result = await editNote(
+        client,
+        stubEmbedder,
+        vaultDir,
+        note.id,
+        { content: '---\ntitle: state note\n---\n\n# state note\n' },
+        options,
+      );
+      expect(isEditRejection(result)).toBe(true);
+      if (isEditRejection(result)) expect(result.error).toBe('EMPTY_BODY');
+    }
   });
 });
 
@@ -336,6 +439,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       content: 'injected rule',
       source: 'claude-code',
       layer: 'rule',
+      type: '미분류',
     });
 
     expect(isSaveRejection(result)).toBe(false);
@@ -353,6 +457,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       content: 'FP first',
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
       actor: 'user',
     });
 
@@ -368,6 +473,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       content: 'what happened',
       source: 'claude-code',
       layer: 'past',
+      type: '미분류',
     });
 
     expect(isSaveRejection(result)).toBe(false);
@@ -381,6 +487,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       content: 'hello',
       source: 'claude-code',
       layer: 'past',
+      type: '미분류',
     });
     expect(isSaveRejection(result)).toBe(false);
   });
@@ -392,6 +499,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'style.md'),
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
     });
 
     const rejection = removeNote(client, note.id, note.filePath);
@@ -407,6 +515,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'style.md'),
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
     });
 
     const result = await editNote(client, stubEmbedder, vaultDir, note.id, { content: 'OOP now' });
@@ -420,6 +529,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'style.md'),
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
     });
 
     const result = await editNote(
@@ -441,6 +551,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'plan.md'),
       source: 'claude-code',
       layer: 'state',
+      type: '미분류',
     });
 
     const result = await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' });
@@ -455,6 +566,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'plan.md'),
       source: 'manual',
       layer: 'state',
+      type: '미분류',
     });
 
     await editNote(client, stubEmbedder, vaultDir, note.id, { layer: 'rule' }, { actor: 'user' });
@@ -470,6 +582,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       filePath: join(vaultDir, 'style.md'),
       source: 'manual',
       layer: 'rule',
+      type: '미분류',
     });
 
     const rejection = removeNote(client, note.id, note.filePath, { actor: 'user' });
@@ -503,6 +616,7 @@ describe('saveNote — flashbacks', () => {
       filePath: join(vaultDir, 'old.md'),
       source: 'manual',
       layer: 'past',
+      type: '미분류',
       category: 'decisions',
     });
     client.sqlite
@@ -515,6 +629,7 @@ describe('saveNote — flashbacks', () => {
       content: 'planning auth approach',
       source: 'manual',
       layer: 'state',
+      type: '미분류',
       folder: 'projects/auth',
     });
     if (isSaveRejection(result)) throw new Error('unexpected rejection');
@@ -557,6 +672,7 @@ describe('saveNote — amendments', () => {
       content: 'body',
       source: 'manual',
       layer: 'past',
+      type: '미분류',
       amends,
       amendKind,
       invalidates,
@@ -671,6 +787,7 @@ describe('semanticSearchMulti', () => {
       filePath: join(dbDir, file),
       source: 'manual',
       layer: 'past',
+      type: '미분류',
     });
 
   it('records the fused page once, not once per query phrasing', async () => {
@@ -781,6 +898,7 @@ describe('borrowed notes', () => {
       filePath,
       source: 'index',
       layer: 'state',
+      type: '미분류',
     });
   };
 

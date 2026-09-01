@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { cancel, intro, isCancel, outro, select, spinner, text } from '@clack/prompts';
 import { isSaveRejection, saveNote } from '@memex/core';
-import { type NoteLayer, type NoteSource, openDb } from '@memex/db';
+import { isNoteType, NOTE_TYPES, type NoteLayer, type NoteSource, openDb } from '@memex/db';
 import { createEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
@@ -26,6 +26,7 @@ export const registerAdd = (program: Command) => {
     )
     .option('-s, --source <source>', 'Source (manual|herald|claude-code)', 'manual')
     .option('-L, --layer <layer>', 'Mutability layer (past|state|rule)')
+    .option('-y, --type <type>', `What the note is (${NOTE_TYPES.join('|')})`, '미분류')
     .option('-A, --amends <id>', 'Id of the note this one corrects, so search flags the older one')
     .action(
       async (opts: {
@@ -36,6 +37,7 @@ export const registerAdd = (program: Command) => {
         tag: string[];
         source: string;
         layer?: string;
+        type: string;
         amends?: string;
       }) => {
         intro('memex add');
@@ -48,6 +50,12 @@ export const registerAdd = (program: Command) => {
           cancel(`Invalid --layer "${layer}". Expected one of: ${LAYERS.join(', ')}.`);
           process.exit(1);
         }
+
+        if (!isNoteType(opts.type)) {
+          cancel(`Invalid --type "${opts.type}". Expected one of: ${NOTE_TYPES.join(', ')}.`);
+          process.exit(1);
+        }
+        const type = opts.type;
 
         if (!title) {
           const res = await text({ message: 'Title', placeholder: 'My note title' });
@@ -104,6 +112,7 @@ export const registerAdd = (program: Command) => {
             content,
             source: opts.source as NoteSource,
             layer,
+            type,
             folder: opts.folder,
             tags: opts.tag.length > 0 ? opts.tag : undefined,
             actor: 'user',

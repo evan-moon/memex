@@ -106,6 +106,7 @@ export const registerCaptureCommit = (program: Command) => {
         content,
         source: 'git',
         layer: 'past',
+        type: '코드문서',
         folder: `dev/git/${repoName}`,
         tags: [repoName, 'git', branch],
         actor: 'user',

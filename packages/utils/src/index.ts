@@ -19,6 +19,7 @@ export {
   buildEmbeddingText,
   extractCategory,
   formatDate,
+  noteProse,
   stripFrontmatter,
 } from './format.ts';
 export { parseInvalidates, writeInvalidates } from './invalidates.ts';

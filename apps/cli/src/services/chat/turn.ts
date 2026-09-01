@@ -8,6 +8,7 @@ import {
   matchRegisterSubjects,
   type Note,
   type NoteLayer,
+  type NoteType,
   parseTags,
   type RegisterScope,
   readRegister,
@@ -622,6 +623,7 @@ const applyNote = async (
     folder?: string;
     tags?: string[];
     amends?: number;
+    type?: NoteType;
   },
 ): Promise<ApplyResult> => {
   // Checked before saving, not after. saveNote reports an amends id it could
@@ -634,6 +636,7 @@ const applyNote = async (
 
   const saved = await saveNote(deps.client, deps.embedder, deps.vaultPath, {
     ...params,
+    type: params.type ?? '미분류',
     source: 'manual',
     actor: 'user',
   });
