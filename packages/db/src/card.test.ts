@@ -36,6 +36,17 @@ describe('extractCard', () => {
     expect(line.line).toBe('실제 문장은 바로 이 줄에서 시작한다고 적어둔다.');
   });
 
+  it('peels a second frontmatter block an import left behind', () => {
+    const line = card(
+      '---\ntitle: a note\nlayer: past\n---\n\n# a note\n\n---\ntitle: a note\ncategory: memory\nrelated_person: 김정원\n---\n\n# a note\n\n메이트 지정은 팀 배정이 끝난 다음에 한다.',
+    );
+    expect(line).toEqual({
+      line: '메이트 지정은 팀 배정이 끝난 다음에 한다.',
+      field: 'body',
+      quality: 'good',
+    });
+  });
+
   it('ignores prose inside a code fence', () => {
     const line = card(
       '```\n이건 코드 블록 안의 설명 문장이라서 카드가 될 수 없다\n```\n\n이 줄이 진짜 첫 문단이라고 적어두기로 한다.',

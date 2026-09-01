@@ -44,24 +44,28 @@ const RESIDUAL_TAG = /<[a-zA-Z/!][^>]*>/;
 
 type Line = { text: string; heading: string | null };
 
-const readable = (content: string): Line[] => {
-  const body = content.startsWith('---')
-    ? (() => {
-        const end = content.indexOf('\n---', 3);
-        return end === -1 ? content : content.slice(end + 4);
-      })()
-    : content;
+const LEADING_BLANKS = /^\n+/;
+const LEADING_FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
+const LEADING_TITLE = /^#[ \t]+[^\n]*\r?\n?/;
 
-  return body.split('\n').reduce<{ lines: Line[]; fenced: boolean }>(
-    (acc, text) => {
-      if (text.trimStart().startsWith('```')) return { ...acc, fenced: !acc.fenced };
-      if (acc.fenced) return acc;
-      const match = text.match(HEADING);
-      return { ...acc, lines: [...acc.lines, { text, heading: match ? match[1] : null }] };
-    },
-    { lines: [], fenced: false },
-  ).lines;
+const withoutPreamble = (content: string): string => {
+  const text = content.replace(LEADING_BLANKS, '');
+  const peeled = text.replace(LEADING_FRONTMATTER, '').replace(LEADING_TITLE, '');
+  return peeled === text ? text : withoutPreamble(peeled);
 };
+
+const readable = (content: string): Line[] =>
+  withoutPreamble(content)
+    .split('\n')
+    .reduce<{ lines: Line[]; fenced: boolean }>(
+      (acc, text) => {
+        if (text.trimStart().startsWith('```')) return { ...acc, fenced: !acc.fenced };
+        if (acc.fenced) return acc;
+        const match = text.match(HEADING);
+        return { ...acc, lines: [...acc.lines, { text, heading: match ? match[1] : null }] };
+      },
+      { lines: [], fenced: false },
+    ).lines;
 
 const clean = (raw: string): string =>
   raw
