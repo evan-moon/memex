@@ -3,8 +3,17 @@ export const formatDate = (date: Date): string => date.toISOString().split('T')[
 export const extractCategory = (folder?: string): string | null =>
   folder ? folder.split('/')[0] : null;
 
-export const stripFrontmatter = (content: string): string =>
-  content.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n)*/, '');
+const LEADING_FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n)*/;
+const LEADING_H1 = /^#[ \t]+[^\n]*(?:\r?\n)+/;
+
+export const stripFrontmatter = (content: string): string => {
+  const peeled = content.replace(LEADING_FRONTMATTER, '');
+  if (peeled === content) return content;
+
+  const withoutRepeatedTitle = peeled.replace(LEADING_H1, '');
+  const deeper = stripFrontmatter(withoutRepeatedTitle);
+  return deeper === withoutRepeatedTitle ? peeled : deeper;
+};
 
 export const buildEmbeddingText = (
   title: string,

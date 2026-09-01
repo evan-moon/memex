@@ -85,6 +85,22 @@ describe('stripFrontmatter', () => {
   it('stops at the first closing delimiter', () => {
     expect(stripFrontmatter('---\ntitle: T\n---\nBody\n---\nMore')).toBe('Body\n---\nMore');
   });
+
+  it('peels a second frontmatter block a normalization pass stacked on the first', () => {
+    const stacked =
+      '---\ntitle: T\nlayer: past\n---\n\n# T\n\n---\ntitle: T\ncategory: memory\n---\n\n# T\n\nBody';
+    expect(stripFrontmatter(stacked)).toBe('# T\n\nBody');
+  });
+
+  it('peels stacked blocks with no heading between them', () => {
+    expect(stripFrontmatter('---\na: 1\n---\n---\nb: 2\n---\nBody')).toBe('Body');
+  });
+
+  it('keeps a heading whose horizontal rule only looks like a second block', () => {
+    expect(stripFrontmatter('---\ntitle: T\n---\n\n# T\n\n---\n\nBody')).toBe(
+      '# T\n\n---\n\nBody',
+    );
+  });
 });
 
 describe('authorOfPath', () => {
