@@ -1,8 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expandPath, loadConfig, saveConfig } from '@memex/utils';
+import { deleteNote, listNotesByPathPrefix, openDb } from '@memex/db';
+import { CONFIG_DIR, expandPath, loadConfig, saveConfig } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { isCoveredByAny } from '../services/sources.ts';
 
 export const registerSource = (program: Command) => {
   const source = program.command('source').description('Manage indexed sources');
@@ -61,9 +63,24 @@ export const registerSource = (program: Command) => {
       }
 
       saveConfig(config);
+
+      const remainingRoots = [
+        expandPath(config.vault_path),
+        ...config.sources.map((s) => s.path),
+      ];
+      const client = openDb(CONFIG_DIR);
+      const orphaned = listNotesByPathPrefix(client, resolved).filter(
+        (note) => !isCoveredByAny(note.filePath, remainingRoots),
+      );
+      for (const note of orphaned) deleteNote(client, note.id);
+
       console.log(pc.green(`Removed source: ${resolved}`));
       console.log(
-        pc.dim('DB entries from this source are kept. Run `memex index` to clean them up.'),
+        pc.dim(
+          orphaned.length === 0
+            ? 'No notes were indexed from it alone.'
+            : `Forgot ${String(orphaned.length)} note(s) indexed from it. The files were left alone.`,
+        ),
       );
     });
 };
