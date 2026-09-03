@@ -12,7 +12,7 @@ export {
 export { findNearest, withinEditDistance } from './distance.ts';
 export { EMBEDDING_DIM } from './embedding.ts';
 export { parseDerivesFrom, writeDerivesFrom } from './evidence.ts';
-export { filenameKey, sanitizeFilename, titleKey } from './filename.ts';
+export { filenameKey, sanitizeFilename, sanitizeFolder, titleKey } from './filename.ts';
 export type { NoteAuthor } from './format.ts';
 export {
   authorOfPath,

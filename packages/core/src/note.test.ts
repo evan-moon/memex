@@ -1,6 +1,6 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   countRetrievals,
   getAmendments,
@@ -186,6 +186,38 @@ describe('saveNote — filename is what a wiki link resolves against', () => {
     });
     expect(isSaveRejection(result)).toBe(false);
     expect(readdirSync(vaultDir)).toContain(`${title}.md`);
+  });
+
+  it('keeps a note inside the vault however the folder is written', async () => {
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title: 'Escaped',
+      content: 'a body long enough to be a note',
+      source: 'claude-code',
+      layer: 'past',
+      type: '학습메모',
+      folder: '../../../../tmp/escaped',
+    });
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(result.note.filePath.startsWith(`${vaultDir}/`)).toBe(true);
+    expect(result.note.filePath).toBe(join(vaultDir, 'tmp', 'escaped', 'Escaped.md'));
+  });
+
+  it('writes a slashed title as one file, not a folder and a file', async () => {
+    const title = '광교센트럴뷰(1억/280) 대안 부상 (2026-07-01)';
+    const result = await saveNote(client, stubEmbedder, vaultDir, {
+      title,
+      content: 'a body long enough to be a note',
+      source: 'claude-code',
+      layer: 'past',
+      type: '학습메모',
+    });
+    expect(isSaveRejection(result)).toBe(false);
+    if (isSaveRejection(result)) return;
+    expect(dirname(result.note.filePath)).toBe(vaultDir);
+    expect(readdirSync(vaultDir)).toContain('광교센트럴뷰(1억／280) 대안 부상 (2026-07-01).md');
+    // The title still reads with the real slash, and an alias carries the link.
+    expect(result.note.title).toBe(title);
   });
 
   it('numbers a colliding filename instead of appending a timestamp', async () => {

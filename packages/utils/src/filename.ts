@@ -19,6 +19,19 @@ export const sanitizeFilename = (title: string): string => {
     .trim();
 };
 
+// A folder arrives as free text from whoever is writing the note, and `join`
+// follows whatever it says: `../..` walks out of the vault entirely. Every
+// segment is a filename, so every segment goes through the same sanitizer —
+// which reduces `.` and `..` to nothing — and what is left is dropped rather
+// than followed. An absolute path arrives as a leading empty segment and lands
+// under the vault like any other.
+export const sanitizeFolder = (folder: string): string =>
+  folder
+    .split(/[/\\]/)
+    .map(sanitizeFilename)
+    .filter((segment) => segment !== '')
+    .join('/');
+
 export const titleKey = (title: string): string => title.trim().normalize('NFC').toLowerCase();
 
 // What a wiki link can name and still resolve: the note's title, or the file

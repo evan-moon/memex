@@ -40,6 +40,7 @@ import {
   inVault,
   noteProse,
   sanitizeFilename,
+  sanitizeFolder,
   writeInvalidates,
 } from '@memex/utils';
 import { missingSlots } from './slots.ts';
@@ -53,7 +54,8 @@ const yamlString = (value: string): string =>
     : value;
 
 const generateFilePath = (vaultPath: string, title: string, folder?: string): string => {
-  const dir = folder ? join(vaultPath, folder) : vaultPath;
+  const safeFolder = folder === undefined ? '' : sanitizeFolder(folder);
+  const dir = safeFolder === '' ? vaultPath : join(vaultPath, safeFolder);
   mkdirSync(dir, { recursive: true });
   const base = sanitizeFilename(title) || 'untitled';
   const first = join(dir, `${base}.md`);
@@ -79,8 +81,9 @@ export type NoteFileMeta = {
 type OwnedField = {
   key: string;
   value: string | null;
-  /** Whether the field may be added to frontmatter that does not have it. Off for
-   * everything but a rule, because a file memex did not author keeps its shape. */
+  /** Whether the field may be added to frontmatter that does not have it. Off
+   * unless a rebuild would get the note wrong without it, because a file memex
+   * did not author keeps the shape it arrived in. */
   insert: boolean;
 };
 

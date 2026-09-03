@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
 import { getNote, type MemexClient } from '@memex/db';
-import { inVault, sanitizeFilename } from '@memex/utils';
+import { inVault, sanitizeFilename, sanitizeFolder } from '@memex/utils';
 
 export type FileFailure = { error: string; message: string };
 
@@ -35,7 +35,8 @@ const relocate = (client: MemexClient, id: number, from: string, to: string) => 
 // A folder has no row of its own — it exists because notes are in it. So the
 // path is worked out from any note it holds rather than looked up.
 export const folderPath = (root: string, folder: string): string | FileFailure => {
-  const target = folder === '' ? root : join(root, folder);
+  const safe = sanitizeFolder(folder);
+  const target = safe === '' ? root : join(root, safe);
   return existsSync(target)
     ? target
     : { error: 'missing-folder', message: `${target} is not on disk.` };
