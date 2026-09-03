@@ -368,6 +368,23 @@ const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    // The evidence strength the hand-run labelling pass gave each note, frozen
+    // the day the rules moved into code. Gate 4 asks whether the port lost
+    // evidence, so it needs both answers over the same notes — and the only
+    // other copy of the first one is a backup file nobody is keeping.
+    version: 20,
+    name: 'note_type_baseline',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS note_type_baseline (
+          note_id    INTEGER PRIMARY KEY,
+          type       TEXT    NOT NULL,
+          confidence TEXT    NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -17,6 +17,22 @@ export type FlashbackStats = {
   topResurfaced: ResurfacedNote[];
 };
 
+// Gate 4 of the type-classification work order asks one question: did moving
+// the rules from an ad-hoc SQL pass into code lose evidence? An absolute
+// percentage could not answer it — the first reading was 33%, and 37 book
+// manuscripts leaving the index dropped it to 32.97% without a rule changing.
+// So the reading is a comparison, over the notes both passes saw.
+export type LabelEvidence = {
+  labelled: number;
+  strong: number;
+  declared: number;
+  againstBaseline: {
+    shared: number;
+    thenStrong: number;
+    nowStrong: number;
+  } | null;
+};
+
 export type CorpusStats = {
   notes: number;
   chunks: number;
@@ -27,6 +43,7 @@ export type CorpusStats = {
   flashback: FlashbackStats;
   signalsByStatus: CountByKey[];
   inferencesByStatus: CountByKey[];
+  labels: LabelEvidence;
 };
 
 const countBy = (client: MemexClient, sql: string): CountByKey[] =>
@@ -67,6 +84,33 @@ export const getFlashbackStats = (client: MemexClient, topLimit = 5): FlashbackS
   };
 };
 
+export const getLabelEvidence = (client: MemexClient): LabelEvidence => {
+  const totals = client.sqlite
+    .prepare(
+      `SELECT COUNT(*) AS labelled,
+              COALESCE(SUM(confidence = '강'), 0) AS strong,
+              COALESCE(SUM(method = 'declared'), 0) AS declared
+       FROM note_type_labels`,
+    )
+    .get() as { labelled: number; strong: number; declared: number };
+
+  const compared = client.sqlite
+    .prepare(
+      `SELECT COUNT(*) AS shared,
+              COALESCE(SUM(b.confidence = '강'), 0) AS thenStrong,
+              COALESCE(SUM(l.confidence = '강'), 0) AS nowStrong
+       FROM note_type_baseline b
+       JOIN note_type_labels l ON l.note_id = b.note_id
+       JOIN notes n ON n.id = b.note_id`,
+    )
+    .get() as { shared: number; thenStrong: number; nowStrong: number };
+
+  return {
+    ...totals,
+    againstBaseline: compared.shared === 0 ? null : compared,
+  };
+};
+
 export const getCorpusStats = (client: MemexClient): CorpusStats => ({
   notes: (client.sqlite.prepare('SELECT COUNT(*) AS n FROM notes').get() as { n: number }).n,
   chunks: (client.sqlite.prepare('SELECT COUNT(*) AS n FROM note_chunks').get() as { n: number }).n,
@@ -98,4 +142,5 @@ export const getCorpusStats = (client: MemexClient): CorpusStats => ({
     client,
     'SELECT status AS key, COUNT(*) AS count FROM inferences GROUP BY status ORDER BY count DESC',
   ),
+  labels: getLabelEvidence(client),
 });

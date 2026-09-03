@@ -1,4 +1,4 @@
-import { type CountByKey, getCorpusStats, openDb } from '@memex/db';
+import { type CountByKey, getCorpusStats, type LabelEvidence, openDb } from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
@@ -10,6 +10,32 @@ const printCounts = (label: string, counts: CountByKey[]) => {
   if (counts.length === 0) return;
   const line = counts.map((c) => `${c.key} ${pc.bold(String(c.count))}`).join(pc.dim(' · '));
   console.log(`${pc.dim(label.padEnd(12))} ${line}`);
+};
+
+const pct = (part: number, whole: number) => `${((part / whole) * 100).toFixed(1)}%`;
+
+// Whether the rules lost evidence when they moved into code, read as a
+// comparison rather than a number: an absolute percentage moves whenever the
+// corpus does, and says nothing about the rules.
+const printLabels = (labels: LabelEvidence) => {
+  if (labels.labelled === 0) return;
+  const declared = labels.declared > 0 ? pc.dim(` · ${labels.declared} declared at save time`) : '';
+  console.log(
+    `${pc.dim('types'.padEnd(12))} ${labels.labelled} labelled · strong evidence ${pc.bold(
+      `${labels.strong}`,
+    )} ${pc.dim(`(${pct(labels.strong, labels.labelled)})`)}${declared}`,
+  );
+
+  const against = labels.againstBaseline;
+  if (!against) return;
+  const held = against.nowStrong >= against.thenStrong;
+  const verdict = held ? pc.green('holds') : pc.red('lost ground');
+  console.log(
+    `${pc.dim('vs baseline'.padEnd(12))} ${pct(against.nowStrong, against.shared)} now vs ${pct(
+      against.thenStrong,
+      against.shared,
+    )} then ${verdict} ${pc.dim(`(${against.shared} notes both passes labelled)`)}`,
+  );
 };
 
 export const registerStats = (program: Command) => {
@@ -33,6 +59,7 @@ export const registerStats = (program: Command) => {
       printCounts('links', stats.linksBySource);
       printCounts('signals', stats.signalsByStatus);
       printCounts('inferences', stats.inferencesByStatus);
+      printLabels(stats.labels);
 
       console.log();
       console.log(pc.bold('Flashback'));

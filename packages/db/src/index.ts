@@ -229,5 +229,7 @@ export {
   type FlashbackStats,
   getCorpusStats,
   getFlashbackStats,
+  getLabelEvidence,
+  type LabelEvidence,
   type ResurfacedNote,
 } from './stats.ts';
