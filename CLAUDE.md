@@ -22,6 +22,13 @@ packages/
 
 DB lives at `~/.memex/memex.db`. Model cache at `~/.memex/models/`.
 
+`openDb` snapshots the database to `memex.db.bak-<YYYYMMDD-HHMMSS>` whenever a schema migration
+is pending and the vault is not empty, then keeps the newest three. It uses `VACUUM INTO` rather
+than copying the file, because the app, the MCP server and the CLI are all attached in WAL mode
+and a filesystem copy can be torn mid-transaction — if you ever copy the DB by hand, take
+`-wal` with it. A snapshot that fails does not stop the database from opening; `memex stats`
+prints how many backups are kept and when the newest was taken.
+
 ## Working on the UI
 
 `yarn dev:app` runs the app against your real vault with the screen hot-reloading: Vite owns the

@@ -4,7 +4,8 @@ import { EMBEDDING_DIM } from '@memex/utils';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
-import { applyMigrations } from './migrations.ts';
+import { snapshotBeforeSchemaChange } from './backup.ts';
+import { applyMigrations, pendingMigrations } from './migrations.ts';
 import { sqliteBinding } from './native.ts';
 import * as schema from './schema.ts';
 
@@ -14,6 +15,9 @@ export type MemexClient = {
   db: ReturnType<typeof drizzle<typeof schema>>;
   sqlite: Database.Database;
 };
+
+const countsRows = (sqlite: Database.Database, table: string): number =>
+  (sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
 
 export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
@@ -358,6 +362,12 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       ON signal_presentations (signal_id);
   `);
 
+  // A schema change is the one moment this database can be left worse than it
+  // was found, and every backup taken by hand so far was taken right here. A
+  // vault with nothing in it has nothing to lose, so a fresh install skips it.
+  if (pendingMigrations(sqlite).length > 0 && countsRows(sqlite, 'notes') > 0) {
+    snapshotBeforeSchemaChange(sqlite, dbDir);
+  }
   applyMigrations(sqlite);
 
   return { db: drizzle(sqlite, { schema }), sqlite };

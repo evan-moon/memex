@@ -405,6 +405,11 @@ const writeVersion = (sqlite: Database.Database, version: number) => {
     .run(VERSION_KEY, String(version));
 };
 
+export const pendingMigrations = (sqlite: Database.Database): string[] => {
+  const from = readVersion(sqlite);
+  return MIGRATIONS.filter((m) => m.version > from).map((m) => m.name);
+};
+
 // A schema step that already ran is skipped by version, not re-proved by
 // interrogating the table it touched. Every step still guards itself, so a DB
 // migrated before this counter existed passes through each one once and is

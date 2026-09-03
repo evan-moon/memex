@@ -1,4 +1,13 @@
-import { type CountByKey, getCorpusStats, type LabelEvidence, openDb } from '@memex/db';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  BACKUPS_KEPT,
+  type CountByKey,
+  getCorpusStats,
+  type LabelEvidence,
+  listBackups,
+  openDb,
+} from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
@@ -38,6 +47,20 @@ const printLabels = (labels: LabelEvidence) => {
   );
 };
 
+// Taken automatically before a schema change and pruned to the newest few, so
+// the only thing worth saying is that the arrangement is holding.
+const printBackups = () => {
+  const backups = listBackups(CONFIG_DIR);
+  if (backups.length === 0) return;
+  const bytes = backups.reduce((sum, name) => sum + statSync(join(CONFIG_DIR, name)).size, 0);
+  const newest = backups[0].replace('memex.db.bak-', '');
+  console.log(
+    `${pc.dim('backups'.padEnd(12))} ${backups.length}/${BACKUPS_KEPT} kept ${pc.dim(
+      `· ${(bytes / 1e9).toFixed(2)}GB · newest ${newest}`,
+    )}`,
+  );
+};
+
 export const registerStats = (program: Command) => {
   const stats = program
     .command('stats')
@@ -60,6 +83,7 @@ export const registerStats = (program: Command) => {
       printCounts('signals', stats.signalsByStatus);
       printCounts('inferences', stats.inferencesByStatus);
       printLabels(stats.labels);
+      printBackups();
 
       console.log();
       console.log(pc.bold('Flashback'));

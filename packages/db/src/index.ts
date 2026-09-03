@@ -1,3 +1,11 @@
+export {
+  BACKUPS_KEPT,
+  backupDb,
+  backupName,
+  listBackups,
+  pruneBackups,
+  snapshotBeforeSchemaChange,
+} from './backup.ts';
 export type { CardField, CardQuality, NoteCard } from './card.ts';
 export { extractCard } from './card.ts';
 export {
