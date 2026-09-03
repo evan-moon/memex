@@ -1,4 +1,3 @@
-import { inVault } from '@memex/utils';
 import type { NoteLayer } from './schema.ts';
 
 export const NOTE_TYPES = [
@@ -111,7 +110,6 @@ type Facts = {
   tags: Set<string>;
   category: string | null;
   headings: string[];
-  vaultPath: string;
 };
 
 type Rule = {
@@ -137,8 +135,8 @@ const RULES: readonly Rule[] = [
   {
     type: '코드문서',
     area: '코드',
-    method: 'path',
-    matches: (f) => !inVault(f.path, f.vaultPath),
+    method: 'layer',
+    matches: (f) => f.layer === 'external',
   },
   {
     type: '초안',
@@ -247,7 +245,7 @@ const AREA_OF_DECLARED: Record<NoteType, NoteArea> = {
   미분류: '기타',
 };
 
-export const classifyNote = (input: ClassifyInput, vaultPath: string): NoteTypeLabel => {
+export const classifyNote = (input: ClassifyInput): NoteTypeLabel => {
   if (input.declaredType !== null) {
     return {
       type: input.declaredType,
@@ -265,7 +263,6 @@ export const classifyNote = (input: ClassifyInput, vaultPath: string): NoteTypeL
     tags: new Set(input.tags),
     category: input.category,
     headings: headingsOf(input.content),
-    vaultPath,
   };
 
   const rule = RULES.find((r) => r.matches(facts));

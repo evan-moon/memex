@@ -11,7 +11,11 @@ export const notes = sqliteTable('notes', {
   source: text('source', { enum: ['manual', 'herald', 'claude-code', 'index', 'git'] })
     .notNull()
     .default('manual'),
-  layer: text('layer', { enum: ['past', 'state', 'rule'] })
+  // past/state/rule are memex's own documents, told apart by how mutable they
+  // are. external is not one of them: the file belongs to another tool, memex
+  // only reads it, and it was only ever called `past` because that is the
+  // column default.
+  layer: text('layer', { enum: ['past', 'state', 'rule', 'external'] })
     .notNull()
     .default('past'),
   // person: the vault owner's memory, however it was typed.

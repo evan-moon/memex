@@ -28,19 +28,16 @@ type FacetSource = {
 
 const SOURCE_COLUMNS = 'title, content, file_path, category, tags, layer, type';
 
-const facetsOf = (row: FacetSource, vaultPath: string): NoteFacets => {
-  const label = classifyNote(
-    {
-      filePath: row.file_path,
-      title: row.title,
-      content: row.content,
-      layer: row.layer,
-      tags: JSON.parse(row.tags) as string[],
-      category: row.category,
-      declaredType: isNoteType(row.type) ? row.type : null,
-    },
-    vaultPath,
-  );
+const facetsOf = (row: FacetSource): NoteFacets => {
+  const label = classifyNote({
+    filePath: row.file_path,
+    title: row.title,
+    content: row.content,
+    layer: row.layer,
+    tags: JSON.parse(row.tags) as string[],
+    category: row.category,
+    declaredType: isNoteType(row.type) ? row.type : null,
+  });
   return { label, card: extractCard({ title: row.title, content: row.content, type: label.type }) };
 };
 
@@ -71,17 +68,13 @@ const writeFacets = (client: MemexClient, noteId: number, facets: NoteFacets, at
     .run(noteId, facets.card.line, facets.card.field, facets.card.quality, at);
 };
 
-export const syncNoteFacets = (
-  client: MemexClient,
-  noteId: number,
-  vaultPath: string,
-): NoteFacets | null => {
+export const syncNoteFacets = (client: MemexClient, noteId: number): NoteFacets | null => {
   const row = client.sqlite
     .prepare(`SELECT id, ${SOURCE_COLUMNS} FROM notes WHERE id = ?`)
     .get(noteId) as FacetSource | undefined;
   if (row === undefined) return null;
 
-  const facets = facetsOf(row, vaultPath);
+  const facets = facetsOf(row);
   writeFacets(client, noteId, facets, Date.now());
   return facets;
 };
@@ -91,7 +84,7 @@ export const dropNoteFacets = (client: MemexClient, noteId: number) => {
   client.sqlite.prepare('DELETE FROM note_cards WHERE note_id = ?').run(noteId);
 };
 
-export const resyncNoteFacets = (client: MemexClient, vaultPath: string): { notes: number } => {
+export const resyncNoteFacets = (client: MemexClient): { notes: number } => {
   const page = client.sqlite.prepare(
     `SELECT id, ${SOURCE_COLUMNS} FROM notes WHERE id > ? ORDER BY id LIMIT ${FACET_BATCH}`,
   );
@@ -101,7 +94,7 @@ export const resyncNoteFacets = (client: MemexClient, vaultPath: string): { note
     if (rows.length === 0) return done;
     const at = Date.now();
     client.sqlite.transaction(() => {
-      for (const row of rows) writeFacets(client, row.id, facetsOf(row, vaultPath), at);
+      for (const row of rows) writeFacets(client, row.id, facetsOf(row), at);
     })();
     return step(rows[rows.length - 1].id, done + rows.length);
   };

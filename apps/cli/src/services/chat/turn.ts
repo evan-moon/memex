@@ -1,7 +1,11 @@
-import { isSaveRejection, saveNote, semanticSearch } from '@memex/core';
 import {
-  approveRule,
-  declineRule,
+  approveRuleNote,
+  declineRuleNote,
+  isSaveRejection,
+  saveNote,
+  semanticSearch,
+} from '@memex/core';
+import {
   getNote,
   listRules,
   type MemexClient,
@@ -680,8 +684,8 @@ export const applyPlan = async (deps: ChatDeps, plan: Plan): Promise<ApplyResult
 
   const decided =
     plan.decision === 'approve'
-      ? approveRule(deps.client, plan.noteId)
-      : declineRule(deps.client, plan.noteId, 'state');
+      ? approveRuleNote(deps.client, plan.noteId)
+      : declineRuleNote(deps.client, plan.noteId, 'state');
 
   return decided
     ? { ok: true, wrote: { kind: 'rule', note: decided, decision: plan.decision } }

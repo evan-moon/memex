@@ -108,6 +108,7 @@ export {
   syncLinks,
   unresolvedLinksByNote,
 } from './link-index.ts';
+export { syncExternalLayer } from './ownership.ts';
 export {
   type PresentationSurface,
   presentationsFor,

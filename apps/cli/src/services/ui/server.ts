@@ -1,4 +1,6 @@
 import {
+  approveRuleNote,
+  declineRuleNote,
   editNote,
   isEditRejection,
   isSaveRejection,
@@ -8,9 +10,7 @@ import {
   searchPage,
 } from '@memex/core';
 import {
-  approveRule,
   countProvisionalRules,
-  declineRule,
   deleteSession,
   dismissDanglingFor,
   getAmendmentsFor,
@@ -418,13 +418,13 @@ export const route = async (
     if (!Number.isInteger(id) || id <= 0) return bad(400, 'invalid-note-id');
 
     if (action === 'approve') {
-      const approved = approveRule(client, id);
+      const approved = approveRuleNote(client, id);
       return approved ? json({ ok: true }) : bad(404, 'not-found');
     }
     if (action === 'decline') {
       const layer = asRecord(payload)?.layer;
       if (layer !== 'past' && layer !== 'state') return bad(400, 'invalid-layer');
-      const declined = declineRule(client, id, layer);
+      const declined = declineRuleNote(client, id, layer);
       return declined ? json({ ok: true }) : bad(404, 'not-found');
     }
     return bad(404, 'not-found');

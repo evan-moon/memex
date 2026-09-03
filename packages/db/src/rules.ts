@@ -37,7 +37,7 @@ export const approveRule = (client: MemexClient, id: number): Note | undefined =
 export const declineRule = (
   client: MemexClient,
   id: number,
-  layer: Exclude<NoteLayer, 'rule'>,
+  layer: Exclude<NoteLayer, 'rule' | 'external'>,
 ): Note | undefined => {
   const [declined] = client.db
     .update(notes)

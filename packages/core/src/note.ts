@@ -23,6 +23,7 @@ import {
   proactiveSignalFor,
   type RetrievalSurface,
   RRF_K,
+  type RuleStatus,
   type SearchResult,
   type Signal,
   type SimilarNote,
@@ -68,16 +69,38 @@ export type NoteFileMeta = {
   content: string;
   tags: string[];
   layer: NoteLayer;
+  /** Only a rule note carries one. Null on every other layer, and on a rule the
+   * agent's proposal has yet to be approved into. */
+  ruleStatus: RuleStatus | null;
   /** Effective date written to frontmatter: authoredAt when known, else now. */
   date: number;
+};
+
+type OwnedField = {
+  key: string;
+  value: string | null;
+  /** Whether the field may be added to frontmatter that does not have it. Off for
+   * everything but a rule, because a file memex did not author keeps its shape. */
+  insert: boolean;
+};
+
+const syncedField = (frontmatter: string, { key, value, insert }: OwnedField): string => {
+  const lines = frontmatter.split('\n');
+  const at = lines.findIndex((line) => line.startsWith(`${key}:`));
+  if (at === -1) {
+    return value === null || !insert ? frontmatter : [...lines, `${key}: ${value}`].join('\n');
+  }
+  const rest = value === null ? lines.slice(at + 1) : [`${key}: ${value}`, ...lines.slice(at + 1)];
+  return [...lines.slice(0, at), ...rest].join('\n');
 };
 
 // A note file has one of three shapes, and a write must not corrupt the two
 // shapes that originate outside memex (the contract: a file memex did not
 // author keeps the shape it arrived in and re-indexes without drift):
 // - frontmatter file (indexed from an external vault): the DB content IS the
-//   full file, frontmatter included — write it back verbatim, only syncing the
-//   frontmatter `title:` field so a title edit survives the next reindex.
+//   full file, frontmatter included — write it back verbatim, syncing only the
+//   fields memex owns (`title`, `layer`, `rule_status`) so an edit to one of
+//   them survives the next reindex.
 // - H1 file (indexed, or a memex note that came back through `memex index`):
 //   the content already carries its heading — rewrite the first H1 instead of
 //   prepending a second one, and don't force frontmatter onto a file the user
@@ -85,26 +108,51 @@ export type NoteFileMeta = {
 // - memex-native content: generate frontmatter (title/date/tags/layer) so the
 //   note's metadata survives a `memex index` round-trip instead of living
 //   only in the DB.
-export const renderNoteFile = ({ title, content, tags, layer, date }: NoteFileMeta): string => {
+export const renderNoteFile = ({
+  title,
+  content,
+  tags,
+  layer,
+  ruleStatus,
+  date,
+}: NoteFileMeta): string => {
+  // What a rebuild from these files alone would get wrong, and so what a file
+  // has to say out loud however it is shaped. `past` is the column default, so
+  // a past note comes back right saying nothing; state, rule, and whether a rule
+  // is in effect do not.
+  const atRisk = layer !== 'past' || ruleStatus !== null;
+
   if (content.startsWith('---')) {
     const end = content.indexOf('\n---', 3);
     if (end !== -1 && /^title:/m.test(content.slice(3, end))) {
-      return (
-        content.slice(0, end).replace(/^title:\s*.*$/m, `title: ${yamlString(title)}`) +
-        content.slice(end)
-      );
+      const owned: OwnedField[] = [
+        { key: 'title', value: yamlString(title), insert: false },
+        { key: 'layer', value: layer, insert: atRisk },
+        { key: 'rule_status', value: ruleStatus, insert: ruleStatus !== null },
+      ];
+      const synced = owned.reduce(syncedField, content.slice(0, end));
+      return synced + content.slice(end);
     }
     return content;
   }
   if (/^#\s/.test(content)) {
-    return content.replace(/^#\s.*$/m, `# ${title}`);
+    const titled = content.replace(/^#\s.*$/m, `# ${title}`);
+    if (!atRisk) return titled;
+    // The block carries `title` too, so the next write comes back through the
+    // branch above and syncs in place instead of stacking a second header.
+    const statusLine = ruleStatus === null ? '' : `\nrule_status: ${ruleStatus}`;
+    return `---\ntitle: ${yamlString(title)}\nlayer: ${layer}${statusLine}\n---\n\n${titled}`;
   }
   const isoDate = new Date(date).toISOString().slice(0, 10);
   const tagsLine = tags.length > 0 ? `\ntags: [${tags.join(', ')}]` : '';
   // sanitizeFilename may drop characters the filesystem rejects, which would
   // leave `[[Exact Title]]` pointing at nothing — an alias restores the target.
   const aliasLine = sanitizeFilename(title) === title ? '' : `\naliases: [${yamlString(title)}]`;
-  return `---\ntitle: ${yamlString(title)}\ndate: ${isoDate}${tagsLine}${aliasLine}\nlayer: ${layer}\n---\n\n# ${title}\n\n${content}`;
+  // Whether a rule is in effect is the note's own business, not the database's:
+  // a DB rebuilt from these files has to be able to tell an approved rule from
+  // a proposal, and only the file survives that.
+  const statusLine = ruleStatus === null ? '' : `\nrule_status: ${ruleStatus}`;
+  return `---\ntitle: ${yamlString(title)}\ndate: ${isoDate}${tagsLine}${aliasLine}\nlayer: ${layer}${statusLine}\n---\n\n# ${title}\n\n${content}`;
 };
 
 const readFlashbackOptions = (): FlashbackOptions => ({
@@ -224,6 +272,7 @@ export const saveNote = async (
         content: params.content,
         tags: params.tags ?? [],
         layer: params.layer,
+        ruleStatus,
         date: authoredAt ?? Date.now(),
       }),
       invalidates,
@@ -256,7 +305,7 @@ export const saveNote = async (
     embedding,
   );
   syncLinks(client, note.id, params.content);
-  syncNoteFacets(client, note.id, vaultPath);
+  syncNoteFacets(client, note.id);
 
   if (invalidates.length > 0) setNoteInvalidations(client, note.id, invalidates);
 
@@ -578,6 +627,7 @@ export const editNote = async (
       content,
       tags: resolvedTags,
       layer,
+      ruleStatus: updated.ruleStatus,
       date: note.authoredAt ?? note.createdAt,
     }),
     'utf8',
@@ -592,7 +642,7 @@ export const editNote = async (
     tags: resolvedTags,
   });
   syncLinks(client, id, content);
-  syncNoteFacets(client, id, vaultPath);
+  syncNoteFacets(client, id);
 
   const signal = proactiveSignalFor(client, id);
 

@@ -11,6 +11,7 @@ import {
   type NoteLayer,
   parseAuthoredAt,
   parseTags,
+  type RuleStatus,
   resyncLinkIndexes,
   serializeTags,
   setNoteInvalidations,
@@ -44,6 +45,7 @@ type ExtractedNote = {
   body: string;
   tags: string[];
   layer?: NoteLayer;
+  ruleStatus?: RuleStatus;
 };
 
 const unquote = (value: string): string => yamlScalar(value).replace(/^#/, '');
@@ -82,13 +84,20 @@ const extractNote = (content: string, filePath: string): ExtractedNote => {
     | NoteLayer
     | undefined;
 
+  // Whether a rule is in effect is a fact about the document, so the file is
+  // where it is read from — a database rebuilt from the vault has nothing else
+  // to tell an approved rule from a proposal waiting on one.
+  const ruleStatus = frontmatter?.match(
+    /^rule_status:\s*["']?(provisional|canonical)["']?\s*$/m,
+  )?.[1] as RuleStatus | undefined;
+
   const fmTitle = yamlScalar(frontmatter?.match(/^title:[ \t]*(.*)$/m)?.[1] ?? '');
-  if (fmTitle) return { title: fmTitle, body: content, tags, layer };
+  if (fmTitle) return { title: fmTitle, body: content, tags, layer, ruleStatus };
 
   const h1 = content.match(/^#\s+(.+)$/m);
-  if (h1) return { title: h1[1].trim(), body: content, tags, layer };
+  if (h1) return { title: h1[1].trim(), body: content, tags, layer, ruleStatus };
 
-  return { title: basename(filePath, extname(filePath)), body: content, tags, layer };
+  return { title: basename(filePath, extname(filePath)), body: content, tags, layer, ruleStatus };
 };
 
 const indexFile = async (
@@ -108,7 +117,7 @@ const indexFile = async (
   }
 
   const content = readFileSync(filePath, 'utf8');
-  const { title, body, tags: fmTags, layer } = extractNote(content, filePath);
+  const { title, body, tags: fmTags, layer, ruleStatus } = extractNote(content, filePath);
 
   // A skeleton somebody fills in later is not a note. Blacklisting a folder
   // called `templates` would be wrong — a vault may keep real notes in one —
@@ -137,6 +146,7 @@ const indexFile = async (
       authoredAt,
       tags: serializeTags(tags),
       author: authorOfPath(filePath),
+      ruleStatus,
     });
     await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
@@ -152,6 +162,7 @@ const indexFile = async (
         tags: serializeTags(fmTags),
         layer,
         author: authorOfPath(filePath),
+        ruleStatus,
       });
       await indexNoteVectors(client, embedder, note.id, {
         title,

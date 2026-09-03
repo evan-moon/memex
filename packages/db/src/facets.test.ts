@@ -34,7 +34,7 @@ describe('note facets', () => {
 
   it('derives a label and a card from the note itself', () => {
     const note = add({ title: 'memex 세션 인계 2026-08-31' });
-    syncNoteFacets(client, note.id, VAULT);
+    syncNoteFacets(client, note.id);
 
     expect(getNoteTypeLabel(client, note.id)).toEqual({
       type: '세션기록',
@@ -51,7 +51,7 @@ describe('note facets', () => {
 
   it('lets a declared type win over what the rules would have said', () => {
     const note = add({ title: 'memex 세션 인계 2026-08-31', type: '제품작업' });
-    syncNoteFacets(client, note.id, VAULT);
+    syncNoteFacets(client, note.id);
 
     expect(getNoteTypeLabel(client, note.id)).toMatchObject({
       type: '제품작업',
@@ -61,11 +61,11 @@ describe('note facets', () => {
 
   it('rewrites a stale label when the note changes', () => {
     const note = add({ title: 'plain' });
-    syncNoteFacets(client, note.id, VAULT);
+    syncNoteFacets(client, note.id);
     expect(getNoteTypeLabel(client, note.id)?.type).toBe('미분류');
 
     client.sqlite.prepare("UPDATE notes SET layer = 'rule' WHERE id = ?").run(note.id);
-    syncNoteFacets(client, note.id, VAULT);
+    syncNoteFacets(client, note.id);
     expect(getNoteTypeLabel(client, note.id)?.type).toBe('규칙');
   });
 
@@ -73,8 +73,8 @@ describe('note facets', () => {
     add();
     add();
     add();
-    expect(resyncNoteFacets(client, VAULT)).toEqual({ notes: 3 });
-    expect(resyncNoteFacets(client, VAULT)).toEqual({ notes: 3 });
+    expect(resyncNoteFacets(client)).toEqual({ notes: 3 });
+    expect(resyncNoteFacets(client)).toEqual({ notes: 3 });
 
     const { labels, cards, notes } = client.sqlite
       .prepare(
@@ -88,7 +88,7 @@ describe('note facets', () => {
 
   it('takes a deleted note rows with it', () => {
     const note = add();
-    syncNoteFacets(client, note.id, VAULT);
+    syncNoteFacets(client, note.id);
     deleteNote(client, note.id);
 
     expect(getNoteTypeLabel(client, note.id)).toBeNull();

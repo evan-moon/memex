@@ -29,7 +29,12 @@ import {
 const stubEmbedder = async (): Promise<number[]> => new Array(768).fill(0.1);
 
 describe('renderNoteFile', () => {
-  const meta = { tags: [], layer: 'past' as const, date: Date.parse('2026-06-11') };
+  const meta = {
+    tags: [],
+    layer: 'past' as const,
+    ruleStatus: null,
+    date: Date.parse('2026-06-11'),
+  };
 
   it('generates frontmatter for memex-native content', () => {
     const file = renderNoteFile({
@@ -59,6 +64,77 @@ describe('renderNoteFile', () => {
     const content = '---\ntitle: Old\ndate: 2026-01-02\n---\n\nbody';
     const file = renderNoteFile({ ...meta, title: 'New', content });
     expect(file).toBe('---\ntitle: New\ndate: 2026-01-02\n---\n\nbody');
+  });
+
+  it('writes whether a rule is in effect into the file', () => {
+    const file = renderNoteFile({
+      ...meta,
+      layer: 'rule',
+      ruleStatus: 'provisional',
+      title: 'Search policy',
+      content: 'always search first',
+    });
+    expect(file).toContain('layer: rule\nrule_status: provisional');
+  });
+
+  it('says nothing about rule status on a layer that has none', () => {
+    const file = renderNoteFile({ ...meta, title: 'A Note', content: 'body' });
+    expect(file).not.toContain('rule_status');
+  });
+
+  it('syncs the status of a rule that came back through the index', () => {
+    const content = '---\ntitle: Search policy\nlayer: rule\nrule_status: provisional\n---\n\nbody';
+    const file = renderNoteFile({
+      ...meta,
+      layer: 'rule',
+      ruleStatus: 'canonical',
+      title: 'Search policy',
+      content,
+    });
+    expect(file).toBe(
+      '---\ntitle: Search policy\nlayer: rule\nrule_status: canonical\n---\n\nbody',
+    );
+  });
+
+  it('drops the status line when a rule is declined out of the layer', () => {
+    const content = '---\ntitle: Search policy\nlayer: rule\nrule_status: canonical\n---\n\nbody';
+    const file = renderNoteFile({ ...meta, layer: 'state', title: 'Search policy', content });
+    expect(file).toBe('---\ntitle: Search policy\nlayer: state\n---\n\nbody');
+  });
+
+  it('writes the layer into a file that would come back as past without it', () => {
+    const content = '---\ntitle: Old\ndate: 2026-01-02\n---\n\nbody';
+    const file = renderNoteFile({ ...meta, layer: 'state', title: 'New', content });
+    expect(file).toBe('---\ntitle: New\ndate: 2026-01-02\nlayer: state\n---\n\nbody');
+  });
+
+  it('leaves a past note to the column default rather than restating it', () => {
+    const content = '---\ntitle: Old\ndate: 2026-01-02\n---\n\nbody';
+    const file = renderNoteFile({ ...meta, title: 'New', content });
+    expect(file).not.toContain('layer:');
+  });
+
+  it('gives a state note with no frontmatter a header to say so', () => {
+    const file = renderNoteFile({
+      ...meta,
+      layer: 'state',
+      title: 'Roadmap',
+      content: '# Roadmap\n\nstill true',
+    });
+    expect(file).toBe('---\ntitle: Roadmap\nlayer: state\n---\n\n# Roadmap\n\nstill true');
+  });
+
+  it('gives a rule with no frontmatter somewhere to record its status', () => {
+    const file = renderNoteFile({
+      ...meta,
+      layer: 'rule',
+      ruleStatus: 'canonical',
+      title: 'Search policy',
+      content: '# Search policy\n\nalways search first',
+    });
+    expect(file).toBe(
+      '---\ntitle: Search policy\nlayer: rule\nrule_status: canonical\n---\n\n# Search policy\n\nalways search first',
+    );
   });
 
   it('leaves frontmatter without a title field untouched', () => {

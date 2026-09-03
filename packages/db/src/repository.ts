@@ -440,7 +440,15 @@ export const updateNote = (
   patch: Partial<
     Pick<
       NewNote,
-      'title' | 'content' | 'category' | 'tags' | 'authoredAt' | 'layer' | 'author' | 'type'
+      | 'title'
+      | 'content'
+      | 'category'
+      | 'tags'
+      | 'authoredAt'
+      | 'layer'
+      | 'author'
+      | 'type'
+      | 'ruleStatus'
     >
   >,
 ): Note => {

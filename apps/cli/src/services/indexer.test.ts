@@ -9,6 +9,7 @@ import {
   listNotes,
   type MemexClient,
   openDb,
+  syncExternalLayer,
 } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory, isPlaceholderTitle } from './indexer.ts';
@@ -224,6 +225,45 @@ describe('indexDirectory', () => {
     await indexDirectory(client, stubEmbedder, vaultDir, undefined, true);
 
     expect(getNoteByFilePath(client, filePath)?.authoredAt).toBe(Date.parse('2021-07-09'));
+  });
+
+  it('reads whether a rule is in effect off the file', async () => {
+    const filePath = join(vaultDir, 'policy.md');
+    writeFileSync(
+      filePath,
+      '---\ntitle: Search policy\nlayer: rule\nrule_status: canonical\n---\n\nalways search first',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const note = getNoteByFilePath(client, filePath);
+    expect(note?.layer).toBe('rule');
+    expect(note?.ruleStatus).toBe('canonical');
+  });
+
+  it('leaves a rule the file says nothing about out of effect', async () => {
+    const filePath = join(vaultDir, 'proposal.md');
+    writeFileSync(filePath, '---\ntitle: Proposal\nlayer: rule\n---\n\nmaybe do this', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(getNoteByFilePath(client, filePath)?.ruleStatus).toBeNull();
+  });
+
+  it('calls a note from outside the vault external, whatever its frontmatter says', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'memex-indexer-source-'));
+    const mine = join(vaultDir, 'mine.md');
+    const borrowed = join(outside, 'README.md');
+    writeFileSync(mine, '---\ntitle: Mine\nlayer: state\n---\n\nstill true', 'utf8');
+    writeFileSync(borrowed, '---\ntitle: Readme\nlayer: state\n---\n\nnot mine to shape', 'utf8');
+
+    await indexDirectory(client, stubEmbedder, vaultDir);
+    await indexDirectory(client, stubEmbedder, outside);
+    expect(syncExternalLayer(client, vaultDir)).toEqual({ external: 1 });
+
+    expect(getNoteByFilePath(client, mine)?.layer).toBe('state');
+    expect(getNoteByFilePath(client, borrowed)?.layer).toBe('external');
+
+    rmSync(outside, { recursive: true, force: true });
   });
 
   it('skips ignored directories even when nested', async () => {
