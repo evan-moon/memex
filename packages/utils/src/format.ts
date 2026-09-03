@@ -15,10 +15,17 @@ export const stripFrontmatter = (content: string): string => {
   return deeper === withoutRepeatedTitle ? peeled : deeper;
 };
 
-const LEADING_TITLE = /^#[ \t]+[^\n]*(?:\r?\n|$)/;
+const LEADING_TITLE = /^#[ \t]+([^\n]*?)[ \t]*(?:\r?\n|$)/;
+
+const withoutTitleEchoes = (body: string, title?: string): string => {
+  const match = LEADING_TITLE.exec(body);
+  if (!match) return body;
+  if (title !== undefined && match[1] !== title) return body;
+  return withoutTitleEchoes(body.slice(match[0].length).replace(/^\s*\r?\n/, ''), match[1]);
+};
 
 export const noteProse = (content: string): string =>
-  stripFrontmatter(content).replace(LEADING_TITLE, '').trim();
+  withoutTitleEchoes(stripFrontmatter(content)).trim();
 
 export const buildEmbeddingText = (
   title: string,

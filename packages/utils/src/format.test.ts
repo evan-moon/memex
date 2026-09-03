@@ -118,6 +118,14 @@ describe('noteProse', () => {
     expect(noteProse('---\ntitle: T\n---\n\n# T\n\nLG 울트라파인 5k')).toBe('LG 울트라파인 5k');
   });
 
+  it('finds nothing in a note that is its own title twice', () => {
+    expect(noteProse('---\ntitle: T\n---\n\n# T\n\n# T')).toBe('');
+  });
+
+  it('stops at the first heading that is not the title again', () => {
+    expect(noteProse('---\ntitle: T\n---\n\n# T\n\n# 개요\n\n- a')).toBe('# 개요\n\n- a');
+  });
+
   it('counts a heading that says something the title does not', () => {
     expect(noteProse('# T\n\n## 다음 작업\n\n- 정리')).toBe('## 다음 작업\n\n- 정리');
   });
