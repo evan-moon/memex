@@ -64,10 +64,7 @@ export const registerSource = (program: Command) => {
 
       saveConfig(config);
 
-      const remainingRoots = [
-        expandPath(config.vault_path),
-        ...config.sources.map((s) => s.path),
-      ];
+      const remainingRoots = [expandPath(config.vault_path), ...config.sources.map((s) => s.path)];
       const client = openDb(CONFIG_DIR);
       const orphaned = listNotesByPathPrefix(client, resolved).filter(
         (note) => !isCoveredByAny(note.filePath, remainingRoots),

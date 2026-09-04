@@ -98,9 +98,7 @@ describe('stripFrontmatter', () => {
   });
 
   it('keeps a heading whose horizontal rule only looks like a second block', () => {
-    expect(stripFrontmatter('---\ntitle: T\n---\n\n# T\n\n---\n\nBody')).toBe(
-      '# T\n\n---\n\nBody',
-    );
+    expect(stripFrontmatter('---\ntitle: T\n---\n\n# T\n\n---\n\nBody')).toBe('# T\n\n---\n\nBody');
   });
 });
 
