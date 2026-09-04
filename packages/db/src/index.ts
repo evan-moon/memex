@@ -24,6 +24,8 @@ export {
   sessionTurns,
   startSession,
 } from './chat.ts';
+export type { ClaimScope, ClaimWhere, LocatedClaim } from './claim-locate.ts';
+export { claimScope, locateClaims } from './claim-locate.ts';
 export {
   getNoteShape,
   indexTypeNoteIds,

@@ -1,5 +1,5 @@
 import type { AmendKind, MemexClient } from '@memex/db';
-import { getAmendments, getBacklinks, getNote } from '@memex/db';
+import { claimScope, getAmendments, getBacklinks, getNote, locateClaims } from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { type AmendmentRef, ownWorkHint, stamp } from './search-notes.ts';
@@ -13,7 +13,31 @@ const HEADING: Record<AmendKind, string> = {
 
 const HEADING_ORDER: AmendKind[] = ['corrects', 'unknown', 'continues'];
 
-export const amendmentSections = (amendments: AmendmentRef[]): string =>
+// A retired claim is quoted from the note it retires, so it should be findable
+// there. One that is not means the correction paraphrased instead of quoting,
+// and nothing downstream can tell which sentence went. Saying so is the only
+// way that ever gets fixed.
+const claimLines = (amendment: AmendmentRef, content: string): string =>
+  locateClaims(amendment.invalidates ?? [], content)
+    .map(
+      (claim) =>
+        `\n  - no longer true: ${claim.text}${
+          claim.where === 'unlocated' ? '  ⚠️ this sentence is not in the note above' : ''
+        }`,
+    )
+    .join('');
+
+const restStands = (ofKind: AmendmentRef[], content: string): string =>
+  ofKind.some((a) => (a.invalidates ?? []).length > 0) &&
+  ofKind.every(
+    (a) =>
+      (a.invalidates ?? []).length === 0 ||
+      claimScope(locateClaims(a.invalidates ?? [], content)) === 'partial',
+  )
+    ? '\n\nEverything they retire is named above. The rest of this note still stands.'
+    : '';
+
+export const amendmentSections = (amendments: AmendmentRef[], content = ''): string =>
   HEADING_ORDER.map((kind) => ({
     kind,
     ofKind: amendments.filter((amendment) => amendment.kind === kind),
@@ -22,13 +46,8 @@ export const amendmentSections = (amendments: AmendmentRef[]): string =>
     .map(
       ({ kind, ofKind }) =>
         `\n\n---\n${HEADING[kind]}\n${ofKind
-          .map(
-            (a) =>
-              `- #${a.id} [[${a.title}]]${(a.invalidates ?? [])
-                .map((claim) => `\n  - no longer true: ${claim}`)
-                .join('')}`,
-          )
-          .join('\n')}`,
+          .map((a) => `- #${a.id} [[${a.title}]]${claimLines(a, content)}`)
+          .join('\n')}${kind === 'corrects' ? restStands(ofKind, content) : ''}`,
     )
     .join('');
 
@@ -43,7 +62,7 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
 
-      const amendmentSection = amendmentSections(getAmendments(client, id));
+      const amendmentSection = amendmentSections(getAmendments(client, id), note.content);
 
       const backlinks = getBacklinks(client, id);
       const backlinkSection =

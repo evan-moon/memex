@@ -1,9 +1,12 @@
 import { type Reranker, searchPageMulti } from '@memex/core';
 import {
   type AmendKind,
+  type ClaimScope,
+  claimScope,
   type FlashbackOptions,
   findFlashbacks,
   getAmendmentsFor,
+  locateClaims,
   type MemexClient,
   matchRegisterSubjects,
   needsReembed,
@@ -46,9 +49,28 @@ const invalidatedBy = (amendment: AmendmentRef): string =>
     ? ` No longer true: ${amendment.invalidates.map((claim) => `"${claim}"`).join('; ')}.`
     : '';
 
-const NOTICE: Record<AmendKind, (newest: AmendmentRef, others: string) => string> = {
-  corrects: (newest, others) =>
+// What the note being corrected can be told about the reach of the correction.
+// Without it every correction reads as if the whole note went, which is what
+// put 37 still-true notes under a "no longer true" label.
+export type ClaimContext = { content: string; passage?: string | null };
+
+const scopeOf = (amendment: AmendmentRef, context?: ClaimContext): ClaimScope => {
+  const claims = amendment.invalidates ?? [];
+  if (!context || claims.length === 0) return 'whole';
+  return claimScope(locateClaims(claims, context.content, context.passage));
+};
+
+const CORRECTS: Record<ClaimScope, (newest: AmendmentRef, others: string) => string> = {
+  passage: (newest, others) =>
+    `⚠️ the passage below is retired — corrected by #${newest.id} "${newest.title}"${others}. Do not use this passage; read that note instead.`,
+  partial: (newest, others) =>
+    `⚠️ partly superseded — #${newest.id} "${newest.title}"${others} retires part of this note. The rest of it still stands.`,
+  whole: (newest, others) =>
     `⚠️ superseded — corrected by #${newest.id} "${newest.title}"${others}. Read that before using this note.`,
+};
+
+const NOTICE: Record<AmendKind, (newest: AmendmentRef, others: string) => string> = {
+  corrects: (newest, others) => CORRECTS.whole(newest, others),
   unknown: (newest, others) =>
     `↔ amended by #${newest.id} "${newest.title}"${others}, which did not say whether it corrects or continues. Read it before relying on this.`,
   continues: (newest, others) =>
@@ -57,18 +79,25 @@ const NOTICE: Record<AmendKind, (newest: AmendmentRef, others: string) => string
 
 const NOTICE_ORDER: AmendKind[] = ['corrects', 'unknown', 'continues'];
 
-const noticeFor = (kind: AmendKind, amendments: AmendmentRef[]): string | null => {
+const noticeFor = (
+  kind: AmendKind,
+  amendments: AmendmentRef[],
+  context?: ClaimContext,
+): string | null => {
   const ofKind = amendments.filter((amendment) => amendment.kind === kind);
   const newest = ofKind.at(-1);
   if (!newest) return null;
   const earlier = ofKind.length - 1;
-  return (
-    NOTICE[kind](newest, earlier > 0 ? ` (and ${earlier} earlier)` : '') + invalidatedBy(newest)
-  );
+  const others = earlier > 0 ? ` (and ${earlier} earlier)` : '';
+  const head =
+    kind === 'corrects'
+      ? CORRECTS[scopeOf(newest, context)](newest, others)
+      : NOTICE[kind](newest, others);
+  return head + invalidatedBy(newest);
 };
 
-export const supersededLine = (amendments: AmendmentRef[]): string =>
-  NOTICE_ORDER.map((kind) => noticeFor(kind, amendments))
+export const supersededLine = (amendments: AmendmentRef[], context?: ClaimContext): string =>
+  NOTICE_ORDER.map((kind) => noticeFor(kind, amendments, context))
     .filter((notice) => notice !== null)
     .map((notice) => `\n   ${notice}`)
     .join('');
@@ -190,7 +219,10 @@ export const registerSearchNotes = (
               .filter(Boolean)
               .join(' | ');
             const snippet = r.matchSnippet ? toSnippet(r.matchSnippet) : toSnippet(r.content);
-            const correctionLine = supersededLine(amendments.get(r.id) ?? []);
+            const correctionLine = supersededLine(amendments.get(r.id) ?? [], {
+              content: r.content,
+              passage: r.matchSnippet,
+            });
             return `${i + 1}. #${r.id} [${stamp(r)}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
           })
           .join('\n\n')}` +

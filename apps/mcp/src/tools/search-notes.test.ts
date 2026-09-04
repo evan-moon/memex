@@ -62,6 +62,51 @@ describe('supersededLine', () => {
     expect(line).not.toContain('superseded');
   });
 
+  const NOTE =
+    '# 캐러셀 설계\n\n## 이것이 바꾼 것\n\n- 캐러셀은 4장으로 간다\n\n## 무슨 일이 있었나\n\n리서치는 8~10장이 최적이라고 말한다.';
+
+  it('still condemns the whole note when the correction named nothing', () => {
+    const line = supersededLine([{ id: 7, title: 'fix', kind: 'corrects' }], { content: NOTE });
+    expect(line).toContain('superseded');
+    expect(line).toContain('Read that before using this note');
+    expect(line).not.toContain('still stands');
+  });
+
+  it('says the rest stands when every retired claim was found in the note', () => {
+    const line = supersededLine(
+      [{ id: 7, title: 'fix', kind: 'corrects', invalidates: ['캐러셀은 4장으로 간다'] }],
+      { content: NOTE },
+    );
+    expect(line).toContain('partly superseded');
+    expect(line).toContain('The rest of it still stands');
+    expect(line).toContain('No longer true: "캐러셀은 4장으로 간다"');
+  });
+
+  it('condemns the passage itself when the retired claim is what matched', () => {
+    const line = supersededLine(
+      [{ id: 7, title: 'fix', kind: 'corrects', invalidates: ['캐러셀은 4장으로 간다'] }],
+      { content: NOTE, passage: '이것이 바꾼 것 캐러셀은 4장으로 간다' },
+    );
+    expect(line).toContain('the passage below is retired');
+    expect(line).not.toContain('still stands');
+  });
+
+  it('does not clear a note when a named claim is nowhere inside it', () => {
+    const line = supersededLine(
+      [{ id: 7, title: 'fix', kind: 'corrects', invalidates: ['릴스는 9장으로 간다'] }],
+      { content: NOTE },
+    );
+    expect(line).toContain('superseded');
+    expect(line).not.toContain('still stands');
+  });
+
+  it('keeps the old whole-note wording when no context is passed', () => {
+    const line = supersededLine([
+      { id: 7, title: 'fix', kind: 'corrects', invalidates: ['캐러셀은 4장으로 간다'] },
+    ]);
+    expect(line).toContain('Read that before using this note');
+  });
+
   it('reports a correction and a continuation separately', () => {
     const line = supersededLine([
       { id: 7, title: 'wrong bit', kind: 'corrects' },
