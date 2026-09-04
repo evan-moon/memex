@@ -7,10 +7,17 @@ import { headingsOf, type NoteLayer, type NoteType } from '@memex/db';
 // the wording where a kind of note answers the same question differently.
 export type StructuredLayer = Exclude<NoteLayer, 'external'>;
 
-// `이것이 바꾼 것` is the whole reason past has a fixed shape: a conversation
-// produces both what happened and what is now true, and they have different
-// lifetimes. Naming the second one inside the first is what keeps a later
-// correction from calling the whole episode out of date.
+// `이것이 바꾼 것` is why past has a fixed shape: a conversation produces both
+// what happened and what is now true, and they have different lifetimes.
+//
+// It is a writing convention, not yet a mechanism. Nothing reads it — a
+// correction's reach is decided entirely on the amending note's side, from the
+// edge kind and its `invalidates` rows, and `getAmendmentsFor` never looks at
+// the amended note's body. Separating the two lifetimes at write time is what
+// makes a claim quotable by a later `invalidates`; it does not by itself narrow
+// what a correction touches. Chunks carry their heading, so suppressing an
+// invalidated claim per chunk rather than warning about a whole note is the
+// build that would make this section load-bearing. It does not exist.
 export const SLOTS_BY_LAYER: Record<StructuredLayer, readonly string[]> = {
   past: ['맥락', '무슨 일이 있었나', '결정과 이유', '이것이 바꾼 것'],
   // One claim per line under `지금 참인 것`, because that is the granularity
@@ -24,8 +31,8 @@ export const SLOTS_BY_LAYER: Record<StructuredLayer, readonly string[]> = {
 };
 
 // A type overrides the skeleton only where it genuinely asks a different
-// question. Each one still carries its layer's wiring slot, which is the part
-// the rest of the system reads.
+// question. Each one still carries its layer's wiring slot, so the convention
+// holds whichever shape a note takes.
 export const SLOTS_BY_TYPE: Partial<Record<NoteType, readonly string[]>> = {
   세션기록: ['Resume', '오늘 한 작업', '왜', '이것이 바꾼 것', '다음 작업'],
   정정: ['무엇이 틀렸나', '왜 틀렸나', '지금 맞는 것', '영향 범위'],
