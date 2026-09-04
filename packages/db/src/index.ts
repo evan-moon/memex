@@ -57,6 +57,8 @@ export {
   restoreDanglingFor,
 } from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
+export type { NoteDraft } from './drafts.ts';
+export { basisOf, draftedNotes, dropDraft, getDraft, putDraft } from './drafts.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
 export {
   bodyHash,

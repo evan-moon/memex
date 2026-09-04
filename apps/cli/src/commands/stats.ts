@@ -14,6 +14,7 @@ import pc from 'picocolors';
 import { registerAudit } from './audit.ts';
 import { registerEval } from './eval.ts';
 import { registerFlashbackEval } from './flashback-eval.ts';
+import { registerPrepare } from './prepare.ts';
 
 const printCounts = (label: string, counts: CountByKey[]) => {
   if (counts.length === 0) return;
@@ -109,6 +110,7 @@ export const registerStats = (program: Command) => {
     });
 
   registerAudit(stats);
+  registerPrepare(stats);
   registerEval(stats);
   registerFlashbackEval(stats);
 };

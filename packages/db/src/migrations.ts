@@ -401,6 +401,34 @@ const MIGRATIONS: readonly Migration[] = [
     name: 'notes.confirmed_at',
     up: (sqlite) => addColumnIfMissing(sqlite, 'notes', 'confirmed_at', 'confirmed_at INTEGER'),
   },
+  {
+    // A draft prepared before anyone asked for it. Drafting costs a minute or
+    // two of model time, and a person who has to wait that long after pressing
+    // a button has left the session. So it is written ahead and read instantly.
+    //
+    // `note_hash` and `basis` are what stop a stale draft from being shown as a
+    // live one: the first is the note as it read when drafted, the second the
+    // evidence that made it worth drafting. Either moving means the draft is
+    // about a note that no longer exists in that form.
+    version: 23,
+    name: 'note_drafts',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS note_drafts (
+          note_id    INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          body       TEXT    NOT NULL,
+          -- The bullets the screen actually shows, as JSON. A draft's reason
+          -- field is only ever filled when nothing changed, so storing that
+          -- alone would keep the empty half and drop the explanation.
+          changes    TEXT    NOT NULL,
+          verdict    TEXT    NOT NULL,
+          note_hash  TEXT    NOT NULL,
+          basis      TEXT    NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
