@@ -1,7 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { LlmProviderId } from '@memex/llm';
 import { findClaudeBinary } from './claude-code/index.ts';
@@ -14,15 +12,12 @@ export type ProviderCatalog = {
   provider: LlmProviderId;
   label: string;
   source: 'cli' | 'fallback';
-  configured: string | null;
   models: CatalogModel[];
 };
 
 export type Catalog = { providers: ProviderCatalog[] };
 
 const CLAUDE_FALLBACK = ['sonnet', 'opus', 'haiku', 'fable'];
-
-const ACCOUNT_DEFAULT: CatalogModel = { model: '', label: 'Account default' };
 
 // `/model` answers in prose, so this reads the one sentence that carries the
 // list. An alias never has a space in it, which is what separates the names
@@ -81,38 +76,6 @@ export const codexModels = (stdout: string): CatalogModel[] => {
     }));
 };
 
-// Only the keys above the first table are the file's own; `model` appears again
-// under a `[projects.…]` section and means something else there.
-export const tomlTopLevel = (source: string, key: string): string | null => {
-  const head = source.split(/^\[/m)[0];
-  const found = new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, 'm').exec(head);
-  return found === null ? null : found[1];
-};
-
-const readFile = (path: string): string | null => {
-  try {
-    return readFileSync(path, 'utf8');
-  } catch {
-    return null;
-  }
-};
-
-const configuredClaude = (home: string): string | null => {
-  const source = readFile(join(home, '.claude', 'settings.json'));
-  if (source === null) return null;
-  try {
-    const parsed: unknown = JSON.parse(source);
-    return text((parsed as { model?: unknown })?.model) ?? null;
-  } catch {
-    return null;
-  }
-};
-
-const configuredCodex = (home: string): string | null => {
-  const source = readFile(join(home, '.codex', 'config.toml'));
-  return source === null ? null : tomlTopLevel(source, 'model');
-};
-
 const CLI_TIMEOUT_MS = 15_000;
 
 const askClaudeForModels = async (home: string, pathEnv: string): Promise<string[]> => {
@@ -145,22 +108,20 @@ const readClaudeCatalog = async (home: string, pathEnv: string): Promise<Provide
     provider: 'claude-code',
     label: 'Claude Code',
     source: aliases.length > 0 ? 'cli' : 'fallback',
-    configured: configuredClaude(home),
     models: names.map((alias) => ({ model: alias, label: claudeLabel(alias) })),
   };
 };
 
-// Sending no `--model` asks for whatever the account is set to, which stays the
-// first option even once the catalogue is known: it is the one choice that
-// cannot go stale.
-const readCodexCatalog = async (home: string): Promise<ProviderCatalog> => {
+// No fallback list, because there is nothing to fall back to: Codex model names
+// are not a set memex can guess, and a guessed one is a call that fails. An
+// empty group still takes a typed-in name.
+const readCodexCatalog = async (): Promise<ProviderCatalog> => {
   const models = await askCodexForModels();
   return {
     provider: 'codex',
     label: 'Codex (ChatGPT)',
     source: models.length > 0 ? 'cli' : 'fallback',
-    configured: configuredCodex(home),
-    models: [ACCOUNT_DEFAULT, ...models],
+    models,
   };
 };
 
@@ -178,7 +139,7 @@ export const readCatalog = async (
 ): Promise<Catalog> => {
   if (cache.value !== null && now - cache.at < TTL_MS) return cache.value;
 
-  const providers = await Promise.all([readClaudeCatalog(home, pathEnv), readCodexCatalog(home)]);
+  const providers = await Promise.all([readClaudeCatalog(home, pathEnv), readCodexCatalog()]);
   const value = { providers };
   cache.at = now;
   cache.value = value;

@@ -220,7 +220,6 @@ const en = {
     nothingWritten: 'Nothing was written.',
     clear: 'New conversation',
     model: 'Model',
-    configured: 'currently set',
     customModel: 'Type a model name',
     failure: {
       'not-installed': 'Claude Code is not installed yet.',
@@ -833,7 +832,6 @@ const ko: typeof en = {
     nothingWritten: '아무것도 쓰지 않았어요.',
     clear: '새 대화',
     model: '모델',
-    configured: '지금 설정된 것',
     customModel: '직접 입력',
     failure: {
       'not-installed': '아직 Claude Code가 설치되지 않았어요.',

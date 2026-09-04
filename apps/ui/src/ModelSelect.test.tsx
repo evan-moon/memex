@@ -31,8 +31,15 @@ describe('the model picker, before the CLIs have answered', () => {
     }
   });
 
-  it('keeps asking for nothing as a choice, because it cannot go stale', () => {
-    expect(render()).toContain('value="codex:">Account default');
+  it('never offers a row that would send no model at all', () => {
+    expect(render()).not.toContain('value="codex:"');
+    expect(render()).not.toContain('value="claude-code:"');
+  });
+
+  it('keeps a provider it cannot name reachable by leaving it the typed-in row', () => {
+    const html = render();
+    const codex = html.slice(html.indexOf('<optgroup label="Codex (ChatGPT)">'));
+    expect(codex).toContain(`value="codex:__custom__">${t.chat.customModel}`);
   });
 
   it('offers a way in for a model the list does not carry, once per provider', () => {

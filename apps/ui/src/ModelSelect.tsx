@@ -82,9 +82,7 @@ export const ModelSelect = ({
         <optgroup key={provider.provider} label={provider.label}>
           {provider.models.map((entry) => (
             <option key={entry.model} value={keyOf(provider.provider, entry.model)}>
-              {entry.model === provider.configured
-                ? `${entry.label} · ${t.chat.configured}`
-                : entry.label}
+              {entry.label}
             </option>
           ))}
           <option value={keyOf(provider.provider, CUSTOM)}>{t.chat.customModel}</option>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeAliases, claudeLabel, codexModels, tomlTopLevel } from './model-catalog.ts';
+import { claudeAliases, claudeLabel, codexModels } from './model-catalog.ts';
 
 const CLAUDE_RESULT = [
   'Current model: `Opus 5 (1M context)` (effort: high)',
@@ -92,33 +92,5 @@ describe('codexModels', () => {
   it('returns nothing when the shape is not what it expected', () => {
     expect(codexModels('{}')).toEqual([]);
     expect(codexModels('{"models":"soon"}')).toEqual([]);
-  });
-});
-
-describe('tomlTopLevel', () => {
-  const CONFIG = [
-    'personality = "pragmatic"',
-    'model = "gpt-5.6-terra"',
-    'model_reasoning_effort = "medium"',
-    '',
-    '[projects."/Users/evan/dev"]',
-    'model = "something else"',
-    'trust_level = "trusted"',
-  ].join('\n');
-
-  it('reads the file’s own key', () => {
-    expect(tomlTopLevel(CONFIG, 'model')).toBe('gpt-5.6-terra');
-  });
-
-  it('does not read the same key out of a table further down', () => {
-    expect(tomlTopLevel('[projects.a]\nmodel = "nope"\n', 'model')).toBeNull();
-  });
-
-  it('does not mistake a longer key that starts the same way', () => {
-    expect(tomlTopLevel('model_reasoning_effort = "medium"\n', 'model')).toBeNull();
-  });
-
-  it('says nothing when the key is absent', () => {
-    expect(tomlTopLevel('personality = "pragmatic"\n', 'model')).toBeNull();
   });
 });

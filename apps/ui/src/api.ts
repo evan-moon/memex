@@ -6,7 +6,6 @@ export type ProviderCatalog = {
   provider: ProviderId;
   label: string;
   source: 'cli' | 'fallback';
-  configured: string | null;
   models: CatalogModel[];
 };
 

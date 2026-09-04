@@ -12,14 +12,14 @@ export const DEFAULT_CHOICE: Choice = { provider: 'claude-code', model: 'sonnet'
 // What memex can name without asking anyone. Both CLIs can be asked what they
 // will answer to — `/model` and `codex debug models` — and the server does ask,
 // so this is only what the picker draws while that is in flight or when neither
-// CLI is there to answer.
+// CLI is there to answer. Codex has no entry here because its model names are
+// not a set that can be guessed, and a guessed one is a call that fails.
 const FALLBACK: Catalog = {
   providers: [
     {
       provider: 'claude-code',
       label: 'Claude Code',
       source: 'fallback',
-      configured: null,
       models: [
         { model: 'sonnet', label: 'Claude Sonnet' },
         { model: 'opus', label: 'Claude Opus' },
@@ -27,13 +27,7 @@ const FALLBACK: Catalog = {
         { model: 'fable', label: 'Claude Fable' },
       ],
     },
-    {
-      provider: 'codex',
-      label: 'Codex (ChatGPT)',
-      source: 'fallback',
-      configured: null,
-      models: [{ model: '', label: 'Account default' }],
-    },
+    { provider: 'codex', label: 'Codex (ChatGPT)', source: 'fallback', models: [] },
   ],
 };
 
@@ -44,9 +38,8 @@ const read = (): Choice => {
     const raw = localStorage.getItem(KEY);
     if (raw === null) return DEFAULT_CHOICE;
     const parsed = JSON.parse(raw) as Choice;
-    return parsed.provider === 'claude-code' || parsed.provider === 'codex'
-      ? parsed
-      : DEFAULT_CHOICE;
+    const known = parsed.provider === 'claude-code' || parsed.provider === 'codex';
+    return known && parsed.model !== '' ? parsed : DEFAULT_CHOICE;
   } catch {
     return DEFAULT_CHOICE;
   }
