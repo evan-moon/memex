@@ -5,6 +5,7 @@ import { type ApiFailure, api, type InferenceDetail, toFailure } from './api.ts'
 import { Button, Card } from './bits.tsx';
 import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
+import { defaultChoice } from './models.ts';
 import { day } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
@@ -145,7 +146,7 @@ export const HypothesisBody = ({
             onClick={() => {
               setReading(true);
               api
-                .redraftInference(inference.id)
+                .redraftInference(inference.id, defaultChoice())
                 .then(setProposal)
                 .catch((cause: unknown) => setFailure(toFailure(cause)))
                 .finally(() => setReading(false));

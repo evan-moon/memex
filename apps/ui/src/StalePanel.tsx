@@ -11,6 +11,8 @@ import {
 import { Button } from './bits.tsx';
 import { DiffView } from './DiffView.tsx';
 import { useT } from './i18n.ts';
+import { ModelSelect } from './ModelSelect.tsx';
+import { type Choice, defaultChoice } from './models.ts';
 
 // The diff says what moved; this says why, and names the note that made it
 // wrong. Without it the reader has to take the rewrite on faith.
@@ -95,6 +97,7 @@ export const StalePanel = ({
 }) => {
   const t = useT();
   const [state, setState] = useState<State>({ phase: 'idle' });
+  const [choice, setChoice] = useState<Choice>(defaultChoice);
   if (!note.stale) return null;
 
   const guard = (run: () => Promise<void>) => {
@@ -104,7 +107,7 @@ export const StalePanel = ({
   const draft = () => {
     setState({ phase: 'drafting' });
     guard(async () => {
-      const d = await api.draft(note.id);
+      const d = await api.draft(note.id, choice);
       setState({
         phase: 'review',
         body: d.body,
@@ -165,6 +168,7 @@ export const StalePanel = ({
             )}
             <Button onClick={draft}>{t.stale.redraft}</Button>
             <Button onClick={() => setState({ phase: 'idle' })}>{t.stale.discard}</Button>
+            <ModelSelect choice={choice} onPick={setChoice} label={t.stale.model} />
             <span className="text-xs text-muted">
               {t.stale.took(Math.round(state.durationMs / 1000))}
             </span>
@@ -182,6 +186,7 @@ export const StalePanel = ({
           <Button onClick={stillTrue} disabled={state.phase === 'drafting'}>
             {t.stale.stillTrue}
           </Button>
+          <ModelSelect choice={choice} onPick={setChoice} label={t.stale.model} />
           <span className="text-xs text-muted">
             {state.phase === 'drafting' ? t.stale.draftingHint : t.stale.idleHint}
           </span>

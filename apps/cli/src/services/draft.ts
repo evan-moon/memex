@@ -1,5 +1,6 @@
+import type { LlmChoice } from '@memex/llm';
 import { isLlmFailure, type LlmModel } from '@memex/llm';
-import { askClaude } from './llm.ts';
+import { askClaude, askWith } from './llm.ts';
 
 export type DraftSource = {
   title: string;
@@ -142,8 +143,15 @@ export const parseDraft = (
 // The drafting call runs without the vault's own tools: a proposal that can
 // write itself into what it is reading is not a proposal. That boundary now
 // lives in the provider (`@memex/llm`), not in this file.
-export const draftStateUpdate = async (source: DraftSource): Promise<Draft> => {
-  const answer = await askClaude({ prompt: buildPrompt(source), model: MODEL });
+/**
+ * `choice` is the person's, not the code's. Drafting is the one call in this app
+ * whose output they are asked to approve, so which model wrote it is theirs to
+ * decide the way it already is in chat. Omitted, it falls back to what this
+ * service always used.
+ */
+export const draftStateUpdate = async (source: DraftSource, choice?: LlmChoice): Promise<Draft> => {
+  const ask = choice ? askWith(choice) : askClaude;
+  const answer = await ask({ prompt: buildPrompt(source), model: choice?.model ?? MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

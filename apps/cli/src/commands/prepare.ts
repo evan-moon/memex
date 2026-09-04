@@ -2,11 +2,16 @@ import { openDb } from '@memex/db';
 import { CONFIG_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { isProviderId } from '../services/llm.ts';
 import { prepareDrafts } from '../services/prepare-drafts.ts';
 
 /**
- * Runs the drafting the review session would otherwise pay for at the moment
- * somebody is waiting. Meant for a scheduler overnight: `memex stats prepare`.
+ * Drafts the pending rewrites now, so a review session does not stop for a
+ * model call after every press.
+ *
+ * Deliberately not something a schedule runs. A laptop is not a server, and a
+ * cron that assumes it is spends the model on nights the machine happens to be
+ * awake and on work nobody asked for. The person asks; this answers.
  *
  * It prepares and stops. Nothing here approves anything, and nothing here
  * writes a note.
@@ -14,15 +19,27 @@ import { prepareDrafts } from '../services/prepare-drafts.ts';
 export const registerPrepare = (stats: Command) => {
   stats
     .command('prepare')
-    .description('Draft the pending state rewrites ahead of time, so review is instant')
+    .description('Draft the pending state rewrites now, so a review session does not wait')
     .option('--limit <n>', 'How many to draft in this run', '10')
+    .option('--provider <id>', 'claude-code or codex', 'claude-code')
+    .option('--model <name>', 'Model to draft with')
     .option('-q, --quiet', 'Print only the summary')
-    .action(async (opts: { limit: string; quiet?: boolean }) => {
+    .action(async (opts: { limit: string; provider: string; model?: string; quiet?: boolean }) => {
       const client = openDb(CONFIG_DIR);
       const limit = Math.max(1, Number(opts.limit) || 10);
+      if (!isProviderId(opts.provider)) {
+        console.error(pc.red(`Unknown provider "${opts.provider}".`));
+        process.exitCode = 1;
+        return;
+      }
 
-      const result = await prepareDrafts(client, limit, (note) => {
-        if (!opts.quiet) console.log(pc.dim(`  drafting #${note.id} ${note.title.slice(0, 60)}`));
+      const choice = opts.model ? { provider: opts.provider, model: opts.model } : undefined;
+
+      const result = await prepareDrafts(client, limit, {
+        choice,
+        onStep: (note) => {
+          if (!opts.quiet) console.log(pc.dim(`  drafting #${note.id} ${note.title.slice(0, 60)}`));
+        },
       });
 
       console.log();

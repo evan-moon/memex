@@ -1,3 +1,5 @@
+import type { Choice } from './models.ts';
+
 export type NoteStatus =
   | { kind: 'amended'; by: { id: number; title: string } }
   | { kind: 'continued'; by: { id: number; title: string } }
@@ -548,20 +550,23 @@ export const api = {
   archiveInference: (id: number) => post<{ ok: true }>(`/api/inference/${id}/archive`),
   keepInference: (id: number) => post<InferenceDetail>(`/api/inference/${id}/still-true`),
   promoteInference: (id: number) => post<NoteDetail>(`/api/inference/${id}/promote`),
-  redraftInference: (id: number) =>
-    post<{ title: string; summary: string; durationMs: number }>(`/api/inference/${id}/redraft`),
+  redraftInference: (id: number, choice?: Choice) =>
+    post<{ title: string; summary: string; durationMs: number }>(
+      `/api/inference/${id}/redraft`,
+      choice ? { choice } : undefined,
+    ),
   rewriteInference: (id: number, next: { title: string; summary: string }) =>
     post<InferenceDetail>(`/api/inference/${id}/rewrite`, next),
   deleteTags: (tags: string[]) => post<RenameResult>('/api/tags/delete', { tags }),
   renameTags: (from: string[], to: string) => post<RenameResult>('/api/tags/rename', { from, to }),
-  draft: (id: number, instruction?: string) =>
+  draft: (id: number, choice?: Choice) =>
     post<{
       body: string;
       changes: DraftChange[];
       verdict: DraftVerdict;
       reason: string;
       durationMs: number;
-    }>(`/api/draft/${id}`, instruction === undefined ? undefined : { instruction }),
+    }>(`/api/draft/${id}`, choice ? { choice } : undefined),
   updateNote: (id: number, patch: NotePatch) => post<NoteDetail>(`/api/note/${id}`, patch),
   createNote: (input: NewNote) => post<NoteDetail>('/api/notes', input),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),

@@ -1,5 +1,5 @@
-import { isLlmFailure, type LlmModel } from '@memex/llm';
-import { askClaude } from './llm.ts';
+import { isLlmFailure, type LlmChoice, type LlmModel } from '@memex/llm';
+import { askClaude, askWith } from './llm.ts';
 
 const MODEL: LlmModel = 'sonnet';
 const SPLIT = '<<<SUMMARY>>>';
@@ -50,8 +50,12 @@ export const parseRedraft = (raw: string): { title: string; summary: string } | 
   return title.length > 0 && summary.length > 0 ? { title, summary } : null;
 };
 
-export const redraftInference = async (source: RedraftSource): Promise<Redraft> => {
-  const answer = await askClaude({ prompt: buildPrompt(source), model: MODEL });
+export const redraftInference = async (
+  source: RedraftSource,
+  choice?: LlmChoice,
+): Promise<Redraft> => {
+  const ask = choice ? askWith(choice) : askClaude;
+  const answer = await ask({ prompt: buildPrompt(source), model: choice?.model ?? MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

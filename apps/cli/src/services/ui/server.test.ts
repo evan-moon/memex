@@ -697,3 +697,24 @@ describe('the embedding model', () => {
     expect(body(reply)).toEqual({ kind: 'ready' });
   });
 });
+
+describe('POST /api/draft/:id', () => {
+  it('refuses a provider that does not exist rather than quietly drafting with the default', async () => {
+    const note = addNote('a state note', 'state');
+
+    const reply = await post(`/api/draft/${note.id}`, {
+      choice: { provider: 'gemini', model: 'pro' },
+    });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply)).toMatchObject({ error: { code: 'unknown-provider' } });
+  });
+
+  it('treats saying nothing about the model as a request, not a malformed one', async () => {
+    const note = addNote('a state note', 'state');
+
+    const reply = await post(`/api/draft/${note.id}`, null);
+
+    expect(body(reply)).toMatchObject({ error: { code: 'draft-no-evidence' } });
+  });
+});

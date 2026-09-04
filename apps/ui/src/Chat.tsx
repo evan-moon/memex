@@ -17,7 +17,8 @@ import { shownSteps, stepLine } from './chat-steps.ts';
 import { targetOnScreen } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
-import { type Choice, defaultChoice, MODELS } from './models.ts';
+import { ModelSelect } from './ModelSelect.tsx';
+import { type Choice, defaultChoice } from './models.ts';
 import { useAsync } from './useAsync.ts';
 
 // `reply` is this run's; `outcome` is what a saved session recorded. A reopened
@@ -573,24 +574,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
           </div>
         </div>
         <div className="mt-1.5 flex items-center gap-1 px-1">
-          <select
-            value={`${choice.provider}:${choice.model}`}
-            onChange={(event) => {
-              const [provider, model = ''] = event.target.value.split(':');
-              setChoice({ provider: provider as Choice['provider'], model });
-            }}
-            aria-label={t.chat.model}
-            className="cursor-pointer rounded border-0 bg-transparent py-0.5 text-[10px] text-muted outline-none hover:text-foreground"
-          >
-            {MODELS.map((option) => (
-              <option
-                key={`${option.provider}:${option.model}`}
-                value={`${option.provider}:${option.model}`}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <ModelSelect choice={choice} onPick={setChoice} label={t.chat.model} />
         </div>
       </div>
     </div>

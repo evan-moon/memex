@@ -268,6 +268,12 @@ const choiceFrom = (value: unknown): LlmChoice | null => {
     : null;
 };
 
+// Drafting, unlike chat, has a model it falls back to, so saying nothing is a
+// valid request and only a malformed choice is an error. `null` means the page
+// asked for a provider that does not exist; `undefined` means it did not ask.
+const optionalChoice = (value: unknown): LlmChoice | null | undefined =>
+  value === undefined ? undefined : choiceFrom(value);
+
 const statusOf = (amendment: { id: number; title: string } | undefined): NoteStatus | null =>
   amendment ? { kind: 'amended', by: { id: amendment.id, title: amendment.title } } : null;
 
@@ -662,15 +668,21 @@ export const route = async (
     if (!note) return notFound;
     if (note.layer !== 'state') return bad(400, 'draft-state-only');
 
+    const choice = optionalChoice(asRecord(payload)?.choice);
+    if (choice === null) return bad(400, 'unknown-provider');
+
     const evidence = staleEvidence(client, id);
     if (!evidence || evidence.newer.length === 0) return bad(400, 'draft-no-evidence');
 
-    const draft = await draftStateUpdate({
-      title: note.title,
-      body: bodyOf(note.content, note.title),
-      since: new Date(note.updatedAt).toISOString().slice(0, 10),
-      newer: evidence.newer,
-    });
+    const draft = await draftStateUpdate(
+      {
+        title: note.title,
+        body: bodyOf(note.content, note.title),
+        since: new Date(note.updatedAt).toISOString().slice(0, 10),
+        newer: evidence.newer,
+      },
+      choice,
+    );
     return 'error' in draft
       ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
       : json(draft);
@@ -699,11 +711,17 @@ export const route = async (
       });
       if (notes.length === 0) return bad(400, 'draft-no-evidence');
 
-      const draft = await redraftInference({
-        title: found.inference.title,
-        summary: found.inference.summary,
-        notes,
-      });
+      const choice = optionalChoice(asRecord(payload)?.choice);
+      if (choice === null) return bad(400, 'unknown-provider');
+
+      const draft = await redraftInference(
+        {
+          title: found.inference.title,
+          summary: found.inference.summary,
+          notes,
+        },
+        choice,
+      );
       return 'error' in draft
         ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
         : json(draft);

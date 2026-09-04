@@ -7,6 +7,7 @@ import {
   type MemexClient,
   putDraft,
 } from '@memex/db';
+import type { LlmChoice } from '@memex/llm';
 import { draftStateUpdate } from './draft.ts';
 import { bodyOf } from './ui/notes.ts';
 
@@ -18,11 +19,16 @@ export type Prepared = {
 };
 
 /**
- * Writes the rewrite before anyone presses for it.
+ * Writes the rewrites for a review session, so the reading is over before the
+ * judging starts.
  *
- * The person's job in this product is judgement, and judgement does not survive
- * a two minute wait between the question and the answer. Drafting ahead moves
- * that wait off the session and out of the hours nobody is looking.
+ * The trigger is the session, never a clock. A laptop is not a server and a
+ * schedule that assumes it is only ever runs on the days it happens to be
+ * awake — and worse, it spends the model on work nobody asked for. This runs
+ * when the person says they want to fix something.
+ *
+ * `choice` is theirs too. Drafting is the one call whose output they are asked
+ * to approve, so which model wrote it is not the code's decision.
  *
  * It only ever prepares. Nothing here writes a note: the draft sits until a
  * person approves it, because the one thing this product will not do is let the
@@ -31,8 +37,9 @@ export type Prepared = {
 export const prepareDrafts = async (
   client: MemexClient,
   limit: number,
-  onStep?: (note: { id: number; title: string }) => void,
+  options: { choice?: LlmChoice; onStep?: (note: { id: number; title: string }) => void } = {},
 ): Promise<Prepared> => {
+  const { choice, onStep } = options;
   const out: Prepared = { drafted: [], skipped: [], failed: [], swept: 0 };
 
   // A draft whose note or evidence has moved is about a question nobody is
@@ -67,16 +74,19 @@ export const prepareDrafts = async (
 
     onStep?.({ id: note.id, title: note.title });
 
-    const draft = await draftStateUpdate({
-      title: note.title,
-      body: bodyOf(note.content, note.title),
-      since: new Date(note.updatedAt).toISOString().slice(0, 10),
-      newer: newer.map((other) => ({
-        id: other.id,
-        title: other.title,
-        body: bodyOf(other.content, other.title),
-      })),
-    });
+    const draft = await draftStateUpdate(
+      {
+        title: note.title,
+        body: bodyOf(note.content, note.title),
+        since: new Date(note.updatedAt).toISOString().slice(0, 10),
+        newer: newer.map((other) => ({
+          id: other.id,
+          title: other.title,
+          body: bodyOf(other.content, other.title),
+        })),
+      },
+      choice,
+    );
 
     if ('error' in draft) {
       out.failed.push({ id, error: draft.error });
