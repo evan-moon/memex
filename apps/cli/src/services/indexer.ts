@@ -22,8 +22,10 @@ import {
 import {
   authorOfPath,
   extractCategory,
+  parseConfirmedAt,
   parseDerivesFrom,
   parseInvalidates,
+  parseScopeLine,
   yamlScalar,
 } from '@memex/utils';
 
@@ -46,6 +48,8 @@ type ExtractedNote = {
   tags: string[];
   layer?: NoteLayer;
   ruleStatus?: RuleStatus;
+  ruleScope?: string;
+  confirmedAt?: number;
 };
 
 const unquote = (value: string): string => yamlScalar(value).replace(/^#/, '');
@@ -91,13 +95,20 @@ const extractNote = (content: string, filePath: string): ExtractedNote => {
     /^rule_status:\s*["']?(provisional|canonical)["']?\s*$/m,
   )?.[1] as RuleStatus | undefined;
 
+  // Where a rule applies, and when a projection was last stood behind. Both are
+  // facts the file owns for the same reason `rule_status` is: a database rebuilt
+  // from the vault has nowhere else to read them from.
+  const ruleScope = parseScopeLine(content) ?? undefined;
+  const confirmedAt = parseConfirmedAt(content) ?? undefined;
+  const meta = { tags, layer, ruleStatus, ruleScope, confirmedAt };
+
   const fmTitle = yamlScalar(frontmatter?.match(/^title:[ \t]*(.*)$/m)?.[1] ?? '');
-  if (fmTitle) return { title: fmTitle, body: content, tags, layer, ruleStatus };
+  if (fmTitle) return { title: fmTitle, body: content, ...meta };
 
   const h1 = content.match(/^#\s+(.+)$/m);
-  if (h1) return { title: h1[1].trim(), body: content, tags, layer, ruleStatus };
+  if (h1) return { title: h1[1].trim(), body: content, ...meta };
 
-  return { title: basename(filePath, extname(filePath)), body: content, tags, layer, ruleStatus };
+  return { title: basename(filePath, extname(filePath)), body: content, ...meta };
 };
 
 const indexFile = async (
@@ -117,7 +128,15 @@ const indexFile = async (
   }
 
   const content = readFileSync(filePath, 'utf8');
-  const { title, body, tags: fmTags, layer, ruleStatus } = extractNote(content, filePath);
+  const {
+    title,
+    body,
+    tags: fmTags,
+    layer,
+    ruleStatus,
+    ruleScope,
+    confirmedAt,
+  } = extractNote(content, filePath);
 
   // A skeleton somebody fills in later is not a note. Blacklisting a folder
   // called `templates` would be wrong — a vault may keep real notes in one —
@@ -147,6 +166,8 @@ const indexFile = async (
       tags: serializeTags(tags),
       author: authorOfPath(filePath),
       ruleStatus,
+      ruleScope,
+      confirmedAt,
     });
     await indexNoteVectors(client, embedder, existing.id, { title, content: body, folder, tags });
     stats.updated++;
@@ -163,6 +184,8 @@ const indexFile = async (
         layer,
         author: authorOfPath(filePath),
         ruleStatus,
+        ruleScope,
+        confirmedAt,
       });
       await indexNoteVectors(client, embedder, note.id, {
         title,

@@ -385,6 +385,22 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // Where a rule applies. Nothing is backfilled: a rule that never said is
+    // not thereby global, and guessing would put a folder-shaped rule into
+    // every conversation.
+    version: 21,
+    name: 'notes.rule_scope',
+    up: (sqlite) => addColumnIfMissing(sqlite, 'notes', 'rule_scope', 'rule_scope TEXT'),
+  },
+  {
+    // When a projection was last stood behind. Deliberately not backfilled from
+    // updated_at: that column is the reason this one exists, and seeding it
+    // would declare every state note confirmed on the day its tags last moved.
+    version: 22,
+    name: 'notes.confirmed_at',
+    up: (sqlite) => addColumnIfMissing(sqlite, 'notes', 'confirmed_at', 'confirmed_at INTEGER'),
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

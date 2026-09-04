@@ -9,6 +9,7 @@ export {
   MODEL_CACHE_DIR,
   saveConfig,
 } from './config.ts';
+export { parseConfirmedAt, writeConfirmedAt } from './confirmed.ts';
 export { findNearest, withinEditDistance } from './distance.ts';
 export { EMBEDDING_DIM } from './embedding.ts';
 export { parseDerivesFrom, writeDerivesFrom } from './evidence.ts';
@@ -23,6 +24,15 @@ export {
   stripFrontmatter,
 } from './format.ts';
 export { parseInvalidates, writeInvalidates } from './invalidates.ts';
+export type { RuleScope } from './scope.ts';
+export {
+  describeRuleScope,
+  formatRuleScope,
+  GLOBAL_SCOPE,
+  parseRuleScope,
+  parseScopeLine,
+  writeScopeLine,
+} from './scope.ts';
 export type { CollapsedSeries, SeriesMember } from './series.ts';
 export { collapseSeries, isSameSeries, seriesKey, seriesLabel } from './series.ts';
 export type { TagVariant } from './tags.ts';

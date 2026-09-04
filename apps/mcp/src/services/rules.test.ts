@@ -184,7 +184,7 @@ describe('buildRuleInstructions — approval', () => {
   let dbDir: string;
   let client: MemexClient;
 
-  const addRule = (title: string, ruleStatus: 'provisional' | 'canonical') =>
+  const addRule = (title: string, ruleStatus: 'provisional' | 'canonical', ruleScope?: string) =>
     insertNote(client, {
       title,
       content: `body of ${title}`,
@@ -192,6 +192,7 @@ describe('buildRuleInstructions — approval', () => {
       source: 'manual',
       layer: 'rule',
       ruleStatus,
+      ruleScope,
     });
 
   beforeEach(() => {
@@ -207,6 +208,28 @@ describe('buildRuleInstructions — approval', () => {
   it('injects a rule a person approved', () => {
     addRule('Approved', 'canonical');
     expect(buildRuleInstructions(client)).toContain('### Approved');
+  });
+
+  it('says where a rule applies when it does not apply everywhere', () => {
+    addRule('Folder rule', 'canonical', 'folder:projects/memex');
+    expect(buildRuleInstructions(client)).toContain('_Applies to notes under projects/memex._');
+  });
+
+  it('says nothing about scope for a rule that governs every conversation', () => {
+    addRule('Everywhere', 'canonical', 'global');
+    expect(buildRuleInstructions(client)).not.toContain('Applies to');
+  });
+
+  it('drops a narrow rule before a universal one when the budget is short', () => {
+    addRule('Narrow', 'canonical', 'tag:rag');
+    addRule('Everywhere', 'canonical', 'global');
+
+    const both = buildRuleInstructions(client);
+    const out = buildRuleInstructions(client, { maxChars: both.length - 10 });
+
+    expect(out).toContain('### Everywhere');
+    expect(out).not.toContain('### Narrow');
+    expect(out).toContain('did not fit');
   });
 
   it('withholds a rule the agent proposed', () => {

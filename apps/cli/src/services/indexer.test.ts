@@ -249,6 +249,40 @@ describe('indexDirectory', () => {
     expect(getNoteByFilePath(client, filePath)?.ruleStatus).toBeNull();
   });
 
+  it('reads where a rule applies off the file', async () => {
+    const filePath = join(vaultDir, 'scoped.md');
+    writeFileSync(
+      filePath,
+      '---\ntitle: Scoped\nlayer: rule\nrule_status: canonical\nrule_scope: folder:coding\n---\n\nbody',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(getNoteByFilePath(client, filePath)?.ruleScope).toBe('folder:coding');
+  });
+
+  it('reads when a projection was last stood behind off the file', async () => {
+    const filePath = join(vaultDir, 'projection.md');
+    writeFileSync(
+      filePath,
+      '---\ntitle: Projection\nlayer: state\nconfirmed_at: 2026-09-04T05:32:11.000Z\n---\n\nbody',
+      'utf8',
+    );
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    const note = getNoteByFilePath(client, filePath);
+    expect(note?.layer).toBe('state');
+    expect(note?.confirmedAt).toBe(Date.parse('2026-09-04T05:32:11.000Z'));
+  });
+
+  it('leaves a note the file says nothing about unconfirmed', async () => {
+    const filePath = join(vaultDir, 'unconfirmed.md');
+    writeFileSync(filePath, '---\ntitle: Unconfirmed\nlayer: state\n---\n\nbody', 'utf8');
+    await indexDirectory(client, stubEmbedder, vaultDir);
+
+    expect(getNoteByFilePath(client, filePath)?.confirmedAt).toBeNull();
+  });
+
   it('calls a note from outside the vault external, whatever its frontmatter says', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'memex-indexer-source-'));
     const mine = join(vaultDir, 'mine.md');

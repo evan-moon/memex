@@ -1,10 +1,12 @@
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   amendmentSuggestion,
+  confirmNote,
   type EditNoteRejection,
   editNote,
   isEditRejection,
   isSaveRejection,
+  persistNoteFile,
   type RuleWriteRejection,
   removeNote,
   saveNote,
@@ -15,7 +17,15 @@ export {
   type WriteActor,
 } from './note.ts';
 export { approveRuleNote, declineRuleNote } from './rules.ts';
-export { missingSlots, SLOTS_BY_TYPE, slotTemplate } from './slots.ts';
+export type { StructuredLayer } from './slots.ts';
+export {
+  missingSlots,
+  SLOTS_BY_LAYER,
+  SLOTS_BY_TYPE,
+  slotsDropped,
+  slotsFor,
+  slotTemplate,
+} from './slots.ts';
 export {
   embedNote,
   indexChunks,

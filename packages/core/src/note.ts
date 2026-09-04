@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import {
+  bodyHash,
   searchNotes as dbSearchNotes,
   deleteNote,
   type Flashback,
@@ -28,6 +29,7 @@ import {
   type Signal,
   type SimilarNote,
   serializeTags,
+  setNoteEvidence,
   setNoteInvalidations,
   syncLinks,
   syncNoteFacets,
@@ -37,13 +39,16 @@ import {
   buildEmbeddingText,
   collapseSeries,
   extractCategory,
+  GLOBAL_SCOPE,
   inVault,
   noteProse,
+  parseRuleScope,
   sanitizeFilename,
   sanitizeFolder,
+  writeDerivesFrom,
   writeInvalidates,
 } from '@memex/utils';
-import { missingSlots } from './slots.ts';
+import { missingSlots, slotsDropped } from './slots.ts';
 import { indexNoteVectors } from './vectors.ts';
 
 type Embedder = (text: string, type?: 'query' | 'passage') => Promise<number[]>;
@@ -74,6 +79,11 @@ export type NoteFileMeta = {
   /** Only a rule note carries one. Null on every other layer, and on a rule the
    * agent's proposal has yet to be approved into. */
   ruleStatus: RuleStatus | null;
+  /** Only a rule note carries one: where it applies. Null when it never said. */
+  ruleScope?: string | null;
+  /** When someone last stood behind what a state note claims. Null until the
+   * claims are written; never derived from a retag or a rename. */
+  confirmedAt?: number | null;
   /** Effective date written to frontmatter: authoredAt when known, else now. */
   date: number;
 };
@@ -102,8 +112,8 @@ const syncedField = (frontmatter: string, { key, value, insert }: OwnedField): s
 // author keeps the shape it arrived in and re-indexes without drift):
 // - frontmatter file (indexed from an external vault): the DB content IS the
 //   full file, frontmatter included — write it back verbatim, syncing only the
-//   fields memex owns (`title`, `layer`, `rule_status`) so an edit to one of
-//   them survives the next reindex.
+//   fields memex owns (`title`, `layer`, `rule_status`, `rule_scope`, `confirmed_at`)
+//   so an edit to one of them survives the next reindex.
 // - H1 file (indexed, or a memex note that came back through `memex index`):
 //   the content already carries its heading — rewrite the first H1 instead of
 //   prepending a second one, and don't force frontmatter onto a file the user
@@ -117,13 +127,19 @@ export const renderNoteFile = ({
   tags,
   layer,
   ruleStatus,
+  ruleScope = null,
+  confirmedAt = null,
   date,
 }: NoteFileMeta): string => {
   // What a rebuild from these files alone would get wrong, and so what a file
   // has to say out loud however it is shaped. `past` is the column default, so
-  // a past note comes back right saying nothing; state, rule, and whether a rule
-  // is in effect do not.
-  const atRisk = layer !== 'past' || ruleStatus !== null;
+  // a past note comes back right saying nothing; state, rule, whether a rule is
+  // in effect, where it applies, and when a projection was last stood behind do not.
+  const atRisk =
+    layer !== 'past' || ruleStatus !== null || ruleScope !== null || confirmedAt !== null;
+
+  const confirmedLine =
+    confirmedAt === null ? null : `confirmed_at: ${new Date(confirmedAt).toISOString()}`;
 
   if (content.startsWith('---')) {
     const end = content.indexOf('\n---', 3);
@@ -132,6 +148,12 @@ export const renderNoteFile = ({
         { key: 'title', value: yamlString(title), insert: false },
         { key: 'layer', value: layer, insert: atRisk },
         { key: 'rule_status', value: ruleStatus, insert: ruleStatus !== null },
+        { key: 'rule_scope', value: ruleScope, insert: ruleScope !== null },
+        {
+          key: 'confirmed_at',
+          value: confirmedAt === null ? null : new Date(confirmedAt).toISOString(),
+          insert: confirmedAt !== null,
+        },
       ];
       const synced = owned.reduce(syncedField, content.slice(0, end));
       return synced + content.slice(end);
@@ -144,7 +166,9 @@ export const renderNoteFile = ({
     // The block carries `title` too, so the next write comes back through the
     // branch above and syncs in place instead of stacking a second header.
     const statusLine = ruleStatus === null ? '' : `\nrule_status: ${ruleStatus}`;
-    return `---\ntitle: ${yamlString(title)}\nlayer: ${layer}${statusLine}\n---\n\n${titled}`;
+    const scopeLine = ruleScope === null ? '' : `\nrule_scope: ${ruleScope}`;
+    const confirmed = confirmedLine === null ? '' : `\n${confirmedLine}`;
+    return `---\ntitle: ${yamlString(title)}\nlayer: ${layer}${statusLine}${scopeLine}${confirmed}\n---\n\n${titled}`;
   }
   const isoDate = new Date(date).toISOString().slice(0, 10);
   const tagsLine = tags.length > 0 ? `\ntags: [${tags.join(', ')}]` : '';
@@ -155,7 +179,9 @@ export const renderNoteFile = ({
   // a DB rebuilt from these files has to be able to tell an approved rule from
   // a proposal, and only the file survives that.
   const statusLine = ruleStatus === null ? '' : `\nrule_status: ${ruleStatus}`;
-  return `---\ntitle: ${yamlString(title)}\ndate: ${isoDate}${tagsLine}${aliasLine}\nlayer: ${layer}${statusLine}\n---\n\n# ${title}\n\n${content}`;
+  const scopeLine = ruleScope === null ? '' : `\nrule_scope: ${ruleScope}`;
+  const confirmed = confirmedLine === null ? '' : `\n${confirmedLine}`;
+  return `---\ntitle: ${yamlString(title)}\ndate: ${isoDate}${tagsLine}${aliasLine}\nlayer: ${layer}${statusLine}${scopeLine}${confirmed}\n---\n\n# ${title}\n\n${content}`;
 };
 
 const readFlashbackOptions = (): FlashbackOptions => ({
@@ -187,10 +213,17 @@ const slotsMissingMessage = (type: NoteType, missing: string[]): string =>
     .map((slot) => `## ${slot}`)
     .join('\n')}\n\nWrite each one with what this conversation actually settled, then save again.`;
 
+const slotsDroppedMessage = (missing: string[]): string =>
+  `Not updated. This edit removes sections the note already had:\n${missing
+    .map((slot) => `## ${slot}`)
+    .join('\n')}\n\nCarry them into the new content — rewrite what they say if it changed, ` +
+  'but do not drop them.';
+
 export type RuleWriteRejection =
   | { error: 'RULE_USER_ONLY'; message: string }
   | { error: 'EXTERNAL_SOURCE'; message: string }
   | { error: 'SLOTS_MISSING'; message: string; missingSlots: string[] }
+  | { error: 'BAD_SCOPE'; message: string }
   | { error: 'EMPTY_BODY'; message: string };
 
 export const isSaveRejection = (
@@ -212,6 +245,8 @@ export const saveNote = async (
     amends?: number;
     amendKind?: 'corrects' | 'continues';
     invalidates?: string[];
+    derivesFrom?: number[];
+    scope?: string;
     type: NoteType;
   },
 ): Promise<
@@ -223,6 +258,7 @@ export const saveNote = async (
       amended?: Note;
       amendsMissing?: number;
       invalidates?: string[];
+      derivesFrom?: number[];
     }
   | RuleWriteRejection
 > => {
@@ -231,6 +267,24 @@ export const saveNote = async (
   // proposal is kept; it is the injection that waits for a person to approve it.
   const ruleStatus =
     params.layer === 'rule' ? (params.actor === 'user' ? 'canonical' : 'provisional') : null;
+
+  // A scope is only meaningful on a rule, and only in the three shapes a budget
+  // can actually sort by. Free text here would read as a scope and behave as
+  // none, which is worse than a rule that says nothing.
+  if (
+    params.layer === 'rule' &&
+    params.scope !== undefined &&
+    parseRuleScope(params.scope) === null
+  )
+    return {
+      error: 'BAD_SCOPE',
+      message:
+        `"${params.scope}" is not a scope memex can act on. Write one of \`global\`, ` +
+        "`folder:<path>` or `tag:<name>` — the rule's own `## 적용 조건` section is where " +
+        'the condition goes in words.',
+    };
+
+  const ruleScope = params.layer === 'rule' ? (params.scope ?? GLOBAL_SCOPE) : null;
 
   if (noteProse(params.content).length === 0) {
     return {
@@ -246,7 +300,8 @@ export const saveNote = async (
   // the sections are what make that readable. A person writing the same note is
   // correcting something the agent got wrong, and a form to fill in is the
   // surest way to make them not bother.
-  const missing = params.actor === 'user' ? [] : missingSlots(params.type, params.content);
+  const missing =
+    params.actor === 'user' ? [] : missingSlots(params.layer, params.type, params.content);
   if (missing.length > 0) {
     return {
       error: 'SLOTS_MISSING',
@@ -266,19 +321,35 @@ export const saveNote = async (
     .map((claim) => claim.trim())
     .filter((claim) => claim.length > 0);
 
+  // A projection that does not name what it was built from can only be checked
+  // by guessing which notes look related. Declared here rather than left to a
+  // later edit, because the sources are known at exactly this moment and never
+  // again.
+  const derivesFrom = [...new Set(params.derivesFrom ?? [])].filter((id) => Number.isInteger(id));
+
+  // Writing a projection is standing behind it. Only a state note carries this:
+  // a past note is a record rather than a claim about now, and a rule is in
+  // effect or it is not.
+  const confirmedAt = params.layer === 'state' ? Date.now() : null;
+
   const filePath = generateFilePath(vaultPath, params.title, params.folder);
   writeFileSync(
     filePath,
-    writeInvalidates(
-      renderNoteFile({
-        title: params.title,
-        content: params.content,
-        tags: params.tags ?? [],
-        layer: params.layer,
-        ruleStatus,
-        date: authoredAt ?? Date.now(),
-      }),
-      invalidates,
+    writeDerivesFrom(
+      writeInvalidates(
+        renderNoteFile({
+          title: params.title,
+          content: params.content,
+          tags: params.tags ?? [],
+          layer: params.layer,
+          ruleStatus,
+          ruleScope,
+          confirmedAt,
+          date: authoredAt ?? Date.now(),
+        }),
+        invalidates,
+      ),
+      derivesFrom,
     ),
     'utf8',
   );
@@ -290,6 +361,8 @@ export const saveNote = async (
     amends: _amends,
     amendKind: _amendKind,
     invalidates: _invalidates,
+    derivesFrom: _derivesFrom,
+    scope: _scope,
     ...noteParams
   } = params;
   const note = insertNote(client, {
@@ -299,6 +372,8 @@ export const saveNote = async (
     tags,
     authoredAt,
     ruleStatus,
+    ruleScope,
+    confirmedAt,
   });
   await indexNoteVectors(
     client,
@@ -311,6 +386,7 @@ export const saveNote = async (
   syncNoteFacets(client, note.id);
 
   if (invalidates.length > 0) setNoteInvalidations(client, note.id, invalidates);
+  if (derivesFrom.length > 0) setNoteEvidence(client, note.id, derivesFrom);
 
   const amended = params.amends === undefined ? undefined : getNote(client, params.amends);
   // Default `continues`, not `corrects`: the safe half of the claim. Saying a
@@ -336,6 +412,7 @@ export const saveNote = async (
     ...(amended ? { amended } : {}),
     ...(params.amends !== undefined && !amended ? { amendsMissing: params.amends } : {}),
     ...(invalidates.length > 0 ? { invalidates } : {}),
+    ...(derivesFrom.length > 0 ? { derivesFrom } : {}),
   };
 };
 
@@ -604,24 +681,32 @@ export const editNote = async (
         message: `An edit that empties #${id} leaves a filename behind. Delete it instead.`,
       };
     }
-    if (options.actor !== 'user' && isNoteType(note.type)) {
-      const missing = missingSlots(note.type, patch.content);
-      if (missing.length > 0) {
+    const type = isNoteType(note.type) ? note.type : '미분류';
+    if (options.actor !== 'user') {
+      const dropped = slotsDropped(patch.layer ?? note.layer, type, note.content, patch.content);
+      if (dropped.length > 0) {
         return {
           error: 'SLOTS_MISSING',
-          message: slotsMissingMessage(note.type, missing),
-          missingSlots: missing,
+          message: slotsDroppedMessage(dropped),
+          missingSlots: dropped,
         };
       }
     }
   }
 
   const tags = patch.tags !== undefined ? serializeTags(patch.tags) : undefined;
-  const updated = updateNote(client, id, { ...patch, tags });
   const title = patch.title ?? note.title;
   const content = patch.content ?? note.content;
   const layer = patch.layer ?? note.layer;
   const resolvedTags = patch.tags ?? parseTags(note.tags);
+
+  // Standing behind a projection again is rewriting what it claims. Renaming it
+  // or fixing its tags is not, and `updated_at` cannot tell the two apart —
+  // which is the whole reason this column is separate from that one.
+  const claimsRewritten = layer === 'state' && bodyHash(content) !== bodyHash(note.content);
+  const confirmedAt = claimsRewritten ? Date.now() : note.confirmedAt;
+
+  const updated = updateNote(client, id, { ...patch, tags, confirmedAt });
 
   writeFileSync(
     updated.filePath,
@@ -631,6 +716,8 @@ export const editNote = async (
       tags: resolvedTags,
       layer,
       ruleStatus: updated.ruleStatus,
+      ruleScope: updated.ruleScope,
+      confirmedAt: updated.confirmedAt,
       date: note.authoredAt ?? note.createdAt,
     }),
     'utf8',
@@ -650,6 +737,35 @@ export const editNote = async (
   const signal = proactiveSignalFor(client, id);
 
   return { ...updated, signal };
+};
+
+// Writing the note's own fields back to the file it came from. A field memex
+// owns that lives only in the database is a field the next rebuild loses.
+export const persistNoteFile = (note: Note): Note => {
+  writeFileSync(
+    note.filePath,
+    renderNoteFile({
+      title: note.title,
+      content: note.content,
+      tags: parseTags(note.tags),
+      layer: note.layer,
+      ruleStatus: note.ruleStatus,
+      ruleScope: note.ruleScope,
+      confirmedAt: note.confirmedAt,
+      date: note.authoredAt ?? note.createdAt,
+    }),
+    'utf8',
+  );
+  return note;
+};
+
+// A person saying a projection still holds, without changing a word of it.
+// That is the one thing `updated_at` can never mean and the reason a separate
+// column exists: the claims were read as they stand and they stand.
+export const confirmNote = (client: MemexClient, id: number): Note | undefined => {
+  const note = getNote(client, id);
+  if (!note || note.layer !== 'state') return undefined;
+  return persistNoteFile(updateNote(client, id, { confirmedAt: Date.now() }));
 };
 
 export const isEditRejection = (

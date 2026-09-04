@@ -449,6 +449,8 @@ export const updateNote = (
       | 'author'
       | 'type'
       | 'ruleStatus'
+      | 'ruleScope'
+      | 'confirmedAt'
     >
   >,
 ): Note => {

@@ -1,5 +1,6 @@
 import {
   approveRuleNote,
+  confirmNote,
   declineRuleNote,
   editNote,
   isEditRejection,
@@ -846,13 +847,19 @@ export const route = async (
         source_id: number;
       }[]
     ).map((row) => row.source_id);
+
+    // Whichever way the note is checked, a person has now read the claims as
+    // they stand. That is what `confirmed_at` records, and the next staleness
+    // check measures from here rather than from whenever the file last moved.
+    const confirmed = confirmNote(client, id);
+
     if (declaredIds.length > 0) {
       setNoteEvidence(client, id, declaredIds);
       return json({ ok: true });
     }
 
     const evidence = staleEvidence(client, id);
-    if (!evidence) return notFound;
+    if (!evidence) return confirmed ? json({ ok: true }) : notFound;
     setSignalStatus(client, evidence.signal.id, 'dismissed');
     return json({ ok: true });
   }

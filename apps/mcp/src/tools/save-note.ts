@@ -1,4 +1,4 @@
-import { isSaveRejection, SLOTS_BY_TYPE, saveNote } from '@memex/core';
+import { isSaveRejection, SLOTS_BY_LAYER, SLOTS_BY_TYPE, saveNote } from '@memex/core';
 import {
   findUnresolvedLinks,
   type MemexClient,
@@ -20,8 +20,14 @@ export const proposalLine = (ruleStatus: string | null): string =>
       'it under Guidance in the memex app. Tell them it is waiting there.'
     : '';
 
-const SLOT_HELP = Object.entries(SLOTS_BY_TYPE)
-  .map(([type, slots]) => `- ${type}: ${slots.map((slot) => `## ${slot}`).join(' · ')}`)
+const headingList = (slots: readonly string[]) => slots.map((slot) => `## ${slot}`).join(' · ');
+
+const LAYER_SLOT_HELP = Object.entries(SLOTS_BY_LAYER)
+  .map(([layer, slots]) => `- ${layer}: ${headingList(slots)}`)
+  .join('\n');
+
+const TYPE_SLOT_HELP = Object.entries(SLOTS_BY_TYPE)
+  .map(([type, slots]) => `- ${type}: ${headingList(slots)}`)
   .join('\n');
 
 export const registerSaveNote = (
@@ -48,11 +54,23 @@ export const registerSaveNote = (
 Rules of thumb: past tense vs present/future tense, "fact vs intent" axis.
 When in doubt, choose past.
 
-\`type\` is REQUIRED — it is what the note is, not what it is about. Six of the types carry a fixed set of sections, and a save without them is rejected with the list of what to write:
+A note's sections follow its \`layer\`, because that is what decides how long it stays true. A save without them is rejected with the list of what to write:
 
-${SLOT_HELP}
+${LAYER_SLOT_HELP}
 
-The other types — 발행물, 책, 초안, 에세이, 학습메모, 코드문서 — take no required sections.
+Five types answer the same question in a different shape and override the skeleton above:
+
+${TYPE_SLOT_HELP}
+
+Documents take no required sections at all — 발행물, 책, 초안, 에세이, 학습메모, 코드문서.
+
+\`type\` is REQUIRED — it is what the note is, not what it is about.
+
+The section every past note carries, \`## 이것이 바꾼 것\`, is where a conversation's state-lifetime
+content goes: one line per thing that is now true because of what happened. Writing it there is what
+keeps a later correction from calling the whole episode out of date. In a state note the same
+content is the note itself, under \`## 지금 참인 것\` — one claim per line, because that is the
+granularity \`invalidates\` names.
 
 The response may include "Flashback" lines pointing to older notes from a different context that are semantically similar — surface these to the user when relevant.`,
     {
@@ -94,10 +112,32 @@ The response may include "Flashback" lines pointing to older notes from a differ
         .describe(
           'The claims in the note being amended that are no longer true, each written as the sentence it replaces — not a summary of this note. A correction almost never invalidates a whole note: name only the parts that stopped being true, and leave the rest to stand. Passing anything here makes this a correction.',
         ),
+      derives_from: z
+        .array(z.number().int())
+        .optional()
+        .describe(
+          'Ids of the notes this one was built from. A state note that names its sources can be ' +
+            'checked by comparing them: when one of them is later corrected or rewritten, memex ' +
+            'says so and names which. One that declares nothing can only be checked by guessing ' +
+            'which notes look related. Declare them here — the sources are known now and not later.',
+        ),
+      scope: z
+        .string()
+        .optional()
+        .describe(
+          'Rule notes only: where the rule applies, as `global`, `folder:<path>` or ' +
+            '`tag:<name>`. Defaults to `global`, and is written to the file as `rule_scope`. It is ' +
+            'what lets a budget too small for every ' +
+            'approved rule drop the narrow ones first, so a rule that governs one project does ' +
+            'not push out one that governs every conversation. The condition in words belongs ' +
+            "in the note's own `## 적용 조건` section.",
+        ),
       type: z
         .enum(NOTE_TYPES)
         .describe(
-          'What kind of document this is. Six types require fixed sections in `content` — see the tool description. Choosing the kind is what makes a note readable later; do not reach for 미분류 to skip the sections.',
+          'What kind of document this is — not what it is about. It decides which sections ' +
+            '`content` must carry, together with `layer`; see the tool description. 미분류 is ' +
+            'not a way past the sections: it takes the skeleton of its layer like anything else.',
         ),
       layer: z
         .enum(['past', 'state', 'rule'])
@@ -116,6 +156,8 @@ The response may include "Flashback" lines pointing to older notes from a differ
       amends,
       amends_kind,
       invalidates,
+      derives_from,
+      scope,
     }) => {
       const result = await saveNote(client, embedder, vaultPath, {
         title,
@@ -127,6 +169,8 @@ The response may include "Flashback" lines pointing to older notes from a differ
         layer,
         type,
         amends,
+        derivesFrom: derives_from,
+        scope,
         amendKind: amends_kind,
         invalidates,
       });

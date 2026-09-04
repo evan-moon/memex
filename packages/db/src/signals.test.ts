@@ -53,6 +53,7 @@ const addNote = (
     createdAt: number;
     updatedAt: number;
     authoredAt: number;
+    confirmedAt: number;
     embedding: number[];
   }> = {},
 ) => {
@@ -65,6 +66,7 @@ const addNote = (
     category: opts.category,
     tags: serializeTags(opts.tags ?? []),
     authoredAt: opts.authoredAt,
+    confirmedAt: opts.confirmedAt,
   });
   if (opts.createdAt !== undefined || opts.updatedAt !== undefined) {
     client.sqlite
@@ -176,6 +178,41 @@ describe('detectStaleState', () => {
     const t0 = Date.now() - 100 * DAY;
     addNote({ layer: 'state', embedding: unit(0), createdAt: t0, updatedAt: t0 });
     addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(0);
+  });
+
+  it('measures from when the claims were stood behind, not from a later retag', () => {
+    const t0 = Date.now() - 100 * DAY;
+    // The file was touched yesterday — a retag, a rename — but nobody has stood
+    // behind what it claims since t0. Reading updated_at here would call it
+    // fresh and say nothing about the four notes written in between.
+    addNote({
+      layer: 'state',
+      embedding: unit(0),
+      createdAt: t0,
+      updatedAt: Date.now() - DAY,
+      confirmedAt: t0,
+    });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 20 * DAY });
+
+    const { candidates } = detectStaleState(client, { minNewer: 2 });
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].reasoning).toContain('confirmed');
+  });
+
+  it('does not call a projection stale for notes written before it was confirmed', () => {
+    const t0 = Date.now() - 100 * DAY;
+    addNote({
+      layer: 'state',
+      embedding: unit(0),
+      createdAt: t0 - 50 * DAY,
+      updatedAt: t0 - 50 * DAY,
+      confirmedAt: Date.now() - DAY,
+    });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 10 * DAY });
+    addNote({ layer: 'past', embedding: unit(0), createdAt: t0 + 20 * DAY });
+
     expect(detectStaleState(client, { minNewer: 2 }).candidates).toHaveLength(0);
   });
 

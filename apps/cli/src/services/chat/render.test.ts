@@ -17,6 +17,8 @@ const note = (id: number, title: string): Note => ({
   author: 'person',
   authoredAt: null,
   ruleStatus: null,
+  ruleScope: null,
+  confirmedAt: null,
   type: null,
   createdAt: 0,
   updatedAt: 0,

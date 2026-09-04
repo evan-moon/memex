@@ -224,7 +224,7 @@ export type StaleStateOptions = { maxDistance?: number; minNewer?: number };
 // stale_state: a `state` note that has accumulated semantically-related `past`
 // notes created AFTER it was last updated — i.e. its "current truth" may be out
 // of date. Identity = the state note id (one open question per stale state).
-type StateRow = { id: number; title: string; updated_at: number };
+type StateRow = { id: number; title: string; updated_at: number; confirmed_at: number | null };
 
 // Which state notes a set of changed notes could have made stale. A new past
 // note can only unsettle a state note it sits near, so the question is asked
@@ -288,12 +288,14 @@ export const detectStaleState = (
   const states = (
     scope === undefined
       ? (client.sqlite
-          .prepare("SELECT id, title, updated_at FROM notes WHERE layer = 'state'")
+          .prepare("SELECT id, title, updated_at, confirmed_at FROM notes WHERE layer = 'state'")
           .all() as StateRow[])
       : [...scope].flatMap(
           (id) =>
             client.sqlite
-              .prepare("SELECT id, title, updated_at FROM notes WHERE id = ? AND layer = 'state'")
+              .prepare(
+                "SELECT id, title, updated_at, confirmed_at FROM notes WHERE id = ? AND layer = 'state'",
+              )
               .all(id) as StateRow[],
         )
   ).filter((state) => !declared.has(state.id));
@@ -301,6 +303,11 @@ export const detectStaleState = (
   const candidates: SignalCandidate[] = [];
 
   for (const state of states) {
+    // When the claims were last stood behind, not when the file last changed.
+    // `updated_at` moves for a retag or a rename, and reading it here calls a
+    // projection freshly checked because somebody fixed a typo in its tags.
+    const since = state.confirmed_at ?? state.updated_at;
+
     const embRow = client.sqlite
       .prepare('SELECT embedding FROM note_embeddings WHERE note_id = ?')
       .get(BigInt(state.id)) as { embedding: Buffer } | undefined;
@@ -322,7 +329,7 @@ export const detectStaleState = (
       // k is applied by the ANN index BEFORE the WHERE filters, so it must be
       // generous enough that date/layer-relevant notes are not crowded out by
       // nearer-but-irrelevant ones. Cheap at personal scale.
-      .all(embRow.embedding, 250, state.id, state.updated_at, maxDistance) as {
+      .all(embRow.embedding, 250, state.id, since, maxDistance) as {
       id: number;
       distance: number;
     }[];
@@ -332,7 +339,9 @@ export const detectStaleState = (
     candidates.push({
       type: 'stale_state',
       evidenceIds: [state.id, ...newer.map((n) => n.id)],
-      reasoning: `State note #${state.id} "${state.title}" has ${newer.length} related past notes created after its last update — may be out of date.`,
+      reasoning: `State note #${state.id} "${state.title}" has ${newer.length} related past notes written after it was last ${
+        state.confirmed_at === null ? 'updated' : 'confirmed'
+      } — may be out of date.`,
       identity: String(state.id),
     });
   }

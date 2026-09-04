@@ -140,6 +140,34 @@ Folder convention — **subject first, never note type.** What kind of note it i
 
 Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
 
+Template convention — **a note's sections follow its `layer`, because that is what decides how
+long it stays true.** A save without them is rejected and names what is missing.
+
+| layer | sections | what the shape is for |
+|---|---|---|
+| `past` | `## 맥락` · `## 무슨 일이 있었나` · `## 결정과 이유` · `## 이것이 바꾼 것` | the last one holds the state-lifetime content of the conversation, one line per thing that is now true |
+| `state` | `## 지금 참인 것` · `## 아직 모르는 것` · `## 남은 것` | one claim per line under the first, because that is the granularity `invalidates` names |
+| `rule` | `## 규칙 한 줄` · `## 적용 조건` · `## 예외` · `## 어기면 보이는 것` · `## 근거 노트` | the fourth is what lets a person retire a rule they approved |
+
+Five types answer the same question in a different shape and override the skeleton: `세션기록`,
+`정정`, `업무메모`, `작업지시서`, `제품작업`. Documents take no sections at all — `발행물`, `책`,
+`초안`, `에세이`, `학습메모`, `코드문서`. `미분류` is **not** a way past the sections: it takes the
+skeleton of its layer like anything else.
+
+One conversation usually produces two notes, not one. What happened is `past`; what is now true is
+`state`. Splitting them at write time is what keeps a later correction from calling a whole episode
+out of date — the split is by lifetime, not by subject.
+
+Evidence convention — a `state` note should pass `derives_from: [id, ...]`, the notes it was built
+from. One that names its sources is checked by comparing them: when a source is later corrected or
+rewritten, memex says so and names which. One that declares nothing can only be checked by guessing
+which notes look related. The ids are known when you write it and not afterwards.
+
+Rule scope — a `rule` may pass `scope`, one of `global` (the default), `folder:<path>` or
+`tag:<name>`. It is not free text: it is what lets an injection budget too small for every approved
+rule drop the narrow ones before the universal ones. The condition in words goes in the note's own
+`## 적용 조건` section.
+
 Correction convention — a `past` note can never be edited, so corrections are new notes. Pass `amends: <id>` whenever you write about something already recorded, and say which of the two things you are doing with `amends_kind`:
 
 - `corrects` — something in the earlier note is no longer true. Search still returns it, carrying a warning that points at the correction.

@@ -31,6 +31,14 @@ export const notes = sqliteTable('notes', {
   // its own next input, so it lands provisional and is not injected until a
   // person approves it. Null on every other layer.
   ruleStatus: text('rule_status', { enum: ['provisional', 'canonical'] }),
+  // Only meaningful on a `rule` note. Where the rule applies, so a budget that
+  // cannot fit every approved rule drops a narrow one before a universal one.
+  // Null on every other layer, and on a rule that never said.
+  ruleScope: text('rule_scope'),
+  // When someone last stood behind what a `state` note claims. Distinct from
+  // updatedAt, which moves for a retag or a rename: a projection is not fresh
+  // again because its tags were fixed. Null until the claims are written.
+  confirmedAt: integer('confirmed_at'),
   type: text('type', { enum: NOTE_TYPES }),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
