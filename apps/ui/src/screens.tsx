@@ -27,30 +27,57 @@ import { openTab } from './tabs.ts';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
-const AMENDED_TONE: Record<AmendKind, string | undefined> = {
+const AMENDED_TONE: Record<AmendKind, string> = {
   corrects: 'var(--negative)',
-  unknown: undefined,
-  continues: undefined,
+  unknown: 'var(--caution)',
+  continues: 'var(--line-strong)',
 };
 
-const AmendedCard = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendKind }) => {
+// A correction is an annotation on the note, not an object beside it. A card
+// gives it a border, a shadow and a surface of its own, and three of them stack
+// above the note they are about until the note looks like the fourth card in a
+// list. A rule down the left says the same thing and stays attached to the text.
+export const AmendedNotice = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendKind }) => {
   const t = useT();
   const newest = refs.at(-1);
   if (!newest) return null;
-  const label = {
-    corrects: t.note.correctedBy,
-    unknown: t.note.amendedBy,
-    continues: t.note.continuedBy,
-  }[kind];
+
+  // Naming the retired sentences is what turns "this note was corrected" into
+  // something a reader can act on, and it is the whole reason the rest of the
+  // note can be left standing.
+  const claims = newest.invalidates ?? [];
+  const partial = kind === 'corrects' && newest.scope === 'partial' && claims.length > 0;
+  const label = partial
+    ? t.note.partlyCorrected
+    : { corrects: t.note.correctedBy, unknown: t.note.amendedBy, continues: t.note.continuedBy }[
+        kind
+      ];
+
   return (
-    <Card className="mt-4">
-      <div className="text-sm" style={{ color: AMENDED_TONE[kind] }}>
+    <div className="mt-4 border-l-2 pl-4" style={{ borderColor: AMENDED_TONE[kind] }}>
+      <div
+        className="text-sm"
+        style={{ color: kind === 'continues' ? undefined : AMENDED_TONE[kind] }}
+      >
         {label(refs.length)}
       </div>
-      <Link to={`/note/${newest.id}`} className="mt-1 block text-sm text-primary">
+      <Link to={`/note/${newest.id}`} className="mt-0.5 block text-sm text-primary">
         {t.note.newest(newest.title)}
       </Link>
-    </Card>
+      {claims.length > 0 ? (
+        <div className="mt-2">
+          <div className="text-xs text-muted">{t.note.retired}</div>
+          <ul className="mt-1 space-y-1">
+            {claims.map((claim) => (
+              <li key={claim} className="text-sm line-through decoration-line-strong">
+                {claim}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {partial ? <div className="mt-2 text-xs text-muted">{t.note.restStands}</div> : null}
+    </div>
   );
 };
 
@@ -218,7 +245,7 @@ export const NoteScreen = () => {
           document's own first line now, so it is not repeated up here. Pinned:
           the way back to reading should not be something you scroll up to find
           in a note that runs for pages. */}
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-1 py-2 text-xs text-muted backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-5 py-2 text-xs text-muted backdrop-blur sm:-mx-7 sm:px-7">
         <span className="text-muted">{note.folder === null ? t.edit.vaultRoot : note.folder}</span>
         <span className="text-line-strong">/</span>
         <Layer layer={note.layer} />
@@ -262,16 +289,18 @@ export const NoteScreen = () => {
           {t.threads.open}
         </Link>
       ) : null}
-      <AmendedCard refs={byKind(note.supersededBy, 'corrects')} kind="corrects" />
-      <AmendedCard refs={byKind(note.supersededBy, 'unknown')} kind="unknown" />
-      <AmendedCard refs={byKind(note.supersededBy, 'continues')} kind="continues" />
+      <AmendedNotice refs={byKind(note.supersededBy, 'corrects')} kind="corrects" />
+      <AmendedNotice refs={byKind(note.supersededBy, 'unknown')} kind="unknown" />
+      <AmendedNotice refs={byKind(note.supersededBy, 'continues')} kind="continues" />
+      {/* Which note this one corrects points backwards, so it is a footnote
+          rather than a warning: one quiet line, no rule and no box. */}
       {note.corrects.length > 0 ? (
-        <Card className="mt-3">
-          <div className="text-xs text-muted">{t.note.corrects}</div>
-          <Link to={`/note/${note.corrects[0].id}`} className="mt-1 block text-sm text-primary">
+        <div className="mt-3 text-sm">
+          <span className="text-muted">{t.note.corrects} </span>
+          <Link to={`/note/${note.corrects[0].id}`} className="text-primary">
             {note.corrects[0].title}
           </Link>
-        </Card>
+        </div>
       ) : null}
       {/* Out of the way while writing. Sources and staleness are worth reading
           and are noise to write past. */}

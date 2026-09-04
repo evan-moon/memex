@@ -448,6 +448,10 @@ const en = {
     amendedBy: (n: number) =>
       `${n} later ${n === 1 ? 'note' : 'notes'} amend this, without saying whether they correct it`,
     newest: (title: string) => `Newest: ${title}`,
+    partlyCorrected: (n: number) =>
+      `⚠ Partly corrected by ${n} later ${n === 1 ? 'note' : 'notes'}`,
+    retired: 'No longer true',
+    restStands: 'Everything they retire is listed above. The rest of this note stands.',
     corrects: 'What this note corrects',
     emptyBody: 'This note has no body — only a title and tags.',
     backlinks: (n: number) => `Notes referencing this one ${n}`,
@@ -1034,6 +1038,9 @@ const ko: typeof en = {
     amendedBy: (n) =>
       `이후 ${n}개 노트가 이 노트를 다뤄요 — 정정인지 이어쓰기인지는 안 적혀 있어요`,
     newest: (title) => `최신: ${title}`,
+    partlyCorrected: (n) => `⚠ 이후 ${n}개 노트가 일부를 바로잡았어요`,
+    retired: '더 이상 참이 아닌 것',
+    restStands: '폐기된 건 위에 적힌 것뿐이에요. 나머지 내용은 그대로 유효해요.',
     corrects: '이 노트가 정정하는 것',
     emptyBody: '본문이 없는 노트예요 — 제목과 태그만 있어요.',
     backlinks: (n) => `이 노트를 참조하는 노트 ${n}`,

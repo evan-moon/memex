@@ -15,7 +15,15 @@ export type NoteRef = {
 
 export type AmendKind = 'corrects' | 'continues' | 'unknown';
 
-export type AmendedRef = NoteRef & { kind: AmendKind };
+/** `partial` means every retired sentence was found in the note, so the rest of
+ * it stands. `whole` means one was not, and the note is suspect as a whole. */
+export type ClaimScope = 'passage' | 'partial' | 'whole';
+
+export type AmendedRef = NoteRef & {
+  kind: AmendKind;
+  invalidates?: string[];
+  scope?: ClaimScope;
+};
 
 export type Companion = { tag: string; shared: number; overlap: number; sameThing: boolean };
 

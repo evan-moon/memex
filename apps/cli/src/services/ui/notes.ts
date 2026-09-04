@@ -7,7 +7,9 @@ import {
   evidenceStaleness,
   findRelatedNotes,
   findUnresolvedLinks,
+  claimScope,
   getAmendments,
+  locateClaims,
   getBacklinks,
   getNote,
   inferencesCiting,
@@ -285,6 +287,10 @@ export const noteDetail = (
     candidateSources: candidateSources(client, note),
     hypotheses: inferencesCiting(client, id),
     stale: declaredStaleness(client, note) ?? staleNewerNotes(client, note),
+    // The sentences a correction retired, and whether all of them were found in
+    // this note. Without them the screen can only say "corrected", which reads
+    // as if the whole note went — and the person reading it is the one who came
+    // to find out what is still true.
     supersededBy: getAmendments(client, id).map((a) => ({
       id: a.id,
       title: a.title,
@@ -292,6 +298,8 @@ export const noteDetail = (
       author: 'person' as const,
       at: a.authoredAt,
       kind: a.kind,
+      invalidates: a.invalidates,
+      scope: claimScope(locateClaims(a.invalidates, note.content)),
     })),
     corrects,
     backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
