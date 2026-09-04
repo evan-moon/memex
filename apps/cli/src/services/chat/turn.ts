@@ -1,6 +1,8 @@
 import {
   approveRuleNote,
   declineRuleNote,
+  editNote,
+  isEditRejection,
   isSaveRejection,
   saveNote,
   semanticSearch,
@@ -20,7 +22,7 @@ import {
 } from '@memex/db';
 import type { Embedder } from '@memex/embed';
 import { isLlmFailure, type LlmChoice, type LlmProvider } from '@memex/llm';
-import { tagKey } from '@memex/utils';
+import { inVault, tagKey } from '@memex/utils';
 import { askWith } from '../llm.ts';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
 import { topicNotes } from '../ui/topics.ts';
@@ -67,7 +69,14 @@ export type ChatDeps = {
 // so switching from one to another mid-conversation is just the next turn.
 export type Said = { said: string; outcome: string };
 
-export type NoteCandidate = { id: number; title: string; layer: NoteLayer; snippet: string };
+export type NoteCandidate = {
+  id: number;
+  title: string;
+  layer: NoteLayer;
+  /** Read from outside the vault: the person's own document, editable in place. */
+  borrowed: boolean;
+  snippet: string;
+};
 
 export type RegisterCandidate = {
   subject: string;
@@ -181,6 +190,9 @@ const noteCandidates = async (deps: ChatDeps, carried: Carried | null, message: 
         id: note.id,
         title: note.title,
         layer: note.layer,
+        // A file memex read from outside its vault is the person's own document,
+        // and the only kind the chat may rewrite in place.
+        borrowed: !inVault(note.filePath, deps.vaultPath),
         snippet: snippet(note),
       })),
   };
@@ -289,6 +301,13 @@ Choose exactly one action and answer with raw JSON, no code fence.
   {"action":"amend-note","amends":<id>,"title":"...","content":"..."}
     A past note got something wrong. This writes a NEW note that corrects it — the original is never edited. Only an id listed below.
 
+  {"action":"edit-note","id":<id>,"content":"..."}
+    The person asked to change a document they own — a blog post or a file memex
+    read from outside the vault. This rewrites it in place. Only for an id listed
+    below as EDITABLE IN PLACE. Return the whole body, not a fragment, and change
+    only what they asked for. Never touch YAML front matter: it belongs to
+    whatever publishes the file.
+
   {"action":"new-note","title":"...","content":"...","folder":"projects/x"|null,"layer":"past"|"state","tags":["..."]}
     Something worth keeping that corrects nothing.
 
@@ -315,7 +334,10 @@ ${listOr(
 
 === NOTES ===
 ${listOr(
-  candidates.notes.map((n) => `#${n.id} [${n.layer}] ${n.title} — ${n.snippet}`),
+  candidates.notes.map(
+    (n) =>
+      `#${n.id} [${n.layer}${n.borrowed ? ', EDITABLE IN PLACE' : ''}] ${n.title} — ${n.snippet}`,
+  ),
   candidates.searchable ? '(none)' : '(search is unavailable; do not refer to notes by id)',
 )}
 
@@ -363,6 +385,14 @@ const resolve = (draft: PlanDraft, deps: ChatDeps, candidates: Candidates): Plan
     return { kind: 'new-note', ...rest };
   }
 
+  if (draft.action === 'edit-note') {
+    // Only a note the person may rewrite in place, and only one the turn was
+    // actually looking at. A model that can name any id can rewrite any file.
+    const target = getNote(deps.client, draft.id);
+    const editable = target !== undefined && !inVault(target.filePath, deps.vaultPath);
+    return editable ? { kind: 'edit-note', id: draft.id, content: draft.content } : null;
+  }
+
   if (draft.action === 'amend-note') {
     const target = getNote(deps.client, draft.amends);
     return target
@@ -390,10 +420,11 @@ export type TurnRequest = {
   onStep?: (step: Step) => void;
 };
 
-const asCandidate = (note: Note): NoteCandidate => ({
+const asCandidate = (note: Note, vaultPath: string): NoteCandidate => ({
   id: note.id,
   title: note.title,
   layer: note.layer,
+  borrowed: !inVault(note.filePath, vaultPath),
   snippet: snippet(note),
 });
 
@@ -405,7 +436,11 @@ const runSearch = async (
   const found = await semanticSearch(deps.client, deps.embedder, draft.query, limit).catch(
     () => [] as Note[],
   );
-  return { kind: 'searched', query: draft.query, found: found.map(asCandidate) };
+  return {
+    kind: 'searched',
+    query: draft.query,
+    found: found.map((note) => asCandidate(note, deps.vaultPath)),
+  };
 };
 
 const runRead = (deps: ChatDeps, ids: number[], budget: number): Lookup => ({
@@ -582,7 +617,9 @@ export type Wrote =
       // shape where something landed and something did not.
       amendsMissing: number | null;
     }
-  | { kind: 'rule'; note: Note; decision: 'approve' | 'decline' };
+  | { kind: 'rule'; note: Note; decision: 'approve' | 'decline' }
+  // A document rewritten in place rather than a note added beside one.
+  | { kind: 'edit'; note: Note };
 
 export type ApplyResult = { ok: true; wrote: Wrote } | { ok: false; reason: ApplyFailure };
 
@@ -670,6 +707,20 @@ export const applyPlan = async (deps: ChatDeps, plan: Plan): Promise<ApplyResult
       layer: 'past',
       amends: plan.amends,
     });
+  }
+
+  if (plan.kind === 'edit-note') {
+    const edited = await editNote(
+      deps.client,
+      deps.embedder,
+      deps.vaultPath,
+      plan.id,
+      { content: plan.content },
+      { actor: 'user' },
+    );
+    if (edited === null) return { ok: false, reason: 'target-missing' };
+    if (isEditRejection(edited)) return { ok: false, reason: 'save-rejected' };
+    return { ok: true, wrote: { kind: 'edit', note: edited } };
   }
 
   if (plan.kind === 'new-note') {

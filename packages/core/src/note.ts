@@ -639,15 +639,17 @@ export const editNote = async (
   const note = getNote(client, id);
   if (!note) return null;
 
-  // The next `memex index` reads this file again and overwrites whatever was
-  // written here, so an edit that appears to work is the worst outcome.
-  if (!inVault(note.filePath, vaultPath)) {
+  // A borrowed file is the person's to edit and never the agent's. memex indexes
+  // the directory but does not own it, so an agent rewriting a blog post because
+  // it decided the post was wrong is what this guard exists to stop. The person
+  // saying "change this" is not that.
+  if (!inVault(note.filePath, vaultPath) && options.actor !== 'user') {
     return {
       error: 'EXTERNAL_SOURCE',
       message:
-        `#${id} lives outside the vault, in ${dirname(note.filePath)}. memex indexes that ` +
-        'directory but does not own it: an edit here is undone by the next index, and the ' +
-        'tool that wrote the file never sees it. Write a note about it instead.',
+        `#${id} lives outside the vault, in ${dirname(note.filePath)}. memex reads that ` +
+        'directory but another tool owns it, so only the person can change a file there. ' +
+        'Draft the change and let them apply it, or write a note about it instead.',
       suggestion: referenceSuggestion(note),
     };
   }
@@ -708,18 +710,26 @@ export const editNote = async (
 
   const updated = updateNote(client, id, { ...patch, tags, confirmedAt });
 
+  // memex owns frontmatter inside its own vault and nowhere else. A borrowed
+  // file's head belongs to whatever reads it: a blog post's `title`, `date` and
+  // `tags` are a site generator's input, and `layer: external` printed among
+  // them is memex vandalising a file it only borrowed. Outside the vault the
+  // body is written and the head is left exactly as it was found.
+  const borrowedFile = !inVault(updated.filePath, vaultPath);
   writeFileSync(
     updated.filePath,
-    renderNoteFile({
-      title,
-      content,
-      tags: resolvedTags,
-      layer,
-      ruleStatus: updated.ruleStatus,
-      ruleScope: updated.ruleScope,
-      confirmedAt: updated.confirmedAt,
-      date: note.authoredAt ?? note.createdAt,
-    }),
+    borrowedFile
+      ? content
+      : renderNoteFile({
+          title,
+          content,
+          tags: resolvedTags,
+          layer,
+          ruleStatus: updated.ruleStatus,
+          ruleScope: updated.ruleScope,
+          confirmedAt: updated.confirmedAt,
+          date: note.authoredAt ?? note.createdAt,
+        }),
     'utf8',
   );
 

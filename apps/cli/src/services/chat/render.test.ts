@@ -25,7 +25,9 @@ const note = (id: number, title: string): Note => ({
 });
 
 const candidates: Candidates = {
-  notes: [{ id: 12, title: 'the note that got it wrong', layer: 'past', snippet: '…' }],
+  notes: [
+    { id: 12, title: 'the note that got it wrong', layer: 'past', borrowed: false, snippet: '…' },
+  ],
   register: [
     {
       subject: 'opula',

@@ -33,7 +33,7 @@ import {
   setSignalStatus,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
-import { writeDerivesFrom } from '@memex/utils';
+import { inVault, writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
   installAssistant,

@@ -39,6 +39,7 @@ export const outcomeOf = (reply: ChatReply): string => {
     return `${receipt.subject} · ${receipt.predicate} is now ${receipt.value}`;
   }
   if (receipt.kind === 'rule') return `the rule “${receipt.title}” was ${receipt.decision}d`;
+  if (receipt.kind === 'edit') return `“${receipt.title}” was rewritten in place`;
   return receipt.corrected
     ? `saved “${receipt.title}”, correcting “${receipt.corrected.title}”`
     : `saved “${receipt.title}”`;

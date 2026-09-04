@@ -14,6 +14,7 @@ export type Carried =
 export type PlanDraft =
   | { action: 'set-register'; subject: string; predicate: string; value: string }
   | { action: 'amend-note'; amends: number; title: string; content: string }
+  | { action: 'edit-note'; id: number; content: string }
   | {
       action: 'new-note';
       title: string;
@@ -52,6 +53,10 @@ export type Plan =
       newPredicate: boolean;
     }
   | { kind: 'amend-note'; amends: number; title: string; content: string }
+  // The one write that changes a document rather than adding one. It exists for
+  // files memex borrowed — the person's own blog posts and docs, which they edit
+  // in place because nobody amends a blog post with a second blog post.
+  | { kind: 'edit-note'; id: number; content: string }
   | {
       kind: 'new-note';
       title: string;
@@ -93,6 +98,12 @@ const draftFrom = (parsed: Record<string, unknown>): PlanDraft | null => {
     const title = text(parsed.title);
     const content = text(parsed.content);
     return amends && title && content ? { action: 'amend-note', amends, title, content } : null;
+  }
+
+  if (parsed.action === 'edit-note') {
+    const noteId = id(parsed.id);
+    const content = text(parsed.content);
+    return noteId && content ? { action: 'edit-note', id: noteId, content } : null;
   }
 
   if (parsed.action === 'new-note') {

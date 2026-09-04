@@ -426,6 +426,7 @@ export type ChatPreview =
       newPredicate: boolean;
     }
   | { kind: 'amend'; target: { id: number; title: string } | null; title: string; body: string }
+  | { kind: 'edit'; target: { id: number; title: string } | null; body: string }
   | {
       kind: 'new-note';
       title: string;
@@ -553,14 +554,14 @@ export const api = {
     post<InferenceDetail>(`/api/inference/${id}/rewrite`, next),
   deleteTags: (tags: string[]) => post<RenameResult>('/api/tags/delete', { tags }),
   renameTags: (from: string[], to: string) => post<RenameResult>('/api/tags/rename', { from, to }),
-  draft: (id: number) =>
+  draft: (id: number, instruction?: string) =>
     post<{
       body: string;
       changes: DraftChange[];
       verdict: DraftVerdict;
       reason: string;
       durationMs: number;
-    }>(`/api/draft/${id}`),
+    }>(`/api/draft/${id}`, instruction === undefined ? undefined : { instruction }),
   updateNote: (id: number, patch: NotePatch) => post<NoteDetail>(`/api/note/${id}`, patch),
   createNote: (input: NewNote) => post<NoteDetail>('/api/notes', input),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),

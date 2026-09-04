@@ -26,7 +26,11 @@ export type Preview =
       layer: 'past' | 'state';
       tags: string[];
     }
-  | { kind: 'rule'; rule: NoteRef | null; decision: 'approve' | 'decline' };
+  | { kind: 'rule'; rule: NoteRef | null; decision: 'approve' | 'decline' }
+  // Rewriting a document the person owns. The body goes out whole so the screen
+  // can diff it against what is on disk, which is the only way a person can see
+  // what they are being asked to approve.
+  | { kind: 'edit'; target: NoteRef | null; body: string };
 
 // What happened. Deliberately not the domain result: `Wrote` carries whole note
 // rows, file paths and content included, and a receipt that hands the screen
@@ -53,7 +57,8 @@ export type Receipt =
       // outcome where part of what was asked for landed and part did not.
       unlinked: number | null;
     }
-  | { kind: 'rule'; id: number; title: string; decision: 'approve' | 'decline' };
+  | { kind: 'rule'; id: number; title: string; decision: 'approve' | 'decline' }
+  | { kind: 'edit'; id: number; title: string };
 
 const clip = (body: string) => (body.length <= BODY_CHARS ? body : `${body.slice(0, BODY_CHARS)}…`);
 
@@ -93,6 +98,10 @@ export const previewOf = (plan: Plan, candidates: Candidates): Preview => {
     };
   }
 
+  if (plan.kind === 'edit-note') {
+    return { kind: 'edit', target: ref(plan.id, titles), body: clip(plan.content) };
+  }
+
   if (plan.kind === 'new-note') {
     return {
       kind: 'new-note',
@@ -118,6 +127,10 @@ export const receiptOf = (wrote: Wrote): Receipt => {
       newPredicate: wrote.newPredicate,
       similar: wrote.similar,
     };
+  }
+
+  if (wrote.kind === 'edit') {
+    return { kind: 'edit', id: wrote.note.id, title: wrote.note.title };
   }
 
   if (wrote.kind === 'rule') {

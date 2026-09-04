@@ -1,4 +1,4 @@
-import { BookOpen, Lock, Pencil } from 'lucide-react';
+import { BookOpen, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { byKind } from './amendments.ts';
@@ -234,11 +234,11 @@ export const NoteScreen = () => {
   }, [data]);
 
   if (!note) return <Pending failure={failure} />;
-  // Two different reasons a note cannot be written. A record of what happened is
-  // immutable by rule and offers a correction instead; a borrowed file is owned
-  // by whatever made it, and memex only reads it.
+  // A record of what happened is immutable by rule and offers a correction
+  // instead. A borrowed file is not read-only: it is the person's own file,
+  // indexed from outside the vault, and what it is closed to is the agent.
   const borrowed = !note.writable;
-  const editable = note.layer !== 'past' && !borrowed;
+  const editable = note.layer !== 'past';
   return (
     <Page>
       {/* Where the file is, the way a file manager says it. The title is the
@@ -264,11 +264,11 @@ export const NoteScreen = () => {
             only be corrected by a new note. */}
         <span className="ml-auto flex items-center gap-2">
           {borrowed ? (
-            <span title={t.note.borrowed} className="flex items-center gap-1 text-muted">
-              <Lock size={12} />
-              {t.note.readonly}
+            <span title={t.note.borrowed} className="text-muted">
+              {t.note.borrowedMine}
             </span>
-          ) : draft ? null : editable ? (
+          ) : null}
+          {draft ? null : editable ? (
             <button
               type="button"
               onClick={() => setEditing(!editing)}

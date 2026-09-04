@@ -78,6 +78,18 @@ const PreviewBody = ({ preview, t }: { preview: ChatPreview; t: Strings }) => {
     );
   }
 
+  if (preview.kind === 'edit') {
+    return (
+      <div className="space-y-1">
+        <p className="text-[11px] text-muted">
+          {preview.target ? t.chat.editTarget(preview.target.title) : t.chat.editUnknown}
+        </p>
+        <p className="whitespace-pre-wrap text-xs text-muted">{preview.body}</p>
+        <p className="text-[11px] text-muted">{t.chat.editKeeps}</p>
+      </div>
+    );
+  }
+
   if (preview.kind === 'new-note') {
     return (
       <div className="space-y-1">
