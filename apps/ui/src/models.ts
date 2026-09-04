@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { api, type Catalog } from './api.ts';
 
 export type ProviderId = 'claude-code' | 'codex';
 
@@ -6,31 +7,46 @@ export type Choice = { provider: ProviderId; model: string };
 
 export type ModelOption = Choice & { label: string };
 
-// What the two CLIs will actually answer to. Codex has no entry per model
-// because its list belongs to the account, not to memex: sending no `--model`
-// asks for whatever that account is set to.
-export const MODELS: ModelOption[] = [
-  { provider: 'claude-code', model: 'sonnet', label: 'Claude Sonnet' },
-  { provider: 'claude-code', model: 'opus', label: 'Claude Opus' },
-  { provider: 'claude-code', model: 'haiku', label: 'Claude Haiku' },
-  { provider: 'codex', model: '', label: 'ChatGPT (Codex)' },
-];
-
 export const DEFAULT_CHOICE: Choice = { provider: 'claude-code', model: 'sonnet' };
 
+// What memex can name without asking anyone. Both CLIs can be asked what they
+// will answer to — `/model` and `codex debug models` — and the server does ask,
+// so this is only what the picker draws while that is in flight or when neither
+// CLI is there to answer.
+const FALLBACK: Catalog = {
+  providers: [
+    {
+      provider: 'claude-code',
+      label: 'Claude Code',
+      source: 'fallback',
+      configured: null,
+      models: [
+        { model: 'sonnet', label: 'Claude Sonnet' },
+        { model: 'opus', label: 'Claude Opus' },
+        { model: 'haiku', label: 'Claude Haiku' },
+        { model: 'fable', label: 'Claude Fable' },
+      ],
+    },
+    {
+      provider: 'codex',
+      label: 'Codex (ChatGPT)',
+      source: 'fallback',
+      configured: null,
+      models: [{ model: '', label: 'Account default' }],
+    },
+  ],
+};
+
 const KEY = 'memex-model';
-
-const same = (a: Choice, b: Choice) => a.provider === b.provider && a.model === b.model;
-
-export const labelOf = (choice: Choice) =>
-  MODELS.find((option) => same(option, choice))?.label ?? choice.model;
 
 const read = (): Choice => {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw === null) return DEFAULT_CHOICE;
     const parsed = JSON.parse(raw) as Choice;
-    return MODELS.some((option) => same(option, parsed)) ? parsed : DEFAULT_CHOICE;
+    return parsed.provider === 'claude-code' || parsed.provider === 'codex'
+      ? parsed
+      : DEFAULT_CHOICE;
   } catch {
     return DEFAULT_CHOICE;
   }
@@ -62,3 +78,35 @@ const subscribe = (listen: () => void) => {
 };
 
 export const useDefaultChoice = () => useSyncExternalStore(subscribe, () => state.choice);
+
+// Asking Claude Code what it answers to costs about three seconds, so the
+// answer is fetched once and shared. Every picker on the screen reads the same
+// one, and a failure leaves the fallback standing rather than an empty menu.
+const catalog: { value: Catalog; asked: boolean } = { value: FALLBACK, asked: false };
+const watchers = new Set<() => void>();
+
+const loadCatalog = () => {
+  if (catalog.asked) return;
+  catalog.asked = true;
+  api
+    .models()
+    .then((next) => {
+      catalog.value = next;
+      for (const watch of watchers) watch();
+    })
+    .catch(() => {});
+};
+
+export const useCatalog = (): Catalog => {
+  const [value, setValue] = useState(catalog.value);
+  useEffect(() => {
+    const watch = () => setValue(catalog.value);
+    watchers.add(watch);
+    loadCatalog();
+    watch();
+    return () => {
+      watchers.delete(watch);
+    };
+  }, []);
+  return value;
+};

@@ -1,4 +1,16 @@
-import type { Choice } from './models.ts';
+import type { Choice, ProviderId } from './models.ts';
+
+export type CatalogModel = { model: string; label: string; description?: string };
+
+export type ProviderCatalog = {
+  provider: ProviderId;
+  label: string;
+  source: 'cli' | 'fallback';
+  configured: string | null;
+  models: CatalogModel[];
+};
+
+export type Catalog = { providers: ProviderCatalog[] };
 
 export type NoteStatus =
   | { kind: 'amended'; by: { id: number; title: string } }
@@ -518,6 +530,7 @@ export const api = {
     sessionId: number | null,
   ) =>
     post<ChatAnswer>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, sessionId }),
+  models: () => request<Catalog>('/api/models'),
   chatSessions: () => request<ChatSession[]>('/api/chat/sessions'),
   chatSession: (id: number) => request<ChatTurn[]>(`/api/chat/session/${id}`),
   forgetChatSession: (id: number) =>

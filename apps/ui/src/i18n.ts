@@ -219,7 +219,9 @@ const en = {
       'Search is still waiting on the model, so I could only look at values, not notes.',
     nothingWritten: 'Nothing was written.',
     clear: 'New conversation',
-    model: 'Claude Sonnet',
+    model: 'Model',
+    configured: 'currently set',
+    customModel: 'Type a model name',
     failure: {
       'not-installed': 'Claude Code is not installed yet.',
       'logged-out': 'Claude Code is signed out.',
@@ -830,7 +832,9 @@ const ko: typeof en = {
     unmappedNoSearch: '모델을 아직 받는 중이라 노트는 못 보고 값만 봤어요.',
     nothingWritten: '아무것도 쓰지 않았어요.',
     clear: '새 대화',
-    model: 'Claude Sonnet',
+    model: '모델',
+    configured: '지금 설정된 것',
+    customModel: '직접 입력',
     failure: {
       'not-installed': '아직 Claude Code가 설치되지 않았어요.',
       'logged-out': 'Claude Code가 로그아웃 상태예요.',

@@ -48,6 +48,7 @@ import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
 import { isProviderId } from '../llm.ts';
 import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
+import { readCatalog } from '../model-catalog.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { readApps } from './apps.ts';
 import {
@@ -661,6 +662,9 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/tags') {
     return json(listTags(client, vaultPath));
+  }
+  if (method === 'GET' && url.pathname === '/api/models') {
+    return json(await readCatalog());
   }
   if (method === 'POST' && url.pathname.startsWith('/api/draft/')) {
     const id = Number(url.pathname.split('/').pop());

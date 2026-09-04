@@ -3,7 +3,8 @@ import { useApps } from './apps-setup.ts';
 import { Page, Section } from './bits.tsx';
 import { type Locale, setLocale, useLocale } from './i18n.ts';
 import { ModelCard } from './ModelCard.tsx';
-import { type Choice, MODELS, setDefaultChoice, useDefaultChoice } from './models.ts';
+import { ModelSelect } from './ModelSelect.tsx';
+import { setDefaultChoice, useDefaultChoice } from './models.ts';
 import { setTheme, type Theme, useTheme } from './theme.ts';
 
 const Options = <T extends string>({
@@ -74,16 +75,11 @@ export const SettingsScreen = () => {
         <Section divided title={t.settings.thinkingApps} hint={t.settings.thinkingAppsHint}>
           <EngineRows setup={apps} />
           <div className="mt-5">
-            <Options
-              value={`${fallback.provider}:${fallback.model}`}
-              onPick={(picked) => {
-                const [provider, model = ''] = picked.split(':');
-                setDefaultChoice({ provider: provider as Choice['provider'], model });
-              }}
-              options={MODELS.map((option) => ({
-                value: `${option.provider}:${option.model}`,
-                label: option.label,
-              }))}
+            <ModelSelect
+              choice={fallback}
+              onPick={setDefaultChoice}
+              label={t.chat.model}
+              className="cursor-pointer rounded-md border border-glass-line bg-transparent px-3 py-1.5 text-xs text-foreground outline-none hover:bg-surface-muted"
             />
             <p className="mt-2 text-[11px] text-muted">{t.settings.defaultOnly}</p>
           </div>
