@@ -26,10 +26,16 @@ const dropNotice = (count: number) =>
 const APPROVED =
   "SELECT title, content, rule_scope FROM notes WHERE layer = 'rule' AND rule_status = 'canonical' ORDER BY id ASC";
 
-// The six notes that are actually behaviour guidance come to 9,761 characters in
-// this vault, so a budget under that silently drops a real rule no matter how the
-// layer is tidied. Raise it with MEMEX_RULES_MAX_CHARS when that stops being true.
-const DEFAULT_MAX_CHARS = 10_000;
+// Sized to what is actually behaviour guidance, which is the only thing the
+// layer should hold. Measured 2026-09-05: seven approved rules assemble to
+// 16,361 characters, and two more waiting on approval add 1,617. A budget under
+// that drops a real rule and says so, which is better than silence but is still
+// a rule that does not apply.
+//
+// Raising it is not free — this block goes out with every session — so the
+// answer to it growing again is a layer with records in it, not a bigger
+// number. Override with MEMEX_RULES_MAX_CHARS.
+const DEFAULT_MAX_CHARS = 20_000;
 
 export const buildRuleInstructions = (client: MemexClient, options: Options = {}): string => {
   const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
