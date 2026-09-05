@@ -214,7 +214,7 @@ const en = {
     readFrom: 'Read from',
     expired: 'Proposed here, and never applied.',
     unmapped:
-      'I could not tell what to change. Say which note or which value, and what it should be.',
+      'I can write a note, correct one, rewrite a document you own, change a value on record, or settle a rule waiting for you. Say which of those, and on which note or value.',
     unmappedNoSearch:
       'Search is still waiting on the model, so I could only look at values, not notes.',
     nothingWritten: 'Nothing was written.',
@@ -835,7 +835,7 @@ const ko: typeof en = {
     readFrom: '이 노트들을 보고 답했어요',
     expired: '여기서 제안했지만 적용되지 않았어요.',
     unmapped:
-      '무엇을 바꿔야 할지 모르겠어요. 어떤 노트인지 또는 어떤 값인지, 그리고 무엇으로 바꿀지 말해 주세요.',
+      '제가 할 수 있는 건 노트 쓰기, 노트 바로잡기, 내 글 고치기, 기록된 값 바꾸기, 대기 중인 지침 승인이에요. 이 중 무엇을 어떤 노트나 값에 할지 말해 주세요.',
     unmappedNoSearch: '모델을 아직 받는 중이라 노트는 못 보고 값만 봤어요.',
     nothingWritten: '아무것도 쓰지 않았어요.',
     clear: '새 대화',
