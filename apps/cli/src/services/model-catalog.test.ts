@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeAliases, claudeLabel, codexModels } from './model-catalog.ts';
+import { claudeAliases, claudeLabel, codexModels, menuAliases } from './model-catalog.ts';
 
 const CLAUDE_RESULT = [
   'Current model: `Opus 5 (1M context)` (effort: high)',
@@ -33,6 +33,47 @@ describe('claudeAliases', () => {
   });
 });
 
+const ANSWERED = [
+  'sonnet',
+  'opus',
+  'haiku',
+  'fable',
+  'best',
+  'sonnet[1m]',
+  'opus[1m]',
+  'fable[1m]',
+  'opusplan',
+  'default',
+];
+
+describe('menuAliases', () => {
+  it('drops the routing policies, which the CLI’s own picker has no row for', () => {
+    for (const policy of ['best', 'opusplan', 'default']) {
+      expect(menuAliases(ANSWERED)).not.toContain(policy);
+    }
+  });
+
+  it('keeps the tiers and the context variants, which are models', () => {
+    expect(menuAliases(ANSWERED)).toEqual([
+      'sonnet',
+      'opus',
+      'haiku',
+      'fable',
+      'sonnet[1m]',
+      'opus[1m]',
+      'fable[1m]',
+    ]);
+  });
+
+  it('admits a tier it has never heard of, on the strength of its own variant', () => {
+    expect(menuAliases(['mythos', 'mythos[1m]', 'best'])).toEqual(['mythos', 'mythos[1m]']);
+  });
+
+  it('does not admit a policy word just because it is new', () => {
+    expect(menuAliases(['sonnet', 'cheapest'])).toEqual(['sonnet']);
+  });
+});
+
 describe('claudeLabel', () => {
   it('names the ones a reader knows', () => {
     expect(claudeLabel('sonnet')).toBe('Claude Sonnet');
@@ -41,6 +82,10 @@ describe('claudeLabel', () => {
 
   it('keeps the long-context variant distinguishable from the plain one', () => {
     expect(claudeLabel('opus[1m]')).toBe('Claude Opus (1M)');
+  });
+
+  it('names a variant it has not met rather than calling everything 1M', () => {
+    expect(claudeLabel('opus[500k]')).toBe('Claude Opus (500K)');
   });
 
   it('shows an alias it has no name for rather than hiding it', () => {

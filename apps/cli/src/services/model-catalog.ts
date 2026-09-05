@@ -17,7 +17,9 @@ export type ProviderCatalog = {
 
 export type Catalog = { providers: ProviderCatalog[] };
 
-const CLAUDE_FALLBACK = ['sonnet', 'opus', 'haiku', 'fable'];
+// The tiers Claude Code's own picker has a row for. Doubles as the fallback,
+// because these are the names it will answer to whether or not it answers.
+const TIERS = ['sonnet', 'opus', 'haiku', 'fable'];
 
 // `/model` answers in prose, so this reads the one sentence that carries the
 // list. An alias never has a space in it, which is what separates the names
@@ -31,6 +33,20 @@ export const claudeAliases = (result: string): string[] => {
     .filter((name) => name !== '' && !name.includes(' '));
 };
 
+const base = (alias: string) => alias.replace(/\[.*\]$/, '');
+
+// `/model` in print mode answers with what the `--model` flag accepts, which is
+// not the menu: `best`, `opusplan` and `default` are routing policies, and the
+// interactive picker has no row for any of them. A row is a model — a tier, or
+// a context variant of one. A tier nobody has heard of yet is admitted by its
+// own variant, so this does not have to be taught about the next one.
+export const menuAliases = (aliases: string[]): string[] => {
+  const varied = new Set(
+    aliases.filter((alias) => alias !== base(alias)).map((alias) => base(alias)),
+  );
+  return aliases.filter((alias) => TIERS.includes(base(alias)) || varied.has(base(alias)));
+};
+
 const CLAUDE_NAMES: Record<string, string> = {
   sonnet: 'Claude Sonnet',
   opus: 'Claude Opus',
@@ -39,10 +55,10 @@ const CLAUDE_NAMES: Record<string, string> = {
 };
 
 export const claudeLabel = (alias: string): string => {
-  const long = alias.endsWith('[1m]');
-  const base = long ? alias.slice(0, -'[1m]'.length) : alias;
-  const name = CLAUDE_NAMES[base] ?? base.charAt(0).toUpperCase() + base.slice(1);
-  return long ? `${name} (1M)` : name;
+  const tier = base(alias);
+  const name = CLAUDE_NAMES[tier] ?? tier.charAt(0).toUpperCase() + tier.slice(1);
+  const variant = alias.slice(tier.length).replace(/^\[|\]$/g, '');
+  return variant === '' ? name : `${name} (${variant.toUpperCase()})`;
 };
 
 type RawCodexModel = {
@@ -102,12 +118,12 @@ const askCodexForModels = async (): Promise<CatalogModel[]> => {
 };
 
 const readClaudeCatalog = async (home: string, pathEnv: string): Promise<ProviderCatalog> => {
-  const aliases = await askClaudeForModels(home, pathEnv);
-  const names = aliases.length > 0 ? aliases : CLAUDE_FALLBACK;
+  const answered = menuAliases(await askClaudeForModels(home, pathEnv));
+  const names = answered.length > 0 ? answered : TIERS;
   return {
     provider: 'claude-code',
     label: 'Claude Code',
-    source: aliases.length > 0 ? 'cli' : 'fallback',
+    source: answered.length > 0 ? 'cli' : 'fallback',
     models: names.map((alias) => ({ model: alias, label: claudeLabel(alias) })),
   };
 };
