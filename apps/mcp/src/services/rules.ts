@@ -3,7 +3,14 @@ import { describeRuleScope, parseRuleScope } from '@memex/utils';
 
 type Options = { maxChars?: number };
 
-const HEADER = '## House Rules';
+// Precedence has to be stated here rather than in a rule note, because a rule
+// cannot be the thing that decides whether rules win. Everything above this
+// header is memex's own convention, written in code and the same for everyone;
+// what follows it is this person's, and theirs is the one that was approved.
+const HEADER = `## House Rules
+
+These are the user's own, and they approved each one. Where a rule below
+contradicts a convention stated above, follow the rule.`;
 const SEPARATOR = '\n\n---\n\n';
 
 const withHeader = (sections: string[]) => `${HEADER}\n\n${sections.join(SEPARATOR)}`;

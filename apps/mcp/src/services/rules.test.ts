@@ -56,6 +56,25 @@ describe('buildRuleInstructions', () => {
     expect(out).toContain('No `as`.');
   });
 
+  // Which wins was left for the model to decide: the base conventions are code
+  // and the rules are the person's, and nothing said so.
+  it('says the person’s rule wins where it contradicts the convention above it', () => {
+    insertNote(client, {
+      title: 'Style',
+      content: 'Use FP.',
+      filePath: join(dbDir, 's.md'),
+      source: 'manual',
+      layer: 'rule',
+      ruleStatus: 'canonical',
+    });
+
+    expect(buildRuleInstructions(client)).toContain('follow the rule');
+  });
+
+  it('says nothing about precedence when there is no rule to prefer', () => {
+    expect(buildRuleInstructions(client)).toBe('');
+  });
+
   it('orders rule notes by id ascending', () => {
     insertNote(client, {
       title: 'First',
