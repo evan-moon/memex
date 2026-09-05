@@ -1,10 +1,12 @@
 import { type MemexClient, setNoteShape, shapedNoteIds } from '@memex/db';
-import { type ClaimSource, type Extraction, extractClaims } from '../claim-extract.ts';
+import type { LlmChoice } from '@memex/llm';
+import { CLAIM_MODEL, type ClaimSource, type Extraction, extractClaims } from '../claim-extract.ts';
 import { undeclaredProjections } from './repair.ts';
 
 export type ShapeFillerDeps = {
   client: MemexClient;
-  extract?: (note: ClaimSource) => Promise<Extraction>;
+  sweep?: () => LlmChoice;
+  extract?: (note: ClaimSource, choice?: LlmChoice) => Promise<Extraction>;
   perRun?: number;
 };
 
@@ -30,14 +32,18 @@ export const notesNeedingShape = (client: MemexClient, limit: number): ClaimSour
 // would pay twice to read the same notes.
 export const createShapeFiller = ({
   client,
+  sweep,
   extract = extractClaims,
   perRun = PER_RUN,
 }: ShapeFillerDeps) => {
   const state = { running: false };
 
   const run = async () => {
+    // Read per run, not per process: a model chosen in settings takes effect on
+    // the next sweep rather than on the next launch.
+    const choice = sweep?.();
     for (const note of notesNeedingShape(client, perRun)) {
-      const result = await extract(note);
+      const result = await extract(note, choice);
       // A missing `claude` binary is not a fact about this note, so stop the
       // run instead of failing the same way for every note behind it.
       if ('error' in result) {
@@ -48,7 +54,7 @@ export const createShapeFiller = ({
         noteId: note.id,
         kind: result.kind,
         claims: result.claims,
-        modelId: 'sonnet',
+        modelId: choice?.model ?? CLAIM_MODEL,
       });
     }
   };

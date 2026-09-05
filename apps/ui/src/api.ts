@@ -9,7 +9,9 @@ export type ProviderCatalog = {
   models: CatalogModel[];
 };
 
-export type Catalog = { providers: ProviderCatalog[] };
+export type ModelJob = 'chat' | 'draft' | 'sweep';
+
+export type Catalog = { providers: ProviderCatalog[]; jobs: Record<ModelJob, Choice> };
 
 export type NoteStatus =
   | { kind: 'amended'; by: { id: number; title: string } }
@@ -530,6 +532,8 @@ export const api = {
   ) =>
     post<ChatAnswer>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, sessionId }),
   models: () => request<Catalog>('/api/models'),
+  assignModel: (job: ModelJob, choice: Choice) =>
+    post<Record<ModelJob, Choice>>('/api/models', { [job]: choice }),
   chatSessions: () => request<ChatSession[]>('/api/chat/sessions'),
   chatSession: (id: number) => request<ChatTurn[]>(`/api/chat/session/${id}`),
   forgetChatSession: (id: number) =>

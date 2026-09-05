@@ -1,5 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { api, type Catalog } from './api.ts';
+import { useEffect, useState } from 'react';
+import { api, type Catalog, type ModelJob } from './api.ts';
 
 export type ProviderId = 'claude-code' | 'codex';
 
@@ -29,54 +29,22 @@ const FALLBACK: Catalog = {
     },
     { provider: 'codex', label: 'Codex (ChatGPT)', source: 'fallback', models: [] },
   ],
+  jobs: { chat: DEFAULT_CHOICE, draft: DEFAULT_CHOICE, sweep: DEFAULT_CHOICE },
 };
 
-const KEY = 'memex-model';
-
-const read = (): Choice => {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw === null) return DEFAULT_CHOICE;
-    const parsed = JSON.parse(raw) as Choice;
-    const known = parsed.provider === 'claude-code' || parsed.provider === 'codex';
-    return known && parsed.model !== '' ? parsed : DEFAULT_CHOICE;
-  } catch {
-    return DEFAULT_CHOICE;
-  }
-};
-
-// The default is what a new conversation starts on; the panel's own picker
-// changes this conversation without changing that. A store rather than
-// component state, because the settings page and the panel are both looking at
-// it and neither owns the other.
-const listeners = new Set<() => void>();
-const state = { choice: read() };
-
-export const setDefaultChoice = (choice: Choice) => {
-  state.choice = choice;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(choice));
-  } catch {
-    // Storage turned off means the default is forgotten between launches, which
-    // is a worse memory rather than a broken app.
-  }
-  for (const listen of listeners) listen();
-};
-
-export const defaultChoice = () => state.choice;
-
-const subscribe = (listen: () => void) => {
-  listeners.add(listen);
-  return () => listeners.delete(listen);
-};
-
-export const useDefaultChoice = () => useSyncExternalStore(subscribe, () => state.choice);
-
-// Asking Claude Code what it answers to costs about three seconds, so the
-// answer is fetched once and shared. Every picker on the screen reads the same
-// one, and a failure leaves the fallback standing rather than an empty menu.
+// One store for both. The catalogue is what may be chosen and the jobs are what
+// is chosen; every picker on the screen reads the same copy, and a settings
+// change reaches the chat footer without a reload.
+//
+// Asking Claude Code what it answers to costs about three seconds, so it is
+// fetched once. A failure leaves the fallback standing rather than an empty
+// menu.
 const catalog: { value: Catalog; asked: boolean } = { value: FALLBACK, asked: false };
 const watchers = new Set<() => void>();
+
+const tell = () => {
+  for (const watch of watchers) watch();
+};
 
 const loadCatalog = () => {
   if (catalog.asked) return;
@@ -85,10 +53,26 @@ const loadCatalog = () => {
     .models()
     .then((next) => {
       catalog.value = next;
-      for (const watch of watchers) watch();
+      tell();
     })
     .catch(() => {});
 };
+
+// Optimistic, because the row has to answer the press. The server's own answer
+// replaces it, so a refused write is corrected rather than believed.
+export const assignModel = (job: ModelJob, choice: Choice) => {
+  catalog.value = { ...catalog.value, jobs: { ...catalog.value.jobs, [job]: choice } };
+  tell();
+  api
+    .assignModel(job, choice)
+    .then((jobs) => {
+      catalog.value = { ...catalog.value, jobs };
+      tell();
+    })
+    .catch(() => {});
+};
+
+export const chatChoice = () => catalog.value.jobs.chat;
 
 export const useCatalog = (): Catalog => {
   const [value, setValue] = useState(catalog.value);

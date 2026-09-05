@@ -18,7 +18,7 @@ import { targetOnScreen } from './chat-target.ts';
 import { type Strings, useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { ModelSelect } from './ModelSelect.tsx';
-import { type Choice, defaultChoice } from './models.ts';
+import { type Choice, useCatalog } from './models.ts';
 import { useAsync } from './useAsync.ts';
 
 // `reply` is this run's; `outcome` is what a saved session recorded. A reopened
@@ -345,7 +345,12 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const [busy, setBusy] = useState(false);
   // This conversation's model, started from the default. Changing it here does
   // not change what the next conversation starts on — that is the setting.
-  const [choice, setChoice] = useState<Choice>(defaultChoice);
+  // null means "whatever the chat job is set to". The footer's picker overrides
+  // this conversation without moving the setting, so a new conversation starts
+  // back on it.
+  const catalog = useCatalog();
+  const [picked, setPicked] = useState<Choice | null>(null);
+  const choice = picked ?? catalog.jobs.chat;
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [round, setRound] = useState(0);
   const [steps, setSteps] = useState<ChatStep[]>([]);
@@ -374,12 +379,12 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const startFresh = () => {
     setExchanges([]);
     setSessionId(null);
-    setChoice(defaultChoice());
+    setPicked(null);
   };
 
   const reopen = (id: number) => {
     setSessionId(id);
-    setChoice(defaultChoice());
+    setPicked(null);
     api
       .chatSession(id)
       .then((turns) => setExchanges(turns.map(replayed)))
@@ -574,7 +579,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
           </div>
         </div>
         <div className="mt-1.5 flex items-center gap-1 px-1">
-          <ModelSelect choice={choice} onPick={setChoice} label={t.chat.model} placement="up" />
+          <ModelSelect choice={choice} onPick={setPicked} label={t.chat.model} placement="up" />
         </div>
       </div>
     </div>

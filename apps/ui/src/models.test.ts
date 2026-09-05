@@ -24,6 +24,11 @@ const catalog: Catalog = {
       ],
     },
   ],
+  jobs: {
+    chat: { provider: 'claude-code', model: 'sonnet' },
+    draft: { provider: 'claude-code', model: 'opus' },
+    sweep: { provider: 'claude-code', model: 'haiku' },
+  },
 };
 
 describe('searchModels', () => {

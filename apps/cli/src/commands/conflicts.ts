@@ -9,11 +9,12 @@ import {
   setSignalStatus,
   upsertSignal,
 } from '@memex/db';
-import { CONFIG_DIR, formatDate } from '@memex/utils';
+import { CONFIG_DIR, formatDate, loadConfig } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 import { type ConflictSide, judgeConflict, type Verdict } from '../services/conflicts.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
+import { asChoice } from '../services/llm.ts';
 
 const PROMPT_VERSION = 'conflict-v1';
 const JUDGE_MODEL = 'sonnet';
@@ -54,6 +55,8 @@ export const registerConflicts = (signals: Command) => {
       async (opts: { limit: string; distance?: string; dryRun?: boolean; redo?: boolean }) => {
         const client = openDb(CONFIG_DIR);
         guardEmbeddingModel(client);
+
+        const sweep = asChoice(loadConfig().models.sweep);
 
         const limit = Number(opts.limit);
         const pairs = detectConflictPairs(client, { maxDistance: num(opts.distance) });
@@ -98,7 +101,7 @@ export const registerConflicts = (signals: Command) => {
           process.stdout.write(
             `${pc.dim(`[${index + 1}/${asking.length}]`)} #${left.id} × #${right.id} … `,
           );
-          const judgement = await judgeConflict(left, right);
+          const judgement = await judgeConflict(left, right, sweep);
 
           if ('error' in judgement) {
             console.log(pc.red('failed'));

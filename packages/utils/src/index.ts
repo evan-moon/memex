@@ -1,12 +1,14 @@
 export type { ChunkOptions, NoteChunk } from './chunk.ts';
 export { buildChunkText, chunkNote, estimateTokens } from './chunk.ts';
-export type { MemexConfig, MemexSource } from './config.ts';
+export type { MemexConfig, MemexSource, ModelChoice, ModelJob } from './config.ts';
 export {
   CONFIG_DIR,
   expandPath,
   inVault,
   loadConfig,
   MODEL_CACHE_DIR,
+  MODEL_JOBS,
+  readModels,
   saveConfig,
 } from './config.ts';
 export { parseConfirmedAt, writeConfirmedAt } from './confirmed.ts';

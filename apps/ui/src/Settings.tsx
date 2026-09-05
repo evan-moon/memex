@@ -1,10 +1,11 @@
 import { EngineRows, LinkRows } from './Apps.tsx';
+import type { ModelJob } from './api.ts';
 import { useApps } from './apps-setup.ts';
 import { Page, Section } from './bits.tsx';
-import { type Locale, setLocale, useLocale } from './i18n.ts';
+import { type Locale, type Strings, setLocale, useLocale } from './i18n.ts';
 import { ModelCard } from './ModelCard.tsx';
 import { ModelSelect } from './ModelSelect.tsx';
-import { setDefaultChoice, useDefaultChoice } from './models.ts';
+import { assignModel, type Choice, useCatalog } from './models.ts';
 import { setTheme, type Theme, useTheme } from './theme.ts';
 
 const Options = <T extends string>({
@@ -36,10 +37,29 @@ const Options = <T extends string>({
   </div>
 );
 
+// One row per kind of work. The split is by who is waiting: a turn someone is
+// watching, a draft they will be asked to approve, and a sweep nobody waits on.
+const MODEL_JOBS: ModelJob[] = ['chat', 'draft', 'sweep'];
+
+const JobRow = ({ job, choice, t }: { job: ModelJob; choice: Choice; t: Strings }) => (
+  <div className="flex items-start justify-between gap-4">
+    <div className="min-w-0">
+      <div className="text-xs font-medium text-foreground">{t.settings.jobs[job].name}</div>
+      <p className="mt-0.5 text-[11px] text-muted">{t.settings.jobs[job].what}</p>
+    </div>
+    <ModelSelect
+      choice={choice}
+      onPick={(next) => assignModel(job, next)}
+      label={t.settings.jobs[job].name}
+      className="shrink-0 flex items-center gap-1.5 rounded-md border border-glass-line bg-transparent px-3 py-1.5 text-xs text-foreground hover:bg-surface-muted"
+    />
+  </div>
+);
+
 export const SettingsScreen = () => {
   const { locale, t } = useLocale();
   const theme = useTheme();
-  const fallback = useDefaultChoice();
+  const catalog = useCatalog();
   const apps = useApps();
 
   return (
@@ -74,14 +94,11 @@ export const SettingsScreen = () => {
             places. */}
         <Section divided title={t.settings.thinkingApps} hint={t.settings.thinkingAppsHint}>
           <EngineRows setup={apps} />
-          <div className="mt-5">
-            <ModelSelect
-              choice={fallback}
-              onPick={setDefaultChoice}
-              label={t.chat.model}
-              className="flex items-center gap-1.5 rounded-md border border-glass-line bg-transparent px-3 py-1.5 text-xs text-foreground hover:bg-surface-muted"
-            />
-            <p className="mt-2 text-[11px] text-muted">{t.settings.defaultOnly}</p>
+          <div className="mt-5 space-y-4">
+            {MODEL_JOBS.map((job) => (
+              <JobRow key={job} job={job} choice={catalog.jobs[job]} t={t} />
+            ))}
+            <p className="text-[11px] text-muted">{t.settings.defaultOnly}</p>
           </div>
         </Section>
         <Section divided title={t.settings.apps} hint={t.settings.appsHint}>

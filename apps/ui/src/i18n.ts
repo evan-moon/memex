@@ -295,7 +295,13 @@ const en = {
     light: 'Light',
     dark: 'Dark',
     language: 'Language',
-    defaultOnly: 'What a new conversation starts on. Change one conversation from the chat panel.',
+    jobs: {
+      chat: { name: 'Conversation', what: 'What you say here. Someone is watching' },
+      draft: { name: 'Drafting', what: 'Writes what a person will be asked to approve' },
+      sweep: { name: 'Sweeping', what: 'Reads notes in bulk. Nobody is waiting' },
+    },
+    defaultOnly:
+      'What each kind of work starts on. Change one turn or one draft from its own picker.',
     searchModel: 'Search',
     searchModelHint:
       'Finds notes by meaning, so the words do not have to match. It stays on this machine and runs offline.',
@@ -906,7 +912,13 @@ const ko: typeof en = {
     light: '밝게',
     dark: '어둡게',
     language: '언어',
-    defaultOnly: '새 대화가 시작할 모델이에요. 한 대화만 바꾸려면 대화 패널에서 고르세요.',
+    jobs: {
+      chat: { name: '대화', what: '앱에서 주고받는 말이에요. 사람이 보고 있어요' },
+      draft: { name: '초안', what: '사람이 승인할 글을 써요' },
+      sweep: { name: '훑기', what: '노트를 기계적으로 훑어요. 사람은 안 기다려요' },
+    },
+    defaultOnly:
+      '각 일이 기본으로 쓸 모델이에요. 이번 한 번만 바꾸려면 그 자리의 피커에서 고르세요.',
     searchModel: '검색',
     searchModelHint:
       '단어가 정확하지 않아도 뜻으로 찾아줘요. 이 컴퓨터에 남고, 받고 나면 인터넷 없이 돌아가요.',

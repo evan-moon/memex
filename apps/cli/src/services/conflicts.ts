@@ -1,5 +1,5 @@
-import { isLlmFailure, type LlmModel } from '@memex/llm';
-import { askClaude } from './llm.ts';
+import { isLlmFailure, type LlmChoice, type LlmModel } from '@memex/llm';
+import { askClaude, askWith } from './llm.ts';
 
 const MODEL: LlmModel = 'sonnet';
 const MAX_NOTE_CHARS = 4000;
@@ -67,8 +67,13 @@ export const parseJudgement = (raw: string): { verdict: Verdict; explanation: st
   return { verdict, explanation };
 };
 
-export const judgeConflict = async (a: ConflictSide, b: ConflictSide): Promise<Judgement> => {
-  const answer = await askClaude({ prompt: buildPrompt(a, b), model: MODEL });
+export const judgeConflict = async (
+  a: ConflictSide,
+  b: ConflictSide,
+  choice?: LlmChoice,
+): Promise<Judgement> => {
+  const ask = choice ? askWith(choice) : askClaude;
+  const answer = await ask({ prompt: buildPrompt(a, b), model: choice?.model ?? MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

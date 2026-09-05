@@ -6,6 +6,7 @@ import {
   type LlmProvider,
   type LlmProviderId,
 } from '@memex/llm';
+import type { ModelChoice } from '@memex/utils';
 import { findClaudeBinary } from './claude-code/index.ts';
 
 export const DEFAULT_CHOICE: LlmChoice = { provider: 'claude-code', model: 'sonnet' };
@@ -22,6 +23,14 @@ const providerFor = (id: LlmProviderId): LlmProvider =>
   id === 'codex'
     ? createCodex()
     : createClaudeCode(findClaudeBinary(homedir(), process.env.PATH ?? '') ?? 'claude');
+
+// The config file is text a person can edit, so the provider a job names may
+// not be one that exists. An unreadable job falls back to what this service has
+// always used rather than failing the call it was asked for.
+export const asChoice = (stored: ModelChoice): LlmChoice =>
+  isProviderId(stored.provider) && stored.model !== ''
+    ? { provider: stored.provider, model: stored.model }
+    : DEFAULT_CHOICE;
 
 export const askWith = (choice: LlmChoice): LlmProvider => {
   const provider = providerFor(choice.provider);

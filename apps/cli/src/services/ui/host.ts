@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { type MemexClient, openDb } from '@memex/db';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import { guardEmbeddingModel } from '../embedding-guard.ts';
+import { asChoice } from '../llm.ts';
 import { getMcpBinPath } from '../mcp-clients/index.ts';
 import { createModelRunner } from './model.ts';
 import type { UiDeps } from './server.ts';
@@ -40,6 +41,7 @@ export const createUiDeps = (): UiDeps & { client: MemexClient } => {
     pathEnv: process.env.PATH ?? '',
     openUrl: openInBrowser,
     model,
-    fillShapes: createShapeFiller({ client }).fill,
+    fillShapes: createShapeFiller({ client, sweep: () => asChoice(loadConfig().models.sweep) })
+      .fill,
   };
 };

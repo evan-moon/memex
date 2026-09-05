@@ -1,6 +1,6 @@
 import type { NoteShapeKind } from '@memex/db';
-import { isLlmFailure, type LlmModel } from '@memex/llm';
-import { askClaude } from './llm.ts';
+import { isLlmFailure, type LlmChoice, type LlmModel } from '@memex/llm';
+import { askClaude, askWith } from './llm.ts';
 
 export const CLAIM_MODEL: LlmModel = 'sonnet';
 const MAX_NOTE_CHARS = 8000;
@@ -50,8 +50,9 @@ export const parseExtraction = (raw: string): { kind: NoteShapeKind; claims: str
   }
 };
 
-export const extractClaims = async (note: ClaimSource): Promise<Extraction> => {
-  const answer = await askClaude({ prompt: buildPrompt(note), model: CLAIM_MODEL });
+export const extractClaims = async (note: ClaimSource, choice?: LlmChoice): Promise<Extraction> => {
+  const ask = choice ? askWith(choice) : askClaude;
+  const answer = await ask({ prompt: buildPrompt(note), model: choice?.model ?? CLAIM_MODEL });
   if (isLlmFailure(answer)) {
     return answer.code === 'not-installed'
       ? { error: answer.error, code: 'no-claude' }

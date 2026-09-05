@@ -33,7 +33,7 @@ import {
   setSignalStatus,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
-import { writeDerivesFrom } from '@memex/utils';
+import { loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
   installAssistant,
@@ -46,7 +46,7 @@ import {
 import { buildDigest } from '../digest.ts';
 import { draftStateUpdate } from '../draft.ts';
 import { redraftInference } from '../inference-draft.ts';
-import { isProviderId } from '../llm.ts';
+import { asChoice, isProviderId } from '../llm.ts';
 import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
 import { readCatalog } from '../model-catalog.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
@@ -664,7 +664,23 @@ export const route = async (
     return json(listTags(client, vaultPath));
   }
   if (method === 'GET' && url.pathname === '/api/models') {
-    return json(await readCatalog());
+    return json({ ...(await readCatalog()), jobs: loadConfig().models });
+  }
+  if (method === 'POST' && url.pathname === '/api/models') {
+    const asked = asRecord(payload);
+    const jobs = MODEL_JOBS.map((job) => ({ job, choice: choiceFrom(asked?.[job]) }));
+    const named = jobs.filter((entry) => entry.choice !== null);
+    if (named.length === 0) return bad(400, 'unknown-provider');
+
+    const config = loadConfig();
+    saveConfig({
+      ...config,
+      models: named.reduce(
+        (models, entry) => ({ ...models, [entry.job]: entry.choice }),
+        config.models,
+      ),
+    });
+    return json(loadConfig().models);
   }
   if (method === 'POST' && url.pathname.startsWith('/api/draft/')) {
     const id = Number(url.pathname.split('/').pop());
@@ -674,6 +690,7 @@ export const route = async (
 
     const choice = optionalChoice(asRecord(payload)?.choice);
     if (choice === null) return bad(400, 'unknown-provider');
+    const drafting = choice ?? asChoice(loadConfig().models.draft);
 
     const evidence = staleEvidence(client, id);
     if (!evidence || evidence.newer.length === 0) return bad(400, 'draft-no-evidence');
@@ -685,7 +702,7 @@ export const route = async (
         since: new Date(note.updatedAt).toISOString().slice(0, 10),
         newer: evidence.newer,
       },
-      choice,
+      drafting,
     );
     return 'error' in draft
       ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
@@ -724,7 +741,7 @@ export const route = async (
           summary: found.inference.summary,
           notes,
         },
-        choice,
+        choice ?? asChoice(loadConfig().models.draft),
       );
       return 'error' in draft
         ? bad(502, draft.code === 'no-claude' ? 'draft-no-claude' : 'draft-failed', draft.error)
