@@ -103,3 +103,24 @@ export const useCatalog = (): Catalog => {
   }, []);
   return value;
 };
+
+export type Match = { provider: ProviderId; providerLabel: string; model: string; label: string };
+
+// Typing is a way past the two levels, so it has to forgive the punctuation
+// nobody remembers: `gpt56` finds GPT-5.6-Sol, `opus1m` finds Claude Opus (1M).
+const loose = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export const searchModels = (catalog: Catalog, query: string): Match[] => {
+  const needle = loose(query);
+  if (needle === '') return [];
+  return catalog.providers.flatMap((provider) =>
+    provider.models
+      .filter((entry) => loose(`${entry.label} ${entry.model}`).includes(needle))
+      .map((entry) => ({
+        provider: provider.provider,
+        providerLabel: provider.label,
+        model: entry.model,
+        label: entry.label,
+      })),
+  );
+};

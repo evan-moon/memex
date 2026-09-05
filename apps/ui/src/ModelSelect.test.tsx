@@ -2,60 +2,33 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { dictionaries, setLocale } from './i18n.ts';
 import { ModelSelect } from './ModelSelect.tsx';
-import { DEFAULT_CHOICE } from './models.ts';
+import { type Choice, DEFAULT_CHOICE } from './models.ts';
 
 const t = dictionaries.en;
 
-const render = (choice = DEFAULT_CHOICE) => {
+const render = (choice: Choice = DEFAULT_CHOICE) => {
   setLocale('en');
   return renderToStaticMarkup(
     <ModelSelect choice={choice} onPick={() => {}} label={t.chat.model} />,
   );
 };
 
-// The catalogue arrives from `/api/models` in an effect, which does not run
-// here. So this is the menu drawn before the CLIs have answered — the one a
-// person sees for the first few seconds, and the only one they see on a machine
-// where neither CLI is installed.
-describe('the model picker, before the CLIs have answered', () => {
-  it('groups by provider rather than pouring every model into one list', () => {
+// The menu itself opens on a press, so what is drawn on the page is the one
+// line the picker is worth: which model the next call will use.
+describe('the model picker, closed', () => {
+  it('says the model rather than the word "model"', () => {
+    expect(render()).toContain('Claude Sonnet');
+  });
+
+  it('shows a name the catalogue does not carry rather than an empty button', () => {
+    expect(render({ provider: 'claude-code', model: 'claude-opus-4-6[1m]' })).toContain(
+      'claude-opus-4-6[1m]',
+    );
+  });
+
+  it('keeps the menu out of the page until it is asked for', () => {
     const html = render();
-    expect(html).toContain('<optgroup label="Claude Code">');
-    expect(html).toContain('<optgroup label="Codex (ChatGPT)">');
-  });
-
-  it('draws the names memex can stand behind without asking anyone', () => {
-    const html = render();
-    for (const label of ['Claude Sonnet', 'Claude Opus', 'Claude Haiku', 'Claude Fable']) {
-      expect(html).toContain(label);
-    }
-  });
-
-  it('never offers a row that would send no model at all', () => {
-    expect(render()).not.toContain('value="codex:"');
-    expect(render()).not.toContain('value="claude-code:"');
-  });
-
-  it('keeps a provider it cannot name reachable by leaving it the typed-in row', () => {
-    const html = render();
-    const codex = html.slice(html.indexOf('<optgroup label="Codex (ChatGPT)">'));
-    expect(codex).toContain(`value="codex:__custom__">${t.chat.customModel}`);
-  });
-
-  it('offers a way in for a model the list does not carry, once per provider', () => {
-    const html = render();
-    expect(html).toContain(`value="claude-code:__custom__">${t.chat.customModel}`);
-    expect(html).toContain(`value="codex:__custom__">${t.chat.customModel}`);
-  });
-
-  it('shows a model it does not recognise rather than a blank box', () => {
-    const html = render({ provider: 'claude-code', model: 'claude-opus-4-6[1m]' });
-    expect(html).toContain('claude-opus-4-6[1m]');
-    expect(html).toContain('selected=""');
-  });
-
-  it('does not add a duplicate row for a model that is already listed', () => {
-    const html = render({ provider: 'claude-code', model: 'sonnet' });
-    expect(html.match(/value="claude-code:sonnet"/g)).toHaveLength(1);
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain(t.chat.searchModels);
   });
 });

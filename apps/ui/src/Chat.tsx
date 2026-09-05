@@ -574,7 +574,7 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
           </div>
         </div>
         <div className="mt-1.5 flex items-center gap-1 px-1">
-          <ModelSelect choice={choice} onPick={setChoice} label={t.chat.model} />
+          <ModelSelect choice={choice} onPick={setChoice} label={t.chat.model} placement="up" />
         </div>
       </div>
     </div>

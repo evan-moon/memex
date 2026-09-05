@@ -79,7 +79,7 @@ export const SettingsScreen = () => {
               choice={fallback}
               onPick={setDefaultChoice}
               label={t.chat.model}
-              className="cursor-pointer rounded-md border border-glass-line bg-transparent px-3 py-1.5 text-xs text-foreground outline-none hover:bg-surface-muted"
+              className="flex items-center gap-1.5 rounded-md border border-glass-line bg-transparent px-3 py-1.5 text-xs text-foreground hover:bg-surface-muted"
             />
             <p className="mt-2 text-[11px] text-muted">{t.settings.defaultOnly}</p>
           </div>

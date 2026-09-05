@@ -221,6 +221,8 @@ const en = {
     clear: 'New conversation',
     model: 'Model',
     customModel: 'Type a model name',
+    searchModels: 'Search models',
+    noModelMatch: 'Nothing by that name',
     failure: {
       'not-installed': 'Claude Code is not installed yet.',
       'logged-out': 'Claude Code is signed out.',
@@ -833,6 +835,8 @@ const ko: typeof en = {
     clear: '새 대화',
     model: '모델',
     customModel: '직접 입력',
+    searchModels: '모델 검색',
+    noModelMatch: '그런 이름은 없어요',
     failure: {
       'not-installed': '아직 Claude Code가 설치되지 않았어요.',
       'logged-out': 'Claude Code가 로그아웃 상태예요.',
