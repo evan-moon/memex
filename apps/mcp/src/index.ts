@@ -83,6 +83,19 @@ If save_note responds with a ⚠️ similar notes warning, do not save a new not
 
 past notes never change, so a correction is a new note — and it only works if it is linked. When a note revises, corrects or supersedes an older one, pass \`amends: <id>\` to save_note. Search then marks the older note as superseded and points at the newest correction, instead of handing back a claim you already know is wrong. A correction saved without \`amends\` is invisible to the note it corrects.
 
+Then say which of the two things you are doing with \`amends_kind\`:
+
+- \`corrects\` — something in the earlier note is no longer true. Search still returns it, carrying a warning that points at the correction.
+- \`continues\` (the default) — the earlier note still holds and this carries it forward.
+
+These used to be one edge. A count of 74 pairs found 58% were continuations, which is how 37 notes came to be labelled "no longer true" while still being true. Choosing \`corrects\` when you only meant to add more puts that label back.
+
+Say *what* stopped being true with \`invalidates\` — the claims in the amended note that no longer hold, each written as the sentence it replaces. A correction almost never invalidates a whole note: name only the parts that stopped being true, and the rest goes on standing. Passing anything here settles \`amends_kind\` as \`corrects\`, so you rarely need to choose that label by hand.
+
+## RULE SCOPE
+
+A \`rule\` note may pass \`scope\`, one of \`global\` (the default), \`folder:<path>\` or \`tag:<name>\`. It is not free text: it is what lets an injection budget too small for every approved rule drop the narrow ones before the universal ones. The condition in words goes in the note's own \`## 적용 조건\` section.
+
 ## UPDATE
 
 Prefer update_note over creating a duplicate when new content belongs with an existing note. If unsure, search first — then update or save.
@@ -100,7 +113,7 @@ memex is the memory layer of a small local-first stack. Other personal-data tool
 
 Subject first, never note type — what kind of note it is already lives in \`layer\` and \`tags\`, so a decision and a work log about the same project belong in the same folder.
 
-projects/<name> · work/people/<name> · work/toss · work/interviews · investing/ · writing/ · learning/<topic> · coding/ · personal/
+projects/<name> (opula, firma, memex, herald, skope, agent-team) · work/people/<name> · work/toss · work/interviews · work/quotalab · investing/ · writing/ · learning/<topic> · coding/ · personal/
 
 Call list_folders before saving and reuse an existing folder. Never create decisions/, dev/, conversations/, ideas/ or drafts/ — they split one subject across parallel trees.
 

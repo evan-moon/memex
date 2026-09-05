@@ -117,28 +117,18 @@ The MCP tool surface is deliberately small (14 tools) — **duplicate read paths
 
 ## Memex MCP Usage
 
-When `mcp__memex__*` tools are available, follow these rules.
+**The MCP server sends its own instructions.** Search, save, folders, links, tags, corrections
+(`amends` / `amends_kind` / `invalidates`) and rule `scope` are stated there — `apps/mcp/src/index.ts` —
+and every client that connects receives them, in this repo and outside it. They are not repeated here,
+because two copies of one convention drift and only one of them is the copy that ships.
 
-### Search — at the start of a conversation (always)
-If the topic could relate to past conversations, people, projects, or decisions, call `search_notes` before answering. No results is fine — still search.
+Approved `rule` notes are appended to that block under `## House Rules`, and where a rule contradicts
+a convention above it, the rule wins.
 
-### Save — at the end of a conversation (use judgment)
-Without asking the user, call `save_note` whenever any of these apply:
-- A technical decision was made and the rationale matters
-- Key points from a conversation with a specific person (1-on-1, coffee chat, interview, etc.)
-- A new insight or concept worth recalling later
-- Project context: background, constraints, or goals
-- The user explicitly says "remember this", "save this", etc.
+What follows is what has not landed in either channel yet.
 
-Prefer `update_note` over creating a duplicate when new content belongs with an existing note.
-
-Folder convention — **subject first, never note type.** What kind of note it is lives in `layer` (past/state/rule) and `tags`, so a decision and a work log about the same project land in the same folder:
-
-- `projects/<name>` — active work (opula, firma, memex, herald, skope, agent-team)
-- `work/people/<name>` · `work/toss` · `work/interviews` · `work/quotalab` — colleagues, org history, hiring
-- `investing/` · `writing/` · `learning/<topic>` · `coding/` · `personal/`
-
-Call `list_folders` before saving and reuse an existing folder. Do NOT create `decisions/`, `dev/`, `conversations/`, `ideas/`, or `drafts/` — those split one subject across parallel trees.
+> Both conventions below are waiting as rule notes #2283 and #2284. Once a person approves them in the
+> app and the MCP server restarts, they arrive under `## House Rules` and this section goes.
 
 Template convention — **a note's sections follow its `layer`, because that is what decides how
 long it stays true.** A save without them is rejected and names what is missing.
@@ -162,19 +152,3 @@ Evidence convention — a `state` note should pass `derives_from: [id, ...]`, th
 from. One that names its sources is checked by comparing them: when a source is later corrected or
 rewritten, memex says so and names which. One that declares nothing can only be checked by guessing
 which notes look related. The ids are known when you write it and not afterwards.
-
-Rule scope — a `rule` may pass `scope`, one of `global` (the default), `folder:<path>` or
-`tag:<name>`. It is not free text: it is what lets an injection budget too small for every approved
-rule drop the narrow ones before the universal ones. The condition in words goes in the note's own
-`## 적용 조건` section.
-
-Correction convention — a `past` note can never be edited, so corrections are new notes. Pass `amends: <id>` whenever you write about something already recorded, and say which of the two things you are doing with `amends_kind`:
-
-- `corrects` — something in the earlier note is no longer true. Search still returns it, carrying a warning that points at the correction.
-- `continues` (the default) — the earlier note still holds and this carries it forward.
-
-Both used to be one edge. A count of 74 pairs found 58% were continuations, which is how 37 notes came to be labelled "no longer true" while still being true. Choosing `corrects` when you only meant to add more puts that label back.
-
-Say *what* stopped being true with `invalidates` — the claims in the amended note that no longer hold, each written as the sentence it replaces. A correction almost never invalidates a whole note: name only the parts that stopped being true, and the rest goes on standing. Passing anything here settles `amends_kind` as `corrects`, so you rarely need to choose that label by hand.
-
-Link convention — a note's filename is its title, so `[[Exact Note Title]]` is the only form that links. Search first and copy the title verbatim; `[[Title|display text]]` when the sentence needs other wording. Never `[[Title]](#1234)`, `[[1234]]`, `[label](path/note.md)`, or `[[some-memory-key]]` — those render as dead text. Reference an id in prose as plain `#1234`. `save_note`/`update_note` report links that resolve to nothing.
