@@ -530,6 +530,25 @@ const MIGRATIONS: readonly Migration[] = [
       for (const row of rows) set.run(classifyClaim(row.text), row.id);
     },
   },
+  {
+    // `fact` was two things wearing one name. A state goes out of date and is
+    // worth asking about; an event happened and stays happened, so asking gets a
+    // shrug or a tautology. The screenshots were re-captured in August — there is
+    // nothing a person can add to that.
+    //
+    // Only what the previous pass called `fact` is re-read, so a claim a person
+    // has since taken out of the deck by hand keeps the kind they gave it.
+    version: 27,
+    name: 'note_claims.kind.event',
+    up: (sqlite) => {
+      const rows = sqlite.prepare("SELECT id, text FROM note_claims WHERE kind = 'fact'").all() as {
+        id: number;
+        text: string;
+      }[];
+      const set = sqlite.prepare('UPDATE note_claims SET kind = ? WHERE id = ?');
+      for (const row of rows) set.run(classifyClaim(row.text), row.id);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

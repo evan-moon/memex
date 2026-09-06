@@ -81,6 +81,18 @@ describe('the deck', () => {
     expect(buildDeck(client).cards).toEqual([]);
   });
 
+  // History does not go out of date, an instruction is approved rather than
+  // checked, and a preference never had a truth value.
+  it('asks only about what is true now', () => {
+    claimNote(['스크린샷 세 장을 재캡처해 반영했다']);
+    claimNote(['답하기 전에 먼저 검색해야 한다']);
+    claimNote(['이 통합이 최고 ROI 항목이다']);
+    expect(buildDeck(client).cards).toEqual([]);
+
+    const now = claimNote(['제품명은 Opula이고 결제는 Lemon Squeezy로 간다']);
+    expect(buildDeck(client).cards.map((card) => card.source?.id)).toEqual([now.id]);
+  });
+
   it('drops a claim once it is confirmed, and brings it back when freshness runs out', () => {
     const note = claimNote(['트라이얼은 14일이다']);
     const id = buildDeck(client).cards[0]?.id;
@@ -151,9 +163,7 @@ describe('the deck', () => {
   it('puts a rule waiting for approval at the front, without it having been said', () => {
     claimNote(['어떤 주장']);
     const rule = addNote('노트는 자기 레이어가 정한 섹션을 갖춰 쓴다', 'rule');
-    client.sqlite
-      .prepare("UPDATE notes SET rule_status = 'provisional' WHERE id = ?")
-      .run(rule.id);
+    client.sqlite.prepare("UPDATE notes SET rule_status = 'provisional' WHERE id = ?").run(rule.id);
 
     expect(keys()[0]).toBe(`rule:${String(rule.id)}`);
   });

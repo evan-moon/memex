@@ -90,9 +90,10 @@ const claimCards = (
 ): DeckCard[] =>
   listClaims(client).flatMap((claim) => {
     if (claim.status === 'closed' || claim.status === 'retracted') return [];
-    // Gate ③: a sentence that states an obligation or a preference has no truth
-    // value, so "is this still true?" is the wrong question to put to it.
-    if (claim.kind !== 'fact') return [];
+    // Gate ③: only a claim about what is true now. An obligation or a preference
+    // has no truth value, and a record of what happened has one that never
+    // changes — "is this still true?" is the wrong question for all three.
+    if (claim.kind !== 'state') return [];
     if (claim.text.length > CLAIM_CHARS) return [];
     if (!injected.has(claim.noteId)) return [];
 

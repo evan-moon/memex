@@ -165,7 +165,7 @@ describe('claimStandingLine', () => {
     confirmDepth: null,
     supersededBy: null,
     status: 'unconfirmed',
-    kind: 'fact',
+    kind: 'state',
     ...over,
   });
 
