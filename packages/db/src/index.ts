@@ -24,15 +24,41 @@ export {
   sessionTurns,
   startSession,
 } from './chat.ts';
+export type { Judgement, JudgementAction } from './claim-actions.ts';
+export {
+  BINGE_LIMIT,
+  correctionsWanted,
+  dropJudgement,
+  judgementsSince,
+  lastJudgement,
+  recordJudgement,
+  startOfDay,
+} from './claim-actions.ts';
+export type { ClaimKind } from './claim-kind.ts';
+export { classifyClaim } from './claim-kind.ts';
 export type { ClaimScope, ClaimWhere, LocatedClaim } from './claim-locate.ts';
 export { claimScope, locateClaims } from './claim-locate.ts';
 export {
+  CLAIM_TRUST,
+  type Claim,
+  type ClaimStanding,
+  type ClaimStatus,
+  type ConfirmDepth,
+  claimEvidenceMoved,
+  claimStandingFor,
+  claimTrustFactor,
+  confirmClaim,
+  FRESHNESS_DAYS,
+  getClaim,
   getNoteShape,
   indexTypeNoteIds,
+  listClaims,
   type NoteShape,
   type NoteShapeInput,
   type NoteShapeKind,
   overClaimCeiling,
+  restoreClaim,
+  setClaimKind,
   setNoteShape,
   shapedNoteIds,
 } from './claims.ts';
@@ -57,6 +83,13 @@ export {
   restoreDanglingFor,
 } from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
+export type { Deferral, DeferralInput, ReviewState, Waking } from './deferrals.ts';
+export {
+  clearDeferral,
+  deferReviewItem,
+  listDeferrals,
+  wakeDeferrals,
+} from './deferrals.ts';
 export type { NoteDraft } from './drafts.ts';
 export { basisOf, draftedNotes, dropDraft, getDraft, putDraft } from './drafts.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';

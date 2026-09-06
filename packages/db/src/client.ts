@@ -319,6 +319,23 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
 
+  // A review item put off until something moves, rather than until a date. The
+  // fingerprint is the item's evidence state when it was set aside and `hits`
+  // is how often the belief had been injected by then: either moving means the
+  // deferral is over, so a memory nobody is using stays quiet and one the agent
+  // starts leaning on comes back. A woken row is kept rather than deleted,
+  // because it is the only record that the person has met this item before.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS review_deferrals (
+      item_key    TEXT    PRIMARY KEY,
+      note_id     INTEGER NOT NULL,
+      fingerprint TEXT    NOT NULL,
+      hits        INTEGER NOT NULL,
+      at          INTEGER NOT NULL,
+      woken_at    INTEGER
+    );
+  `);
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS note_shape (
       note_id     INTEGER PRIMARY KEY,
@@ -328,11 +345,37 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       created_at  INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS note_claims (
-      note_id INTEGER NOT NULL,
-      idx     INTEGER NOT NULL,
-      text    TEXT    NOT NULL,
-      PRIMARY KEY (note_id, idx)
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id       INTEGER NOT NULL,
+      idx           INTEGER NOT NULL,
+      text          TEXT    NOT NULL,
+      -- The body the claim was read out of. A claim is not re-extracted when
+      -- its note moves; the drift is shown and the person decides, because an
+      -- extractor cannot know whether the sentence still means what it meant.
+      source_hash   TEXT    NOT NULL DEFAULT '',
+      valid_from    INTEGER,
+      valid_until   INTEGER,
+      confirmed_at  INTEGER,
+      confirm_depth TEXT,
+      superseded_by INTEGER,
+      status        TEXT    NOT NULL DEFAULT 'unconfirmed',
+      -- Whether "is this still true?" is a question this sentence can answer.
+      kind          TEXT    NOT NULL DEFAULT 'fact',
+      UNIQUE (note_id, idx)
     );
+  `);
+
+  // One row per judgement, kept so the last one can be taken back. A card wrongly
+  // waved through changes what the agent says next, so undo has to cost nothing.
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS claim_actions (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_key TEXT    NOT NULL,
+      action   TEXT    NOT NULL,
+      previous TEXT    NOT NULL,
+      at       INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS claim_actions_at ON claim_actions (at);
   `);
 
   sqlite.exec(`

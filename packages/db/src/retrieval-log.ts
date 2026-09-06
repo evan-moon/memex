@@ -51,7 +51,11 @@ export const logRetrieval = (client: MemexClient, entry: RetrievalEntry, at = Da
   })();
 };
 
-export type RetrievalCountOptions = { since?: number; initiators?: RetrievalInitiator[] };
+export type RetrievalCountOptions = {
+  since?: number;
+  initiators?: RetrievalInitiator[];
+  injectedOnly?: boolean;
+};
 
 // Counting every row answers "what did the daemon walk past", which is not a
 // question anyone asked. Pass the initiators whose attention the count is meant
@@ -65,6 +69,7 @@ export const retrievalCounts = (
     options.initiators === undefined
       ? ''
       : `initiator IN (${options.initiators.map(() => '?').join(',')})`,
+    options.injectedOnly === true ? 'injected = 1' : '',
   ].filter(Boolean);
 
   return client.sqlite

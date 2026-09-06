@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3';
+import { classifyClaim } from './claim-kind.ts';
 import { parseAuthoredAt } from './dates.ts';
+import { bodyHash } from './evidence.ts';
 import { linkTargets, targetLookupKeys, titleLookupKeys } from './link-index.ts';
 
 type Migration = {
@@ -427,6 +429,105 @@ const MIGRATIONS: readonly Migration[] = [
           created_at INTEGER NOT NULL
         );
       `);
+    },
+  },
+  {
+    // A review item put off until something moves. The row outlives the waking:
+    // clearing it would leave no record that a person had already set this item
+    // aside once, which is the only evidence memex has that an item is coming
+    // back rather than arriving.
+    version: 24,
+    name: 'review_deferrals',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS review_deferrals (
+          item_key    TEXT    PRIMARY KEY,
+          note_id     INTEGER NOT NULL,
+          fingerprint TEXT    NOT NULL,
+          hits        INTEGER NOT NULL,
+          at          INTEGER NOT NULL
+        );
+      `);
+      addColumnIfMissing(sqlite, 'review_deferrals', 'woken_at', 'woken_at INTEGER');
+    },
+  },
+  {
+    // A claim is what a person can actually judge; a note is the raw material it
+    // was read out of. The text was already here — what was missing is whether it
+    // is true, since when, who last stood behind it, and what replaced it.
+    //
+    // The identifier is new too. `(note_id, idx)` cannot be referenced, so nothing
+    // could point at the claim that superseded another one.
+    //
+    // `source_hash` is stamped with the body as it reads NOW rather than as it read
+    // at extraction. Every shaped note's body was rewritten by the layer-template
+    // refactor, so carrying the old hashes forward would mark all 269 claims as
+    // moved on the first screen and make the signal mean nothing. Nobody has
+    // confirmed anything yet, so this baseline costs no judgement — and it is the
+    // last moment that is true.
+    version: 25,
+    name: 'note_claims.state',
+    up: (sqlite) => {
+      if (columnNames(sqlite, 'note_claims').has('status')) return;
+
+      sqlite.exec(`
+        CREATE TABLE note_claims_rebuilt (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          note_id       INTEGER NOT NULL,
+          idx           INTEGER NOT NULL,
+          text          TEXT    NOT NULL,
+          source_hash   TEXT    NOT NULL DEFAULT '',
+          valid_from    INTEGER,
+          valid_until   INTEGER,
+          confirmed_at  INTEGER,
+          confirm_depth TEXT,
+          superseded_by INTEGER,
+          status        TEXT    NOT NULL DEFAULT 'unconfirmed',
+          UNIQUE (note_id, idx)
+        );
+        INSERT INTO note_claims_rebuilt (note_id, idx, text, valid_from)
+          SELECT c.note_id, c.idx, c.text, COALESCE(n.authored_at, n.created_at)
+          FROM note_claims c JOIN notes n ON n.id = c.note_id
+          ORDER BY c.note_id, c.idx;
+        DROP TABLE note_claims;
+        ALTER TABLE note_claims_rebuilt RENAME TO note_claims;
+      `);
+
+      const stamp = sqlite.prepare('UPDATE note_claims SET source_hash = ? WHERE note_id = ?');
+      const reshape = sqlite.prepare('UPDATE note_shape SET source_hash = ? WHERE note_id = ?');
+      const bodies = sqlite
+        .prepare(
+          `SELECT n.id, n.content FROM notes n
+           WHERE n.id IN (SELECT note_id FROM note_shape)`,
+        )
+        .all() as { id: number; content: string }[];
+      for (const body of bodies) {
+        const hash = bodyHash(body.content);
+        stamp.run(hash, body.id);
+        reshape.run(hash, body.id);
+      }
+    },
+  },
+  {
+    // Half the deck was unanswerable. A claim that says something should be done,
+    // or that one option is better than another, has no truth value to check, so
+    // "is this still true?" produced cards a person could only dismiss.
+    //
+    // Classified from the stored text, never by reading the note again: §2-1 of
+    // the work order fixes the 269 claims, and this is a property of the sentence
+    // rather than of the note it came out of.
+    version: 26,
+    name: 'note_claims.kind',
+    up: (sqlite) => {
+      if (!addColumnIfMissing(sqlite, 'note_claims', 'kind', "kind TEXT NOT NULL DEFAULT 'fact'")) {
+        return;
+      }
+      const rows = sqlite.prepare('SELECT id, text FROM note_claims').all() as {
+        id: number;
+        text: string;
+      }[];
+      const set = sqlite.prepare('UPDATE note_claims SET kind = ? WHERE id = ?');
+      for (const row of rows) set.run(classifyClaim(row.text), row.id);
     },
   },
 ];
