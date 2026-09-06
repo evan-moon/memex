@@ -216,6 +216,7 @@ export type DeckCard = {
   kind: DeckKind;
   id: number;
   text: string;
+  detail: string | null;
   heading: string | null;
   since: number | null;
   confirmedAt: number | null;

@@ -100,6 +100,15 @@ export const DeckCardFace = ({
         </p>
       )}
 
+      {card.detail === null ? null : (
+        /* The whole of it, scrolling inside the card rather than pushing the
+           verdicts off the screen. Nothing is elided: an answer given on a
+           truncation is not an answer. */
+        <div className="max-h-56 overflow-y-auto rounded-md border border-glass-line bg-reading p-3">
+          <p className="whitespace-pre-wrap text-[13px] leading-[1.75]">{card.detail}</p>
+        </div>
+      )}
+
       <Meta card={card} />
 
       {moved ? <p className="text-[11px] text-muted">{t.deck.movedLead}</p> : null}

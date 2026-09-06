@@ -11,6 +11,7 @@ const card = (over: Partial<DeckCard> = {}): DeckCard => ({
   id: 12,
   text: 'Opula의 채팅은 Groq에서 gpt-oss-120b를 돌린다',
   heading: null,
+  detail: null,
   since: Date.parse('2026-08-03'),
   confirmedAt: null,
   idleDays: 34,
@@ -46,12 +47,21 @@ describe('a deck card', () => {
   });
 
   // A synthesis runs long. It may not grow the card past its own buttons.
-  it('steps a long claim down and clamps it rather than breaking the card', () => {
+  it('steps a long headline down rather than breaking the card', () => {
     const html = face({ text: '가'.repeat(200) });
 
     expect(html).toContain('text-[15px]');
     expect(html).not.toContain('text-[20px]');
-    expect(html).toContain('line-clamp-');
+  });
+
+  // Judging an elision is not judging. The body scrolls inside the card instead.
+  it('carries the whole body when the headline is only a name', () => {
+    const body = '나'.repeat(900);
+    const html = face({ text: '충돌: A ↔ B', detail: body });
+
+    expect(html).toContain(body);
+    expect(html).toContain('overflow-y-auto');
+    expect(html).not.toContain('…');
   });
 
   it('says how often the AI actually said it', () => {
