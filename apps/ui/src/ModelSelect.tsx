@@ -2,7 +2,14 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-re
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProviderCatalog } from './api.ts';
 import { useT } from './i18n.ts';
-import { type Choice, type ProviderId, searchModels, useCatalog } from './models.ts';
+import {
+  type Choice,
+  groupModels,
+  type ModelTier,
+  type ProviderId,
+  searchModels,
+  useCatalog,
+} from './models.ts';
 
 const ROW = 'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs';
 
@@ -23,6 +30,52 @@ const Row = ({
     {children}
   </button>
 );
+
+// One model at two context sizes is one row with the sizes beside it, not two
+// rows with the same name. The tier is the thing being chosen; the size is a
+// setting on it, and reading it that way is shorter than reading the name twice.
+const Tier = ({
+  tier,
+  chosen,
+  onPick,
+}: {
+  tier: ModelTier;
+  chosen: string | null;
+  onPick: (model: string) => void;
+}) => {
+  const t = useT();
+  const only = tier.options[0];
+  if (tier.options.length === 1 && only) {
+    return (
+      <Row onPick={() => onPick(only.model)} active={chosen === only.model}>
+        <span className="flex-1 truncate">{tier.label}</span>
+        {chosen === only.model ? <Check size={12} className="shrink-0" /> : null}
+      </Row>
+    );
+  }
+
+  return (
+    <div className={`${ROW} justify-between rounded-md`}>
+      <span className="min-w-0 flex-1 truncate">{tier.label}</span>
+      <span className="flex shrink-0 gap-1">
+        {tier.options.map((option) => (
+          <button
+            key={option.model}
+            type="button"
+            onClick={() => onPick(option.model)}
+            className={`rounded px-1.5 py-0.5 text-[10px] ${
+              chosen === option.model
+                ? 'bg-primary text-background'
+                : 'border border-line text-muted hover:bg-surface-muted'
+            }`}
+          >
+            {option.tag ?? t.chat.baseSize}
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+};
 
 // Seventeen models in one list is a wall, and the grouping that fixes it is the
 // same one the CLIs already have. So the menu opens on providers and the models
@@ -171,17 +224,13 @@ export const ModelSelect = ({
                   <ChevronLeft size={12} className="shrink-0 text-muted" />
                   <span className="flex-1 truncate text-muted">{opened.label}</span>
                 </Row>
-                {opened.models.map((entry) => (
-                  <Row
-                    key={entry.model}
-                    onPick={() => take(opened.provider, entry.model)}
-                    active={opened.provider === choice.provider && entry.model === choice.model}
-                  >
-                    <span className="flex-1 truncate">{entry.label}</span>
-                    {opened.provider === choice.provider && entry.model === choice.model ? (
-                      <Check size={12} className="shrink-0" />
-                    ) : null}
-                  </Row>
+                {groupModels(opened.models).map((tier) => (
+                  <Tier
+                    key={tier.base}
+                    tier={tier}
+                    chosen={opened.provider === choice.provider ? choice.model : null}
+                    onPick={(model) => take(opened.provider, model)}
+                  />
                 ))}
                 {typing === opened.provider ? (
                   <input

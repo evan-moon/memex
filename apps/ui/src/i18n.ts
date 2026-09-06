@@ -315,6 +315,7 @@ const en = {
     clear: 'New conversation',
     model: 'Model',
     customModel: 'Type a model name',
+    baseSize: 'Standard',
     searchModels: 'Search models',
     noModelMatch: 'Nothing by that name',
     failure: {
@@ -1031,6 +1032,7 @@ const ko: typeof en = {
     clear: '새 대화',
     model: '모델',
     customModel: '직접 입력',
+    baseSize: '기본',
     searchModels: '모델 검색',
     noModelMatch: '그런 이름은 없어요',
     failure: {

@@ -1,55 +1,56 @@
 import { describe, expect, it } from 'vitest';
-import type { Catalog } from './api.ts';
-import { searchModels } from './models.ts';
+import { groupModels } from './models.ts';
 
-const catalog: Catalog = {
-  providers: [
-    {
-      provider: 'claude-code',
-      label: 'Claude Code',
-      source: 'cli',
-      models: [
-        { model: 'opus', label: 'Claude Opus' },
-        { model: 'opus[1m]', label: 'Claude Opus (1M)' },
-        { model: 'haiku', label: 'Claude Haiku' },
-      ],
-    },
-    {
-      provider: 'codex',
-      label: 'Codex (ChatGPT)',
-      source: 'cli',
-      models: [
-        { model: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
-        { model: 'gpt-5.5', label: 'GPT-5.5' },
-      ],
-    },
-  ],
-  jobs: {
-    chat: { provider: 'claude-code', model: 'sonnet' },
-    draft: { provider: 'claude-code', model: 'opus' },
-    sweep: { provider: 'claude-code', model: 'haiku' },
-  },
-};
+const claude = [
+  { model: 'sonnet', label: 'Claude Sonnet' },
+  { model: 'opus', label: 'Claude Opus' },
+  { model: 'haiku', label: 'Claude Haiku' },
+  { model: 'fable', label: 'Claude Fable' },
+  { model: 'sonnet[1m]', label: 'Claude Sonnet (1M)' },
+  { model: 'opus[1m]', label: 'Claude Opus (1M)' },
+  { model: 'fable[1m]', label: 'Claude Fable (1M)' },
+];
 
-describe('searchModels', () => {
-  it('reaches across providers, because typing is the way past the two levels', () => {
-    expect(searchModels(catalog, 'op').map((m) => m.model)).toEqual(['opus', 'opus[1m]']);
+describe('groupModels', () => {
+  it('says each name once and keeps the sizes beside it', () => {
+    const tiers = groupModels(claude);
+
+    expect(tiers.map((tier) => tier.label)).toEqual([
+      'Claude Sonnet',
+      'Claude Opus',
+      'Claude Haiku',
+      'Claude Fable',
+    ]);
+    expect(tiers[0]?.options.map((option) => option.tag)).toEqual([null, '1M']);
+    expect(tiers[2]?.options.map((option) => option.tag)).toEqual([null]);
   });
 
-  it('forgives the punctuation nobody remembers', () => {
-    expect(searchModels(catalog, 'gpt56').map((m) => m.model)).toEqual(['gpt-5.6-sol']);
-    expect(searchModels(catalog, 'opus1m').map((m) => m.model)).toEqual(['opus[1m]']);
+  it('keeps the order the CLI answered in', () => {
+    expect(groupModels(claude).map((tier) => tier.base)).toEqual([
+      'sonnet',
+      'opus',
+      'haiku',
+      'fable',
+    ]);
   });
 
-  it('says which provider a result came from, since the grouping is gone', () => {
-    expect(searchModels(catalog, 'gpt55')[0].providerLabel).toBe('Codex (ChatGPT)');
+  it('leaves a catalogue with no variants exactly as it was', () => {
+    const codex = [
+      { model: 'gpt-5-codex', label: 'GPT-5 Codex' },
+      { model: 'gpt-5', label: 'GPT-5' },
+    ];
+    const tiers = groupModels(codex);
+
+    expect(tiers).toHaveLength(2);
+    expect(tiers.every((tier) => tier.options.length === 1)).toBe(true);
+    expect(tiers.map((tier) => tier.label)).toEqual(['GPT-5 Codex', 'GPT-5']);
   });
 
-  it('matches the id as well as the name', () => {
-    expect(searchModels(catalog, 'haiku').map((m) => m.model)).toEqual(['haiku']);
-  });
+  // A tier the CLI only offers in one size still has to read as a model.
+  it('names a tier that only ever comes as a variant', () => {
+    const tiers = groupModels([{ model: 'nova[1m]', label: 'Claude Nova (1M)' }]);
 
-  it('returns nothing for an empty query rather than everything', () => {
-    expect(searchModels(catalog, '   ')).toEqual([]);
+    expect(tiers[0]?.label).toBe('Claude Nova');
+    expect(tiers[0]?.options[0]?.tag).toBe('1M');
   });
 });

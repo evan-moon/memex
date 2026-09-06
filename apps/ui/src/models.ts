@@ -88,6 +88,49 @@ export const useCatalog = (): Catalog => {
   return value;
 };
 
+// `sonnet` and `sonnet[1m]` are two `--model` values the CLI answers to, so it
+// lists them as two names. They are one model at two context sizes, and a menu
+// that repeats the name three times is harder to read than one that says it once
+// and offers the sizes beside it.
+export type ModelVariant = { model: string; label: string; tag: string | null };
+export type ModelTier = { base: string; label: string; options: ModelVariant[] };
+
+const baseOf = (model: string) => model.replace(/\[[^\]]*\]$/, '');
+
+const tagOf = (model: string) => {
+  const found = /\[([^\]]*)\]$/.exec(model);
+  return found?.[1] === undefined ? null : found[1].toUpperCase();
+};
+
+// The plain name, taken from the entry that has no variant. When a CLI only ever
+// offers the variant, the parenthetical the label carries is stripped instead,
+// so the row still reads as a model rather than as a setting.
+const tierLabel = (options: ModelVariant[]): string => {
+  const plain = options.find((option) => option.tag === null);
+  if (plain) return plain.label;
+  const first = options[0];
+  return first === undefined ? '' : first.label.replace(/\s*\([^)]*\)\s*$/, '');
+};
+
+export const groupModels = (models: { model: string; label: string }[]): ModelTier[] => {
+  const order: string[] = [];
+  const byBase = new Map<string, ModelVariant[]>();
+
+  for (const entry of models) {
+    const base = baseOf(entry.model);
+    if (!byBase.has(base)) {
+      byBase.set(base, []);
+      order.push(base);
+    }
+    byBase.get(base)?.push({ model: entry.model, label: entry.label, tag: tagOf(entry.model) });
+  }
+
+  return order.map((base) => {
+    const options = byBase.get(base) ?? [];
+    return { base, label: tierLabel(options), options };
+  });
+};
+
 export type Match = { provider: ProviderId; providerLabel: string; model: string; label: string };
 
 // Typing is a way past the two levels, so it has to forgive the punctuation
