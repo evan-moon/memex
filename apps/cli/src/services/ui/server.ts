@@ -11,26 +11,39 @@ import {
   searchPage,
 } from '@memex/core';
 import {
+  approveRule,
+  BINGE_LIMIT,
+  clearDeferral,
+  confirmClaim,
   countProvisionalRules,
+  deferReviewItem,
   deleteSession,
   dismissDanglingFor,
+  dropJudgement,
   getAmendmentsFor,
+  getClaim,
   getInference,
   getNote,
   isNoteType,
+  judgementsSince,
+  lastJudgement,
   listSessions,
   listSignals,
   type MemexClient,
   type RegisterScope,
+  recordJudgement,
   refreshInferenceStaleness,
   restampInference,
+  restoreClaim,
   rewriteInference,
   sessionExists,
   sessionTurns,
+  setClaimKind,
   setInferenceStatus,
   setNoteEvidence,
   setRegister,
   setSignalStatus,
+  startOfDay,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
 import { loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
@@ -61,6 +74,7 @@ import {
   startChat,
 } from './chat.ts';
 import { buildChores } from './chores.ts';
+import { buildDeck, deckCardState } from './deck.ts';
 import {
   duplicateNote,
   folderPath,
@@ -92,6 +106,7 @@ import {
   scopeFromParams,
 } from './register.ts';
 import { evidenceBatch } from './repair.ts';
+import { buildReview, reviewItemState } from './review.ts';
 import { buildRules } from './rules.ts';
 import type { NoteStatus } from './status.ts';
 import { buildThread, listThreads } from './threads.ts';
@@ -107,6 +122,7 @@ const SEARCH_LIMIT_MAX = 60;
 const TITLE_LIMIT = 5000;
 const REPAIR_BATCH = 20;
 const REPAIR_BATCH_MAX = 50;
+const DECK_SESSIONS_MAX = 12;
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -202,7 +218,12 @@ export type ApiErrorCode =
   | 'empty-message'
   | 'missing-operation'
   | 'unknown-provider'
-  | 'unknown-plan';
+  | 'unknown-plan'
+  | 'invalid-review-key'
+  | 'invalid-claim-id'
+  | 'unknown-claim'
+  | 'nothing-to-undo'
+  | 'unknown-review-item';
 
 const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
   status,
@@ -211,6 +232,52 @@ const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
 });
 
 const notFound = bad(404, 'not-found');
+
+// One card, one meaning: the left action says the memory still stands. What that
+// writes differs by what the card holds — a claim gets a fresher timestamp, a rule
+// starts being injected, a hypothesis is re-stamped against its sources — but the
+// person is answering the same question every time.
+const standsBehind = (
+  client: MemexClient,
+  key: string,
+  depth: 'card' | 'evidence',
+): unknown | null => {
+  const [kind, raw] = key.split(':');
+  const id = Number(raw);
+  if (!Number.isInteger(id)) return null;
+
+  if (kind === 'claim') {
+    const previous = getClaim(client, id);
+    if (!previous) return null;
+    confirmClaim(client, id, depth);
+    return previous;
+  }
+  if (kind === 'rule') {
+    const approved = approveRule(client, id);
+    return approved ? { ruleStatus: 'provisional' } : null;
+  }
+  if (kind === 'inference') {
+    const revived = restampInference(client, id);
+    return revived ? { status: 'stale' } : null;
+  }
+  return null;
+};
+
+const takeBack = (client: MemexClient, key: string, previous: unknown) => {
+  const [kind, raw] = key.split(':');
+  const id = Number(raw);
+  if (!Number.isInteger(id) || previous === null) return;
+
+  if (kind === 'claim') {
+    const claim = previous as Parameters<typeof restoreClaim>[1];
+    restoreClaim(client, claim);
+    setClaimKind(client, id, claim.kind);
+  }
+  if (kind === 'rule') {
+    client.sqlite.prepare("UPDATE notes SET rule_status = 'provisional' WHERE id = ?").run(id);
+  }
+  if (kind === 'inference') setInferenceStatus(client, id, 'stale');
+};
 
 export type UiDeps = {
   client: MemexClient;
@@ -596,6 +663,78 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/chores') {
     return json(buildChores(client, vaultPath));
+  }
+  if (method === 'GET' && url.pathname === '/api/deck') {
+    const sessions = clamp(url.searchParams.get('sessions'), 1, DECK_SESSIONS_MAX);
+    return json(buildDeck(client, { sessions }));
+  }
+  if (method === 'POST' && url.pathname === '/api/deck/confirm') {
+    const body = asRecord(payload);
+    const key = text(body?.key);
+    const asked = body?.depth === 'evidence' ? 'evidence' : 'card';
+    if (key === undefined) return bad(400, 'invalid-review-key');
+
+    // Past the third session in a day the reading is not what it was on the first
+    // card, so the long freshness stops being on offer.
+    const today = judgementsSince(client, startOfDay());
+    const depth = today >= BINGE_LIMIT ? 'card' : asked;
+
+    const held = standsBehind(client, key, depth);
+    if (held === null) return bad(410, 'unknown-review-item');
+
+    recordJudgement(client, { itemKey: key, action: 'confirm', previous: held });
+    return json({ depth, downgraded: depth !== asked, ...buildDeck(client) });
+  }
+  if (method === 'POST' && url.pathname === '/api/deck/not-a-fact') {
+    const id = Number(asRecord(payload)?.id);
+    if (!Number.isInteger(id)) return bad(400, 'invalid-claim-id');
+    const previous = getClaim(client, id);
+    if (!previous) return bad(410, 'unknown-claim');
+    recordJudgement(client, {
+      itemKey: `claim:${String(id)}`,
+      action: 'not-a-fact',
+      previous,
+    });
+    setClaimKind(client, id, 'judgement');
+    return json(buildDeck(client));
+  }
+  if (method === 'POST' && url.pathname === '/api/deck/correct') {
+    const key = text(asRecord(payload)?.key);
+    if (key === undefined) return bad(400, 'invalid-review-key');
+    const state = deckCardState(client, key);
+    if (state === null) return bad(410, 'unknown-review-item');
+    recordJudgement(client, { itemKey: key, action: 'correct-wanted', previous: null });
+    deferReviewItem(client, state);
+    return json(buildDeck(client));
+  }
+  if (method === 'POST' && url.pathname === '/api/deck/defer') {
+    const key = text(asRecord(payload)?.key);
+    if (key === undefined) return bad(400, 'invalid-review-key');
+    const state = deckCardState(client, key);
+    if (state === null) return bad(410, 'unknown-review-item');
+    recordJudgement(client, { itemKey: key, action: 'defer', previous: null });
+    deferReviewItem(client, state);
+    return json(buildDeck(client));
+  }
+  if (method === 'POST' && url.pathname === '/api/deck/undo') {
+    const last = lastJudgement(client);
+    if (!last) return bad(410, 'nothing-to-undo');
+    if (last.action === 'defer' || last.action === 'correct-wanted') {
+      clearDeferral(client, last.itemKey);
+    } else takeBack(client, last.itemKey, last.previous);
+    dropJudgement(client, last.id);
+    return json(buildDeck(client));
+  }
+  if (method === 'GET' && url.pathname === '/api/review') {
+    return json(buildReview(client));
+  }
+  if (method === 'POST' && url.pathname === '/api/review/defer') {
+    const key = text(asRecord(payload)?.key);
+    if (key === undefined) return bad(400, 'invalid-review-key');
+    const state = reviewItemState(client, key);
+    if (state === null) return bad(410, 'unknown-review-item');
+    deferReviewItem(client, state);
+    return json(buildReview(client));
   }
   if (method === 'GET' && url.pathname === '/api/today') {
     return json(buildToday(client, vaultPath));

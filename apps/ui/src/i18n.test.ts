@@ -47,7 +47,7 @@ describe('status', () => {
 describe('error', () => {
   it('words a known code in the reader’s language', () => {
     expect(dictionaries.en.error({ code: 'draft-state-only' })).toMatch(/state note/);
-    expect(dictionaries.ko.error({ code: 'draft-state-only' })).toContain('state 노트');
+    expect(dictionaries.ko.error({ code: 'draft-state-only' })).toContain('현재 믿음 노트');
   });
 
   it('falls back to the server detail when the code is unknown', () => {

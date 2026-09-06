@@ -179,6 +179,56 @@ export type Buried = {
 
 export type Today = { items: TodayItem[]; buried: Buried };
 
+export type SourceState = 'intact' | 'changed' | 'corrected' | 'missing';
+export type ReviewGrade = 'observed' | 'inferred';
+export type ReviewKind = 'evidence-corrected' | 'evidence-moved';
+
+export type ReviewSource = {
+  id: number;
+  title: string | null;
+  state: SourceState;
+  correctedBy: { id: number; title: string } | null;
+  correctedAt: number;
+  retired: string[];
+  before: string | null;
+  now: string | null;
+};
+
+export type ReviewItem = {
+  key: string;
+  kind: ReviewKind;
+  target: { id: number; kind: 'note' | 'inference'; title: string; at: number };
+  grade: ReviewGrade;
+  claim: string;
+  moved: ReviewSource[];
+  sources: ReviewSource[];
+  injected: { hits: number; days: number };
+  recurring: boolean;
+  canApprove: boolean;
+};
+
+export type Review = { items: ReviewItem[] };
+
+export type DeckKind = 'claim' | 'rule' | 'inference';
+
+export type DeckCard = {
+  key: string;
+  kind: DeckKind;
+  id: number;
+  text: string;
+  heading: string | null;
+  since: number | null;
+  confirmedAt: number | null;
+  idleDays: number | null;
+  injected: { hits: number; days: number };
+  source: { id: number; title: string } | null;
+  evidenceMoved: boolean;
+};
+
+export type Deck = { cards: DeckCard[]; session: number; binge: boolean };
+
+export type ConfirmReply = Deck & { depth: 'card' | 'evidence'; downgraded: boolean };
+
 export type SearchHit = NoteRef & { snippet: string };
 
 export type SearchFilters = {
@@ -547,6 +597,15 @@ export const api = {
   sidebar: () => request<Sidebar>('/api/sidebar'),
   overview: () => request<Overview>('/api/overview'),
   today: () => request<Today>('/api/today'),
+  review: () => request<Review>('/api/review'),
+  deferReview: (key: string) => post<Review>('/api/review/defer', { key }),
+  deck: (sessions: number) => request<Deck>(`/api/deck?sessions=${sessions}`),
+  confirmCard: (key: string, depth: 'card' | 'evidence') =>
+    post<ConfirmReply>('/api/deck/confirm', { key, depth }),
+  deferCard: (key: string) => post<Deck>('/api/deck/defer', { key }),
+  markCorrection: (key: string) => post<Deck>('/api/deck/correct', { key }),
+  markNotAFact: (id: number) => post<Deck>('/api/deck/not-a-fact', { id }),
+  undoCard: () => post<Deck>('/api/deck/undo'),
   dismissDangling: (noteId: number) => post<{ ok: true }>('/api/dangling/dismiss', { noteId }),
   digest: (days: number) => request<Digest>(`/api/digest?days=${days}`),
   topics: () => request<Topic[]>('/api/topics'),

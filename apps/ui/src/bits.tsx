@@ -110,10 +110,15 @@ export const Page = ({ children }: { children: React.ReactNode }) => (
 export const Card = ({
   children,
   className = '',
+  ...rest
 }: {
   children: React.ReactNode;
   className?: string;
-}) => <div className={`glass rounded-card bg-surface p-4 sm:p-5 ${className}`}>{children}</div>;
+} & React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={`glass rounded-card bg-surface p-4 sm:p-5 ${className}`} {...rest}>
+    {children}
+  </div>
+);
 
 export const Button = ({
   children,

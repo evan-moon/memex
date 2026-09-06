@@ -34,18 +34,25 @@ describe('an empty vault', () => {
 
     expect(html).toContain(t.overview.emptyTitle);
     expect(html).toContain('/settings');
-    // The daily card is what says "All done.", and it only says it because the
-    // rest of the screen renders around it. Nothing here has started, so none
-    // of that scaffolding is built.
-    expect(html).not.toContain(t.overview.arrived);
-    expect(html).not.toContain(t.overview.topics);
+    expect(html).not.toContain(t.deck.title);
   });
 
-  it('still builds the whole screen once something has been written', () => {
+  it('opens on the deck, and nothing else, once something has been written', () => {
     const t = dictionaries.en;
     const html = render({ ...emptyVault, notes: 1 });
 
-    expect(html).toContain(t.overview.arrived);
+    expect(html).toContain(t.deck.title);
     expect(html).not.toContain(t.overview.emptyTitle);
+  });
+
+  // What arrived and which topics are moving were a feed, and a feed is what
+  // this screen decided it is not.
+  it('carries no arrivals feed and no topic list', () => {
+    const t = dictionaries.en;
+    const html = render({ ...emptyVault, notes: 1 });
+
+    expect(html).not.toContain(t.overview.arrived);
+    expect(html).not.toContain(t.thisWeek.connection);
+    expect(html).not.toContain(t.overview.topics);
   });
 });
