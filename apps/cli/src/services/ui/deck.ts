@@ -15,6 +15,10 @@ import {
 
 export const SESSION = 7;
 const CLAIM_CHARS = 100;
+// A card is an index, not a reader. A synthesis runs to a thousand characters and
+// would push its own buttons off the screen; the whole of it is one click away on
+// the hypothesis screen.
+const CARD_CHARS = 220;
 const INJECTION_WINDOW_DAYS = 30;
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -52,6 +56,14 @@ const headingAbove = (content: string, claim: string): string | null => {
     if (heading?.[1]) return heading[1].trim();
   }
   return null;
+};
+
+const clamp = (text: string) => {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  if (flat.length <= CARD_CHARS) return flat;
+  const cut = flat.slice(0, CARD_CHARS);
+  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('다 '), cut.lastIndexOf('· '));
+  return `${(stop > CARD_CHARS * 0.6 ? cut.slice(0, stop + 1) : cut).trimEnd()}…`;
 };
 
 const daysBetween = (from: number, to: number) => Math.max(0, Math.floor((to - from) / DAY));
@@ -169,7 +181,7 @@ const inferenceCards = (
         key: `inference:${String(row.id)}`,
         kind: 'inference' as const,
         id: row.id,
-        text: found.inference.summary,
+        text: clamp(found.inference.summary),
         heading: null,
         since: found.inference.createdAt,
         confirmedAt: null,

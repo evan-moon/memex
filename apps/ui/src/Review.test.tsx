@@ -45,6 +45,15 @@ describe('a deck card', () => {
     expect(html).toContain('text-[11px]');
   });
 
+  // A synthesis runs long. It may not grow the card past its own buttons.
+  it('steps a long claim down and clamps it rather than breaking the card', () => {
+    const html = face({ text: '가'.repeat(200) });
+
+    expect(html).toContain('text-[15px]');
+    expect(html).not.toContain('text-[20px]');
+    expect(html).toContain('line-clamp-');
+  });
+
   it('says how often the AI actually said it', () => {
     expect(face()).toContain(t.deck.spoken(3, 30));
     expect(face({ injected: { hits: 0, days: 30 } })).toContain(t.deck.spokenNone);

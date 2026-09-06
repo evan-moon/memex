@@ -79,8 +79,18 @@ export const DeckCardFace = ({
       </div>
 
       {/* The sentence is the page; everything else is annotation on it, and the
-          size difference is what says so. */}
-      <p className="max-w-[34ch] font-medium text-[20px] leading-[1.5] tracking-[-0.02em]">
+          size difference is what says so. A long one steps down rather than
+          growing the card, and clamps rather than pushing its own buttons off
+          the screen. */}
+      <p
+        className={`max-w-[52ch] line-clamp-[8] font-medium tracking-[-0.02em] ${
+          card.text.length > 120
+            ? 'text-[15px] leading-[1.7]'
+            : card.text.length > 60
+              ? 'text-[17px] leading-[1.6]'
+              : 'text-[20px] leading-[1.5]'
+        }`}
+      >
         {card.text}
       </p>
 
