@@ -1,8 +1,11 @@
 import { type Reranker, searchPageMulti } from '@memex/core';
 import {
   type AmendKind,
+  type Claim,
   type ClaimScope,
+  type ClaimStanding,
   claimScope,
+  claimStandingFor,
   type FlashbackOptions,
   findFlashbacks,
   getAmendmentsFor,
@@ -101,6 +104,37 @@ export const supersededLine = (amendments: AmendmentRef[], context?: ClaimContex
     .filter((notice) => notice !== null)
     .map((notice) => `\n   ${notice}`)
     .join('');
+
+const day = (at: number | null) => (at === null ? null : new Date(at).toISOString().slice(0, 10));
+
+const oldestValidFrom = (claims: Claim[]) =>
+  claims.reduce<number | null>(
+    (oldest, claim) =>
+      claim.validFrom === null
+        ? oldest
+        : oldest === null
+          ? claim.validFrom
+          : Math.min(oldest, claim.validFrom),
+    null,
+  );
+
+// One line, so the index stays an index. Which claims a person stood behind and
+// when, and which nobody has looked at since they were written.
+export const claimStandingLine = (standing: ClaimStanding | undefined): string => {
+  if (!standing) return '';
+  const parts = [
+    standing.confirmed.length > 0 ? `\u2713 ${standing.confirmed.length} confirmed` : null,
+    standing.unconfirmed.length > 0
+      ? `\u25cb ${standing.unconfirmed.length} unchecked${
+          oldestValidFrom(standing.unconfirmed) === null
+            ? ''
+            : ` (as of ${day(oldestValidFrom(standing.unconfirmed))})`
+        }`
+      : null,
+    standing.closed.length > 0 ? `\u2715 ${standing.closed.length} no longer true` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length === 0 ? '' : `\n   ${parts.join(' \u00b7 ')}`;
+};
 
 export const formatSize = (chars: number): string =>
   chars >= 1000 ? `${(chars / 1000).toFixed(1)}k chars` : `${chars} chars`;
@@ -202,6 +236,10 @@ export const registerSearchNotes = (
         client,
         results.map((r) => r.id),
       );
+      const standing = claimStandingFor(
+        client,
+        results.map((r) => r.id),
+      );
 
       const mirrorHint = results.some((r) => r.author === 'agent') ? ownWorkHint : '';
 
@@ -223,7 +261,7 @@ export const registerSearchNotes = (
               content: r.content,
               passage: r.matchSnippet,
             });
-            return `${i + 1}. #${r.id} [${stamp(r)}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}`;
+            return `${i + 1}. #${r.id} [${stamp(r)}] ${r.title}\n   ${meta}\n   ${snippet}${correctionLine}${claimStandingLine(standing.get(r.id))}`;
           })
           .join('\n\n')}` +
         register +

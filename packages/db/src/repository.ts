@@ -1,5 +1,6 @@
 import { desc, eq, gte, like } from 'drizzle-orm';
 import { type ChangeKind, recordNoteChange } from './changes.ts';
+import { claimStandingFor, claimTrustFactor } from './claims.ts';
 import type { MemexClient } from './client.ts';
 import { dropNoteFacets } from './facets.ts';
 import { invalidationsFor } from './invalidations.ts';
@@ -170,11 +171,22 @@ const buildRrf = () => {
     });
   };
 
-  const topK = (k: number, now: number = Date.now()): SearchResult[] =>
+  const topK = (
+    k: number,
+    now: number = Date.now(),
+    trust: Map<number, number> = new Map(),
+  ): SearchResult[] =>
     [...scores.entries()]
       .flatMap(([id, score]) => {
         const candidate = cache.get(id);
-        return candidate ? [{ candidate, ranked: score * stateRecencyFactor(candidate, now) }] : [];
+        return candidate
+          ? [
+              {
+                candidate,
+                ranked: score * stateRecencyFactor(candidate, now) * (trust.get(id) ?? 1),
+              },
+            ]
+          : [];
       })
       .sort((a, b) => b.ranked - a.ranked)
       .slice(0, k)
@@ -183,6 +195,8 @@ const buildRrf = () => {
         distance: candidate.distance ?? Number.POSITIVE_INFINITY,
       }));
 
+  const ids = (): number[] => [...scores.keys()];
+
   // Seeds for link-expansion use the un-adjusted RRF order (relevance-pure).
   const topIds = (k: number): number[] =>
     [...scores.entries()]
@@ -190,7 +204,7 @@ const buildRrf = () => {
       .slice(0, k)
       .map(([id]) => id);
 
-  return { add, topK, topIds };
+  return { add, topK, topIds, ids };
 };
 
 // `limit` is the page the arms are tuned around — every candidate pool is sized
@@ -395,7 +409,13 @@ export const searchNotes = (
     rrf.add(neighbours, 0.5);
   }
 
-  return rrf.topK(Math.max(limit, rows));
+  const trust = new Map(
+    [...claimStandingFor(client, rrf.ids()).entries()].map(([id, standing]) => [
+      id,
+      claimTrustFactor(standing),
+    ]),
+  );
+  return rrf.topK(Math.max(limit, rows), Date.now(), trust);
 };
 
 export const listNotes = (client: MemexClient, limit = 20): Note[] =>

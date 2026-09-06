@@ -1,5 +1,12 @@
-import type { AmendKind, MemexClient } from '@memex/db';
-import { claimScope, getAmendments, getBacklinks, getNote, locateClaims } from '@memex/db';
+import type { AmendKind, Claim, ClaimStanding, MemexClient } from '@memex/db';
+import {
+  claimScope,
+  claimStandingFor,
+  getAmendments,
+  getBacklinks,
+  getNote,
+  locateClaims,
+} from '@memex/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { type AmendmentRef, ownWorkHint, stamp } from './search-notes.ts';
@@ -51,6 +58,30 @@ export const amendmentSections = (amendments: AmendmentRef[], content = ''): str
     )
     .join('');
 
+const day = (at: number | null) => (at === null ? '?' : new Date(at).toISOString().slice(0, 10));
+
+const confirmedLine = (claim: Claim) =>
+  `- \u2713 confirmed ${day(claim.confirmedAt)}: ${claim.text}`;
+const uncheckedLine = (claim: Claim) =>
+  `- \u25cb unchecked, as of ${day(claim.validFrom)}: ${claim.text}`;
+const closedLine = (claim: Claim) =>
+  `- \u2715 no longer true since ${day(claim.validUntil)}: ${claim.text}`;
+
+// The judgements a person made on this note's claims, and the date each one
+// carries. A checked claim is worth more than the prose around it; an unchecked
+// one is dated so the reader can discount it; a closed one is kept, not hidden,
+// because an older note may still lean on it.
+export const claimStandingSection = (standing: ClaimStanding | undefined): string => {
+  if (!standing) return '';
+  const lines = [
+    ...standing.confirmed.map(confirmedLine),
+    ...standing.unconfirmed.map(uncheckedLine),
+    ...standing.closed.map(closedLine),
+  ];
+  if (lines.length === 0) return '';
+  return `\n\n---\n**Claims read out of this note, and what a person said about them.** Prefer \u2713 over \u25cb; treat \u25cb as true as of its date and possibly stale since; do not repeat \u2715 as current.\n${lines.join('\n')}`;
+};
+
 export const registerGetNote = (server: McpServer, client: MemexClient) => {
   server.tool(
     'get_note',
@@ -63,6 +94,7 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
       }
 
       const amendmentSection = amendmentSections(getAmendments(client, id), note.content);
+      const standingSection = claimStandingSection(claimStandingFor(client, [id]).get(id));
 
       const backlinks = getBacklinks(client, id);
       const backlinkSection =
@@ -72,7 +104,7 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
 
       const mirrorSection = note.author === 'agent' ? ownWorkHint : '';
 
-      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${backlinkSection}${mirrorSection}\n\n---\nid: ${note.id} | ${stamp(note)} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
+      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${standingSection}${backlinkSection}${mirrorSection}\n\n---\nid: ${note.id} | ${stamp(note)} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
       return { content: [{ type: 'text', text }] };
     },
   );

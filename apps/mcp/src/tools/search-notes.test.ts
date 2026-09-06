@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatSize, ownWorkHint, stamp, supersededLine, toSnippet } from './search-notes.ts';
+import {
+  claimStandingLine,
+  formatSize,
+  ownWorkHint,
+  stamp,
+  supersededLine,
+  toSnippet,
+} from './search-notes.ts';
 
 describe('toSnippet', () => {
   it('strips leading frontmatter and collapses whitespace', () => {
@@ -142,5 +149,39 @@ describe('stamp', () => {
 describe('ownWorkHint', () => {
   it('says which note wins when the two disagree', () => {
     expect(ownWorkHint).toContain("user's note wins");
+  });
+});
+
+describe('claimStandingLine', () => {
+  const claim = (over: Partial<import('@memex/db').Claim>): import('@memex/db').Claim => ({
+    id: 1,
+    noteId: 9,
+    idx: 0,
+    text: 'x',
+    sourceHash: '',
+    validFrom: Date.UTC(2026, 7, 3),
+    validUntil: null,
+    confirmedAt: null,
+    confirmDepth: null,
+    supersededBy: null,
+    status: 'unconfirmed',
+    kind: 'fact',
+    ...over,
+  });
+
+  it('says nothing for a note with no claims', () => {
+    expect(claimStandingLine(undefined)).toBe('');
+  });
+
+  it('counts each standing on one line and dates the unchecked ones', () => {
+    const out = claimStandingLine({
+      confirmed: [claim({ status: 'confirmed' }), claim({ status: 'confirmed' })],
+      unconfirmed: [claim({}), claim({ validFrom: Date.UTC(2026, 6, 1) })],
+      closed: [claim({ status: 'closed' })],
+    });
+    expect(out).toContain('✓ 2 confirmed');
+    expect(out).toContain('○ 2 unchecked (as of 2026-07-01)');
+    expect(out).toContain('✕ 1 no longer true');
+    expect(out.split('\n')).toHaveLength(2);
   });
 });
