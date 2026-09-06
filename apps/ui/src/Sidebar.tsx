@@ -1,15 +1,13 @@
-import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import type { NoteRef, Sidebar as SidebarData, Topic, VaultTree } from './api.ts';
+import type { Sidebar as SidebarData, VaultTree } from './api.ts';
 import { useT } from './i18n.ts';
 import { Tree } from './Tree.tsx';
 
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-1.5 truncate rounded-md py-1.5 pl-7 pr-2 text-xs ${
-    isActive
-      ? 'bg-surface-muted text-foreground'
-      : 'text-muted hover:bg-surface hover:text-foreground'
+const rowClass = ({ isActive }: { isActive: boolean }) =>
+  `flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
+    isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
   }`;
 
 const Section = ({
@@ -41,175 +39,58 @@ const Section = ({
   );
 };
 
-// The sidebar's own closing line tells the reader to search rather than skim,
-// so it opens with a glance -- the most recent few -- and keeps the rest one
-// click away. Paging also kept 1104 past notes from mounting at once.
-const PAGE = 10;
-
-const More = ({ rest, onMore }: { rest: number; onMore: () => void }) => {
-  const t = useT();
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onMore();
-      }}
-      className="mt-1 w-full rounded-md py-1.5 pl-7 pr-2 text-left text-xs text-muted hover:bg-surface hover:text-foreground"
-    >
-      {t.sidebar.more(rest)}
-    </button>
-  );
-};
-
-const NoteRows = ({ list, stale }: { list: NoteRef[]; stale: Set<number> }) => {
-  const [shown, setShown] = useState(PAGE);
-  const rest = list.length - shown;
-
-  return (
-    <>
-      {list.slice(0, shown).map((n) => (
-        <NavLink key={n.id} to={`/note/${n.id}`} className={linkClass}>
-          {stale.has(n.id) ? (
-            <TriangleAlert size={11} style={{ color: 'var(--caution)' }} className="shrink-0" />
-          ) : null}
-          <span className="truncate">{n.title}</span>
-        </NavLink>
-      ))}
-      {rest > 0 ? <More rest={rest} onMore={() => setShown(shown + PAGE)} /> : null}
-    </>
-  );
-};
-
-const TopicRows = ({ topics }: { topics: Topic[] }) => {
-  const [shown, setShown] = useState(PAGE);
-  const rest = topics.length - shown;
-
-  return (
-    <>
-      {topics.slice(0, shown).map((topic) => (
-        <NavLink
-          key={topic.tag}
-          to={`/topic/${encodeURIComponent(topic.tag)}`}
-          className={linkClass}
-        >
-          <span className="truncate">{topic.tag}</span>
-          <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted">
-            {topic.count}
-          </span>
-        </NavLink>
-      ))}
-      {rest > 0 ? <More rest={rest} onMore={() => setShown(shown + PAGE)} /> : null}
-    </>
-  );
-};
-
+// Three things a person comes here to do, then the shelf the notes sit on, then
+// settings. Everything memex worked out from the notes — topics, beliefs, rules,
+// values — is reached from inside those, not from a list here that grows.
 export const Sidebar = ({
   data,
-  topics,
   tree,
   onNavigate,
   onHistory,
+  onChat,
 }: {
   data: SidebarData;
-  topics: Topic[];
   tree: VaultTree | null;
   onNavigate?: () => void;
   onHistory: (note: { id: number; title: string }) => void;
+  onChat: () => void;
 }) => {
   const t = useT();
-  const stale = new Set(data.stale);
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: closing the mobile drawer on tap
     <nav className="h-full overflow-y-auto pb-10" onClick={onNavigate}>
       {/* Clearance for the traffic lights, which sit over the sidebar because
-          the title bar is hidden. Nothing goes here: the app's name is on the
-          window and in the menu bar, and saying it a third time earns nothing.
-          Home is the button in the header. */}
+          the title bar is hidden. */}
       <div className="drag h-13" />
-      {/* The vault first, the way a file manager opens. What memex worked out
-          from the notes — topics, what is believed, guidance — comes after the
-          shelf they are actually on. */}
+      <div className="px-4">
+        <NavLink to="/" end className={rowClass}>
+          {t.sidebar.check}
+          {/* That something is waiting, not how much. A number here would grow
+              on days nobody looked and read as a debt. */}
+          {data.rulesWaiting > 0 ? (
+            <i className="size-1.5 rounded-full bg-primary" aria-hidden />
+          ) : null}
+        </NavLink>
+        <NavLink to="/search" className={rowClass}>
+          {t.sidebar.find}
+        </NavLink>
+        <button type="button" onClick={onChat} className={rowClass({ isActive: false })}>
+          {t.sidebar.fix}
+        </button>
+      </div>
+      <div className="mx-4 my-2 border-glass-line border-t" />
       {tree === null ? null : (
-        <Section label={t.tree.title} count={tree.roots.length} defaultOpen>
+        <Section label={t.sidebar.notes} count={tree.roots.length} defaultOpen>
           <div className="px-2">
             <Tree tree={tree} onNavigate={onNavigate} onHistory={onHistory} />
           </div>
         </Section>
       )}
-      <Section label={t.sidebar.topics} count={topics.length}>
-        <TopicRows topics={topics} />
-      </Section>
-      <Section label={t.sidebar.state} count={data.counts.state ?? 0}>
-        <NoteRows list={data.state} stale={stale} />
-      </Section>
-      <Section label={t.sidebar.rule} count={data.counts.rule ?? 0}>
-        <NoteRows list={data.rule} stale={stale} />
-      </Section>
-      <div className="px-4 pt-2">
-        <NavLink
-          to="/threads"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
-          {t.sidebar.threads}
-        </NavLink>
-        <NavLink
-          to="/tags"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
-          {t.tags.screenTitle}
-        </NavLink>
-        <NavLink
-          to="/rules"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
-          <span className="flex items-center gap-2">
-            {t.rules.screenTitle}
-            {/* That something is waiting, not how much. A number here would grow
-                on days nobody looked and read as a debt; the counts elsewhere in
-                this sidebar are how much has accumulated, which is the opposite
-                thing to say. */}
-            {data.rulesWaiting > 0 ? (
-              <i className="size-1.5 rounded-full bg-primary" aria-hidden />
-            ) : null}
-          </span>
-        </NavLink>
-        <NavLink
-          to="/register"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
-          {t.register.screenTitle}
-        </NavLink>
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `block rounded-md px-2 py-2 text-sm ${
-              isActive ? 'bg-surface-muted text-foreground' : 'text-muted hover:bg-surface'
-            }`
-          }
-        >
+      <div className="px-4">
+        <NavLink to="/settings" className={rowClass}>
           {t.settings.screenTitle}
         </NavLink>
       </div>
-      <p className="mt-3 px-4 text-[11px] leading-5 text-muted">
-        {t.sidebar.recordsElsewhere(data.counts.past ?? 0)}
-      </p>
     </nav>
   );
 };

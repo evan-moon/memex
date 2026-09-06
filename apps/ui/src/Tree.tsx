@@ -190,10 +190,7 @@ export const Tree = ({
       {
         kind: 'item',
         label: t.menu.openTab,
-        onPick: () => {
-          openTab(note, { split: true });
-          navigate(`/note/${note.id}`);
-        },
+        onPick: () => openTab(note, { background: true }),
       },
       { kind: 'divider' },
       ...(mine

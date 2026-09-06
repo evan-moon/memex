@@ -36,20 +36,21 @@ const commit = (next: State) => {
 
 // Opening a note that is already open moves to it rather than opening a second
 // copy — the same thing twice is not two places to be.
-export const openTab = (tab: Tab, { split = false } = {}) => {
-  const { tabs } = state.current;
+//
+// Everything else is kept. An open that replaced where you were meant the strip
+// could only ever hold one note, which is a worse address bar rather than a set
+// of places to be. `background` opens without leaving the note being read.
+export const openTab = (tab: Tab, { background = false } = {}) => {
+  const { tabs, active } = state.current;
   const at = tabs.findIndex((open) => open.id === tab.id);
   if (at !== -1) {
-    commit({ tabs: tabs.map((open, n) => (n === at ? tab : open)), active: tab.id });
+    commit({
+      tabs: tabs.map((open, n) => (n === at ? tab : open)),
+      active: background ? active : tab.id,
+    });
     return;
   }
-  // A plain open replaces where you were; an explicit new tab keeps it. That is
-  // the difference between following a link and deciding to keep both.
-  const active = state.current.active;
-  const here = tabs.findIndex((open) => open.id === active);
-  const next =
-    split || here === -1 ? [...tabs, tab] : tabs.map((open, n) => (n === here ? tab : open));
-  commit({ tabs: next, active: tab.id });
+  commit({ tabs: [...tabs, tab], active: background ? (active ?? tab.id) : tab.id });
 };
 
 export const closeTab = (id: number) => {
@@ -74,3 +75,5 @@ const subscribe = (listen: () => void) => {
 };
 
 export const useTabs = () => useSyncExternalStore(subscribe, () => state.current);
+
+export const tabsNow = (): State => state.current;

@@ -1,7 +1,7 @@
 import {
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard,
+  ListChecks,
   Menu,
   MessageSquare,
   PanelLeft,
@@ -66,6 +66,12 @@ export const App = () => {
   // and it is what lets a value on the register screen open the panel already
   // pointed at itself without a provider in between.
   const chatOpen = params.get('chat') === '1';
+  const openChat = () => {
+    if (chatOpen) return;
+    const next = new URLSearchParams(params);
+    next.set('chat', '1');
+    setParams(next, { replace: true });
+  };
   const toggleChat = () => {
     const next = new URLSearchParams(params);
     if (chatOpen) {
@@ -162,7 +168,7 @@ export const App = () => {
         }`}
       >
         <div className="h-full w-64">
-          <Sidebar data={sidebar} topics={topics} tree={tree} onHistory={setHistory} />
+          <Sidebar data={sidebar} tree={tree} onHistory={setHistory} onChat={openChat} />
         </div>
       </aside>
 
@@ -177,9 +183,9 @@ export const App = () => {
           <div className="pane absolute inset-y-0 left-0 w-72 border-r border-glass-line">
             <Sidebar
               data={sidebar}
-              topics={topics}
               tree={tree}
               onHistory={setHistory}
+              onChat={openChat}
               onNavigate={() => setDrawer(false)}
             />
           </div>
@@ -190,7 +196,15 @@ export const App = () => {
       {history === null ? null : <HistoryPanel note={history} onClose={() => setHistory(null)} />}
 
       <div className="pane flex min-w-0 flex-1 flex-col">
-        <header className="drag flex items-center gap-2 border-b border-glass-line bg-surface/40 px-3 py-2 backdrop-blur-xl sm:px-5">
+        {/* The title bar is hidden, so the traffic lights float over whatever is
+            at the window's top left. The sidebar carries its own clearance; when
+            it is collapsed the header inherits that job, or the first control
+            ends up underneath them. */}
+        <header
+          className={`drag flex items-center gap-2 border-b border-glass-line bg-surface/40 px-3 py-2 backdrop-blur-xl sm:px-5 ${
+            rail ? '' : 'pl-20 sm:pl-20'
+          }`}
+        >
           <button
             type="button"
             className="no-drag rounded-md p-2 text-muted hover:bg-surface lg:hidden"
@@ -249,9 +263,9 @@ export const App = () => {
             type="button"
             className="no-drag rounded-md p-2 text-muted hover:bg-surface"
             onClick={() => navigate('/')}
-            aria-label={t.app.overview}
+            aria-label={t.app.deck}
           >
-            <LayoutDashboard size={16} />
+            <ListChecks size={16} />
           </button>
           <button
             type="button"

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { EngineRows, LinkRows } from './Apps.tsx';
 import type { ModelJob } from './api.ts';
 import { useApps } from './apps-setup.ts';
@@ -111,6 +112,24 @@ export const SettingsScreen = () => {
         </Section>
         <Section divided title={t.settings.searchModel} hint={t.settings.searchModelHint}>
           <ModelCard />
+        </Section>
+        <Section divided title={t.settings.vault} hint={t.settings.vaultHint}>
+          <ul className="flex flex-col gap-1">
+            {[
+              { to: '/rules', label: t.rules.screenTitle },
+              { to: '/register', label: t.register.screenTitle },
+              { to: '/threads', label: t.threads.title },
+              { to: '/today', label: t.today.screenTitle },
+              { to: '/tags', label: t.tags.screenTitle },
+              { to: '/repair/evidence', label: t.repair.title },
+            ].map((row) => (
+              <li key={row.to}>
+                <Link to={row.to} className="text-xs text-primary hover:underline">
+                  {row.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </Section>
       </div>
     </Page>
