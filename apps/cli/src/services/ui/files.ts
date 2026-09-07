@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
+import type { Discard } from '@memex/core';
 import { deleteNote, getNote, type MemexClient } from '@memex/db';
 import { inVault, sanitizeFilename, sanitizeFolder } from '@memex/utils';
 
@@ -138,11 +139,12 @@ export const createFolder = (
 // everywhere else, and a folder that refused to go until it was empty would
 // leave the person to empty it note by note. The rows go with the files,
 // because a note whose file is gone is a search result that opens nothing.
-export const removeFolder = (
+export const removeFolder = async (
   client: MemexClient,
   root: string,
   folder: string,
-): { removed: number } | FileFailure => {
+  discard?: Discard,
+): Promise<{ removed: number } | FileFailure> => {
   const target = folderPath(root, folder);
   if (isFailure(target)) return target;
   if (target === root) return { error: 'read-only', message: 'The vault itself cannot go.' };
@@ -153,7 +155,10 @@ export const removeFolder = (
   }[];
   const inside = rows.filter((row) => inVault(row.filePath, target));
 
+  // The folder is disposed of once, whole, rather than a file at a time: the
+  // trash gives back what it was handed, and a hundred loose notes returned to
+  // where they each came from is not the folder anybody deleted.
+  await (discard ?? ((at: string) => rmSync(at, { recursive: true, force: true })))(target);
   for (const row of inside) deleteNote(client, row.id);
-  rmSync(target, { recursive: true, force: true });
   return { removed: inside.length };
 };

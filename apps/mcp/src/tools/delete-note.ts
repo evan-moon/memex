@@ -14,7 +14,7 @@ export const registerDeleteNote = (server: McpServer, client: MemexClient, vault
       if (!note) {
         return { content: [{ type: 'text', text: `Note #${id} not found.` }] };
       }
-      const rejection = removeNote(client, id, note.filePath, { vaultPath });
+      const rejection = await removeNote(client, id, note.filePath, { vaultPath });
       if (rejection) {
         return { content: [{ type: 'text', text: rejection.message }], isError: true };
       }

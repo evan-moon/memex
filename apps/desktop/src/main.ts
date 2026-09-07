@@ -84,6 +84,7 @@ const start = () => {
     ...createUiDeps(),
     pickFolder: chooseFolder,
     revealFile: (path: string) => shell.showItemInFolder(path),
+    trashFile: (path: string) => shell.trashItem(path),
     openFile: (path: string) => {
       shell.openPath(path).catch(() => {});
     },

@@ -670,7 +670,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       type: '학습메모',
     });
 
-    const rejection = removeNote(client, note.id, note.filePath);
+    const rejection = await removeNote(client, note.id, note.filePath);
     expect(rejection).toMatchObject({ error: 'RULE_USER_ONLY' });
     const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
     expect(row).toBeTruthy();
@@ -753,7 +753,7 @@ describe('saveNote / removeNote — rule layer guards', () => {
       type: '학습메모',
     });
 
-    const rejection = removeNote(client, note.id, note.filePath, { actor: 'user' });
+    const rejection = await removeNote(client, note.id, note.filePath, { actor: 'user' });
     expect(rejection).toBeUndefined();
     const row = client.sqlite.prepare('SELECT id FROM notes WHERE id = ?').get(note.id);
     expect(row).toBeFalsy();
@@ -1089,14 +1089,49 @@ describe('borrowed notes', () => {
     ).toMatchObject({ action: 'save_note', layer: 'state', derivesFrom: [note.id] });
   });
 
-  it('will not delete the original file to forget a borrowed note', () => {
+  it('will not delete the original file to forget a borrowed note', async () => {
     const note = indexedFrom(outsideDir);
 
-    const rejection = removeNote(client, note.id, note.filePath, { vaultPath: vaultDir });
+    const rejection = await removeNote(client, note.id, note.filePath, { vaultPath: vaultDir });
 
     expect(rejection).toMatchObject({ error: 'EXTERNAL_SOURCE' });
     expect(readFileSync(note.filePath, 'utf8')).toContain('body');
     expect(getNote(client, note.id)).toBeTruthy();
+  });
+
+  // A terminal has no trash, so unlinking stays the default. The app passes one,
+  // and then nothing here is allowed to unlink behind its back.
+  it('hands the file to the discard it was given instead of unlinking it', async () => {
+    const note = indexedFrom(vaultDir);
+    const handed: string[] = [];
+
+    const rejection = await removeNote(client, note.id, note.filePath, {
+      vaultPath: vaultDir,
+      discard: async (at) => {
+        handed.push(at);
+      },
+    });
+
+    expect(rejection).toBeUndefined();
+    expect(handed).toEqual([note.filePath]);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('body');
+    expect(getNote(client, note.id)).toBeUndefined();
+  });
+
+  // The row is what makes the note findable. Dropping it after a disposal that
+  // then failed would leave the file on disk and nothing pointing at it.
+  it('keeps the row when the discard fails', async () => {
+    const note = indexedFrom(vaultDir);
+
+    await expect(
+      removeNote(client, note.id, note.filePath, {
+        vaultPath: vaultDir,
+        discard: () => {
+          throw new Error('the trash said no');
+        },
+      }),
+    ).rejects.toThrow('the trash said no');
+    expect(getNote(client, note.id)?.id).toBe(note.id);
   });
 
   it('still edits a note that lives in the vault', async () => {

@@ -783,12 +783,17 @@ export const isEditRejection = (
 ): result is EditNoteRejection =>
   result !== null && typeof result === 'object' && 'error' in result;
 
-export const removeNote = (
+// What becomes of the file. Unlinking is the only thing a terminal can offer,
+// so it is the default; a surface with a desktop under it hands the file to the
+// trash instead, which is the only way a delete here can be taken back.
+export type Discard = (filePath: string) => void | Promise<void>;
+
+export const removeNote = async (
   client: MemexClient,
   id: number,
   filePath: string,
-  options: { actor?: WriteActor; vaultPath?: string } = {},
-): RuleWriteRejection | undefined => {
+  options: { actor?: WriteActor; vaultPath?: string; discard?: Discard } = {},
+): Promise<RuleWriteRejection | undefined> => {
   // Deleting a rule removes a constraint on the agent — the same self-modification surface as
   // creating or editing one, so it is user-only too.
   const note = getNote(client, id);
@@ -812,7 +817,9 @@ export const removeNote = (
     };
   }
 
-  if (existsSync(filePath)) unlinkSync(filePath);
+  // The file goes first: a row deleted before a disposal that then fails would
+  // leave a note nothing can reach and a file nothing points at.
+  if (existsSync(filePath)) await (options.discard ?? unlinkSync)(filePath);
   deleteNote(client, id);
   return undefined;
 };

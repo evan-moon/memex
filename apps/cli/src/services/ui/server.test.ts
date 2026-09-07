@@ -764,3 +764,51 @@ describe('POST /api/folder/new and /api/folder/delete', () => {
     expect(existsSync(vaultDir)).toBe(true);
   });
 });
+
+// The app is the only surface with a trash under it, so this is where a delete
+// stops being final. Both doors have to reach it — a note deleted one at a time
+// and a folder deleted whole.
+describe('deleting through a desktop that has a trash', () => {
+  const withTrash = () => {
+    const handed: string[] = [];
+    deps = {
+      ...deps,
+      trashFile: async (path: string) => {
+        handed.push(path);
+      },
+    };
+    return handed;
+  };
+
+  it('hands a deleted note to the trash rather than unlinking it', async () => {
+    const note = addNote('a plan', 'state');
+    writeFileSync(note.filePath, 'the body\n');
+    const handed = withTrash();
+
+    const reply = await post(`/api/note/${note.id}/delete`, null);
+
+    expect(reply.status).toBe(200);
+    expect(handed).toEqual([note.filePath]);
+    expect(existsSync(note.filePath)).toBe(true);
+    expect(getNote(client, note.id)).toBeUndefined();
+  });
+
+  it('hands a deleted folder to the trash whole', async () => {
+    await post('/api/folder/new', { root: vaultDir, folder: '', name: 'projects' });
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'the body\n',
+      filePath: join(vaultDir, 'projects', 'a plan.md'),
+      source: 'manual',
+      layer: 'state',
+      category: 'projects',
+    });
+    writeFileSync(note.filePath, 'the body\n');
+    const handed = withTrash();
+
+    await post('/api/folder/delete', { root: vaultDir, folder: 'projects' });
+
+    expect(handed).toEqual([join(vaultDir, 'projects')]);
+    expect(getNote(client, note.id)).toBeUndefined();
+  });
+});

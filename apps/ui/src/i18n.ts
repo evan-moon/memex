@@ -448,8 +448,7 @@ const en = {
     duplicate: 'Duplicate',
     history: 'Version history',
     delete: 'Delete',
-    deletePrompt: (title: string) =>
-      `Delete “${title}”? The file goes with it, and nothing here can bring it back.`,
+    deletePrompt: (title: string) => `Delete “${title}”? The file goes to the Trash.`,
     rename: 'Rename…',
     renamePrompt: 'A new name for this note',
     move: 'Move file to…',
@@ -464,8 +463,8 @@ const en = {
     deleteFolder: 'Delete folder',
     deleteFolderPrompt: (name: string, notes: number) =>
       notes === 0
-        ? `Delete “${name}”? It is empty, and nothing here can bring it back.`
-        : `Delete “${name}”? The ${notes} ${notes === 1 ? 'note' : 'notes'} inside go with it, and nothing here can bring them back.`,
+        ? `Delete “${name}”? It is empty, and it goes to the Trash.`
+        : `Delete “${name}”? The ${notes} ${notes === 1 ? 'note' : 'notes'} inside go to the Trash with it.`,
   },
   history: {
     noRepo: 'This folder is not a git repository, so there are no versions to show.',
@@ -1170,8 +1169,7 @@ const ko: typeof en = {
     duplicate: '복제',
     history: '버전 내역',
     delete: '삭제',
-    deletePrompt: (title) =>
-      `“${title}”을 삭제할까요? 파일까지 지워지고, 앱에서는 되돌릴 수 없어요.`,
+    deletePrompt: (title) => `“${title}”을 삭제할까요? 파일은 휴지통으로 가요.`,
     rename: '이름 바꾸기…',
     renamePrompt: '이 노트의 새 이름',
     move: '다른 폴더로 옮기기…',
@@ -1186,8 +1184,8 @@ const ko: typeof en = {
     deleteFolder: '폴더 삭제',
     deleteFolderPrompt: (name, notes) =>
       notes === 0
-        ? `“${name}” 폴더를 삭제할까요? 비어 있고, 앱에서는 되돌릴 수 없어요.`
-        : `“${name}” 폴더를 삭제할까요? 안에 있는 노트 ${notes}개까지 지워지고, 앱에서는 되돌릴 수 없어요.`,
+        ? `“${name}” 폴더를 삭제할까요? 비어 있는 폴더라 그대로 휴지통으로 가요.`
+        : `“${name}” 폴더를 삭제할까요? 안에 있는 노트 ${notes}개까지 휴지통으로 가요.`,
   },
   history: {
     noRepo: '이 폴더는 버전 기록이 없어요.',

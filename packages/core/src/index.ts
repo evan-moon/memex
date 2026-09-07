@@ -2,6 +2,7 @@ export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.t
 export {
   amendmentSuggestion,
   confirmNote,
+  type Discard,
   type EditNoteRejection,
   editNote,
   isEditRejection,

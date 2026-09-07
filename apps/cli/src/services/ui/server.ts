@@ -299,6 +299,10 @@ export type UiDeps = {
   // there is no desktop to hand it to.
   revealFile?: (path: string) => void;
   openFile?: (path: string) => void;
+  // Where a deleted file goes. Absent outside the app, and then a delete is
+  // what it has always been on a terminal: gone. The app has a trash to hand it
+  // to, which is what lets a mis-click be taken back.
+  trashFile?: (path: string) => Promise<void>;
   // Left out by hosts that have no window to hang a sheet off. Where it is
   // absent the vault screen asks for a typed path instead of offering a button
   // that cannot open anything.
@@ -425,7 +429,11 @@ export const route = async (
       if (action === 'delete') {
         const note = getNote(client, id);
         if (!note) return notFound;
-        const rejected = removeNote(client, id, note.filePath, { actor: 'user', vaultPath });
+        const rejected = await removeNote(client, id, note.filePath, {
+          actor: 'user',
+          vaultPath,
+          discard: deps.trashFile,
+        });
         return rejected === undefined
           ? json({ removed: id })
           : bad(409, 'file-op-failed', rejected.message);
@@ -476,7 +484,7 @@ export const route = async (
     const folder = typeof asked?.folder === 'string' ? asked.folder : '';
     if (root !== vaultPath) return bad(400, 'file-op-failed', 'That root is not the vault.');
     if (folder.trim() === '') return bad(400, 'file-op-failed', 'No folder given.');
-    const gone = removeFolder(client, root, folder);
+    const gone = await removeFolder(client, root, folder, deps.trashFile);
     return isFileFailure(gone) ? bad(400, 'file-op-failed', gone.message) : json(gone);
   }
   if (method === 'GET' && url.pathname.startsWith('/api/history/')) {

@@ -27,7 +27,7 @@ export const registerDelete = (program: Command) => {
         }
       }
 
-      const rejection = removeNote(client, note.id, note.filePath, {
+      const rejection = await removeNote(client, note.id, note.filePath, {
         actor: 'user',
         vaultPath: expandPath(loadConfig().vault_path),
       });
