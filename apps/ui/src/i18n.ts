@@ -484,6 +484,13 @@ const en = {
     writable: (path: string) => `${path} — an agent can write here`,
     readonly: (path: string) => `${path} — an agent reads these but never writes them`,
   },
+  // `past`, `state` and `rule` are what the database calls them. Nobody outside
+  // this repository has any reason to know that, so nothing on screen says it.
+  layers: {
+    past: { name: 'Record', hint: 'What happened. Never rewritten — corrected by a later note.' },
+    state: { name: 'Belief', hint: 'What is true now. Rewrite it whenever it changes.' },
+    rule: { name: 'Rule', hint: 'What the AI should follow. Takes effect once you approve it.' },
+  } as Record<string, { name: string; hint: string }>,
   sidebar: {
     check: 'To check',
     find: 'Find',
@@ -652,6 +659,7 @@ const en = {
     deadLinksWhy: 'Each is either a note still to write, or a name that never meant one.',
     write: 'Write it',
     blankTitle: 'New note',
+    needsTitle: 'The first line names the note. Write it after the #.',
     landsIn: (folder: string) => `Lands in ${folder}.`,
     landsBeside: (folder: string) => `Lands in ${folder}, beside the note it corrects.`,
     vaultRoot: 'the vault root',
@@ -1209,6 +1217,11 @@ const ko: typeof en = {
     writable: (path) => `${path} · AI가 여기에 쓸 수 있어요`,
     readonly: (path) => `${path} · AI는 읽기만 해요`,
   },
+  layers: {
+    past: { name: '기록', hint: '일어난 일이에요. 고쳐 쓰지 않고, 나중 노트가 바로잡아요.' },
+    state: { name: '현재 믿음', hint: '지금 참인 것이에요. 바뀌면 그때그때 고쳐 쓰면 돼요.' },
+    rule: { name: '규칙', hint: 'AI가 따를 지침이에요. 승인해야 적용돼요.' },
+  } as Record<string, { name: string; hint: string }>,
   sidebar: {
     check: '확인하기',
     find: '찾기',
@@ -1366,6 +1379,7 @@ const ko: typeof en = {
     deadLinksWhy: '아직 안 쓴 노트거나, 애초에 노트를 뜻한 적 없는 이름이에요.',
     write: '쓰기',
     blankTitle: '새 노트',
+    needsTitle: '첫 줄이 노트 이름이에요. # 뒤에 적어 주세요.',
     landsIn: (folder) => `${folder}에 저장돼요.`,
     landsBeside: (folder) => `${folder}에 저장돼요. 정정하는 노트 옆이에요.`,
     vaultRoot: '볼트 최상위',

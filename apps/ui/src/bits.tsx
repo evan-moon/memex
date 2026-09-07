@@ -9,13 +9,19 @@ const LAYER_TONE: Record<string, string> = {
   past: 'border-line text-muted',
 };
 
-export const Layer = ({ layer }: { layer: string }) => (
-  <span
-    className={`shrink-0 rounded-full border px-2 py-px text-[10px] leading-4 ${LAYER_TONE[layer] ?? LAYER_TONE.past}`}
-  >
-    {layer}
-  </span>
-);
+// `past`, `state` and `rule` are the database's words for these. What the chip
+// says is what the layer means to whoever is reading it.
+export const Layer = ({ layer }: { layer: string }) => {
+  const t = useT();
+  return (
+    <span
+      title={t.layers[layer]?.hint}
+      className={`shrink-0 rounded-full border px-2 py-px text-[10px] leading-4 ${LAYER_TONE[layer] ?? LAYER_TONE.past}`}
+    >
+      {t.layers[layer]?.name ?? layer}
+    </span>
+  );
+};
 
 export const Dates = ({ at, updatedAt }: { at: number; updatedAt: number }) => {
   const t = useT();

@@ -522,9 +522,9 @@ export const SearchScreen = () => {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Choice value={params.get('layer') ?? ''} onChange={(v) => setFilter('layer', v)}>
           <option value="">{t.search.anyLayer}</option>
-          <option value="state">state</option>
-          <option value="past">past</option>
-          <option value="rule">rule</option>
+          <option value="state">{t.layers.state.name}</option>
+          <option value="past">{t.layers.past.name}</option>
+          <option value="rule">{t.layers.rule.name}</option>
         </Choice>
         <Choice value={params.get('author') ?? ''} onChange={(v) => setFilter('author', v)}>
           <option value="">{t.search.anyAuthor}</option>
