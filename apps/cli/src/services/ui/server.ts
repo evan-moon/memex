@@ -76,10 +76,12 @@ import {
 import { buildChores } from './chores.ts';
 import { buildDeck, deckCardState } from './deck.ts';
 import {
+  createFolder,
   duplicateNote,
   folderPath,
   isFileFailure,
   moveNote,
+  removeFolder,
   renameNote,
   revealPath,
 } from './files.ts';
@@ -455,6 +457,27 @@ export const route = async (
     }
     deps.revealFile(found);
     return json({ path: found });
+  }
+  // Making and unmaking folders is only offered where memex owns the shelf. A
+  // borrowed root is somebody else's repository, and rearranging it here would
+  // be a change the tool that wrote it never agreed to.
+  if (method === 'POST' && url.pathname === '/api/folder/new') {
+    const asked = asRecord(payload);
+    const root = typeof asked?.root === 'string' ? asked.root : '';
+    const parent = typeof asked?.folder === 'string' ? asked.folder : '';
+    const name = typeof asked?.name === 'string' ? asked.name : '';
+    if (root !== vaultPath) return bad(400, 'file-op-failed', 'That root is not the vault.');
+    const made = createFolder(root, parent, name);
+    return isFileFailure(made) ? bad(400, 'file-op-failed', made.message) : json(made);
+  }
+  if (method === 'POST' && url.pathname === '/api/folder/delete') {
+    const asked = asRecord(payload);
+    const root = typeof asked?.root === 'string' ? asked.root : '';
+    const folder = typeof asked?.folder === 'string' ? asked.folder : '';
+    if (root !== vaultPath) return bad(400, 'file-op-failed', 'That root is not the vault.');
+    if (folder.trim() === '') return bad(400, 'file-op-failed', 'No folder given.');
+    const gone = removeFolder(client, root, folder);
+    return isFileFailure(gone) ? bad(400, 'file-op-failed', gone.message) : json(gone);
   }
   if (method === 'GET' && url.pathname.startsWith('/api/history/')) {
     const rest = url.pathname.slice('/api/history/'.length).split('/');

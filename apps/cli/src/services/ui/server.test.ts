@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -716,5 +716,51 @@ describe('POST /api/draft/:id', () => {
     const reply = await post(`/api/draft/${note.id}`, null);
 
     expect(body(reply)).toMatchObject({ error: { code: 'draft-no-evidence' } });
+  });
+});
+
+describe('POST /api/folder/new and /api/folder/delete', () => {
+  it('makes a folder that no note has been put in yet', async () => {
+    const reply = await post('/api/folder/new', { root: vaultDir, folder: '', name: 'projects' });
+
+    expect(reply.status).toBe(200);
+    expect(existsSync(join(vaultDir, 'projects'))).toBe(true);
+  });
+
+  // The root arrives from the tree, where a borrowed source is a row like any
+  // other. Whether memex may write there is decided here, not there.
+  it('refuses a root that is not the vault', async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'memex-borrowed-'));
+    const reply = await post('/api/folder/new', { root: elsewhere, folder: '', name: 'projects' });
+
+    expect(reply.status).toBe(400);
+    expect(existsSync(join(elsewhere, 'projects'))).toBe(false);
+    rmSync(elsewhere, { recursive: true, force: true });
+  });
+
+  it('deletes the folder and the notes that were in it', async () => {
+    await post('/api/folder/new', { root: vaultDir, folder: '', name: 'projects' });
+    const note = insertNote(client, {
+      title: 'a plan',
+      content: 'the body\n',
+      filePath: join(vaultDir, 'projects', 'a plan.md'),
+      source: 'manual',
+      layer: 'state',
+      category: 'projects',
+    });
+    writeFileSync(note.filePath, 'the body\n');
+
+    const reply = await post('/api/folder/delete', { root: vaultDir, folder: 'projects' });
+
+    expect(body(reply)).toMatchObject({ removed: 1 });
+    expect(existsSync(join(vaultDir, 'projects'))).toBe(false);
+    expect(getNote(client, note.id)).toBeUndefined();
+  });
+
+  it('refuses to delete the vault itself', async () => {
+    const reply = await post('/api/folder/delete', { root: vaultDir, folder: '' });
+
+    expect(reply.status).toBe(400);
+    expect(existsSync(vaultDir)).toBe(true);
   });
 });

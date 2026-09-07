@@ -1,6 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
-import { getNote, type MemexClient } from '@memex/db';
+import { deleteNote, getNote, type MemexClient } from '@memex/db';
 import { inVault, sanitizeFilename, sanitizeFolder } from '@memex/utils';
 
 export type FileFailure = { error: string; message: string };
@@ -112,4 +112,48 @@ export const renameNote = (
   }
   client.sqlite.prepare('UPDATE notes SET title = ? WHERE id = ?').run(clean, id);
   return { path: target, title: clean };
+};
+
+// A folder that holds nothing is still a place to put something, which is why
+// this exists on disk before any note does. One segment, not a path: a name
+// with slashes in it would quietly make more folders than the person asked for.
+export const createFolder = (
+  root: string,
+  parent: string,
+  name: string,
+): { path: string } | FileFailure => {
+  const home = folderPath(root, parent);
+  if (isFailure(home)) return home;
+  const safe = sanitizeFilename(name);
+  if (safe === '') return { error: 'empty-name', message: 'A folder needs a name.' };
+  const target = join(home, safe);
+  if (existsSync(target)) {
+    return { error: 'name-taken', message: `${safe} already exists there.` };
+  }
+  mkdirSync(target, { recursive: true });
+  return { path: target };
+};
+
+// Deleting a folder deletes what is in it — that is what the word means
+// everywhere else, and a folder that refused to go until it was empty would
+// leave the person to empty it note by note. The rows go with the files,
+// because a note whose file is gone is a search result that opens nothing.
+export const removeFolder = (
+  client: MemexClient,
+  root: string,
+  folder: string,
+): { removed: number } | FileFailure => {
+  const target = folderPath(root, folder);
+  if (isFailure(target)) return target;
+  if (target === root) return { error: 'read-only', message: 'The vault itself cannot go.' };
+
+  const rows = client.sqlite.prepare('SELECT id, file_path AS filePath FROM notes').all() as {
+    id: number;
+    filePath: string;
+  }[];
+  const inside = rows.filter((row) => inVault(row.filePath, target));
+
+  for (const row of inside) deleteNote(client, row.id);
+  rmSync(target, { recursive: true, force: true });
+  return { removed: inside.length };
 };

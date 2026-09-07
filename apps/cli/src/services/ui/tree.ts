@@ -1,3 +1,5 @@
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { MemexClient } from '@memex/db';
 import { expandPath, inVault, loadConfig } from '@memex/utils';
 
@@ -28,8 +30,22 @@ export type VaultTree = { roots: VaultRoot[] };
 
 type Row = { id: number; title: string; folder: string; source: string; filePath: string };
 
-const foldersOf = (notes: Record<string, TreeNote[]>): TreeFolder[] => {
-  const paths = new Set<string>();
+// A folder memex owns is a place on disk, not a grouping of rows. One made and
+// left empty has to survive until something is put in it, so the vault is read
+// as it sits rather than inferred from where the notes ended up.
+const dirsIn = (root: string): string[] => {
+  const walk = (at: string, prefix: string): string[] =>
+    readdirSync(at, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+      .flatMap((entry) => {
+        const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+        return [path, ...walk(join(at, entry.name), path)];
+      });
+  return existsSync(root) ? walk(root, '') : [];
+};
+
+const foldersOf = (notes: Record<string, TreeNote[]>, onDisk: string[] = []): TreeFolder[] => {
+  const paths = new Set<string>(onDisk);
   for (const folder of Object.keys(notes)) {
     if (folder === '') continue;
     const parts = folder.split('/');
@@ -96,7 +112,7 @@ export const buildTree = (client: MemexClient): VaultTree => {
         name: nameOf(path),
         path,
         writable: path === vault,
-        folders: foldersOf(notes),
+        folders: foldersOf(notes, path === vault ? dirsIn(path) : []),
         notes,
         count: mine.length,
       },
