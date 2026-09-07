@@ -812,3 +812,29 @@ describe('deleting through a desktop that has a trash', () => {
     expect(getNote(client, note.id)).toBeUndefined();
   });
 });
+
+describe('POST /api/notes — what a person can be told', () => {
+  // `# 테스트` under the title `테스트1` was called an empty body, and the reply
+  // said so in English in the middle of a Korean screen.
+  it('saves a body that is a heading the title does not repeat', async () => {
+    const reply = await post('/api/notes', {
+      title: '테스트1',
+      content: '# 테스트',
+      layer: 'state',
+    });
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toMatchObject({ title: '테스트1' });
+  });
+
+  it('names an empty body with a code the screen can say in its own language', async () => {
+    const reply = await post('/api/notes', {
+      title: '테스트1',
+      content: '# 테스트1',
+      layer: 'state',
+    });
+
+    expect(reply.status).toBe(400);
+    expect(body(reply).error).toMatchObject({ code: 'empty-body' });
+  });
+});

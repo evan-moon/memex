@@ -17,15 +17,25 @@ export const stripFrontmatter = (content: string): string => {
 
 const LEADING_TITLE = /^#[ \t]+([^\n]*?)[ \t]*(?:\r?\n|$)/;
 
-const withoutTitleEchoes = (body: string, title?: string): string => {
-  const match = LEADING_TITLE.exec(body);
-  if (!match) return body;
-  if (title !== undefined && match[1] !== title) return body;
-  return withoutTitleEchoes(body.slice(match[0].length).replace(/^\s*\r?\n/, ''), match[1]);
+// A note file can be shell all the way down — metadata, the title again, more
+// metadata — so this peels in rounds until a round changes nothing. The title
+// travels with it: the first heading names what an echo is, and every round
+// after that holds the later ones to it.
+const peelShell = (content: string, title?: string): string => {
+  const bare = content.replace(LEADING_FRONTMATTER, '');
+  const heading = LEADING_TITLE.exec(bare);
+  const echo = heading !== null && (title === undefined || heading[1] === title);
+  const peeled = echo && heading ? bare.slice(heading[0].length).replace(/^\s*\r?\n/, '') : bare;
+  if (peeled === content) return content;
+  return peelShell(peeled, echo && heading ? heading[1] : title);
 };
 
-export const noteProse = (content: string): string =>
-  withoutTitleEchoes(stripFrontmatter(content)).trim();
+// Is there anything under the title? A heading only counts as shell when it
+// repeats the title, which is what `title` is for. Without it any leading
+// heading is taken for an echo, and someone whose whole note is `# 테스트` is
+// told they wrote nothing.
+export const noteProse = (content: string, title?: string): string =>
+  peelShell(content, title).trim();
 
 export const buildEmbeddingText = (
   title: string,

@@ -286,7 +286,7 @@ export const saveNote = async (
 
   const ruleScope = params.layer === 'rule' ? (params.scope ?? GLOBAL_SCOPE) : null;
 
-  if (noteProse(params.content).length === 0) {
+  if (noteProse(params.content, params.title).length === 0) {
     return {
       error: 'EMPTY_BODY',
       message:
@@ -677,7 +677,7 @@ export const editNote = async (
   // Sections the agent had to write to save the note are sections it must not
   // edit back out. Without this the contract holds for exactly one write.
   if (patch.content !== undefined) {
-    if (noteProse(patch.content).length === 0) {
+    if (noteProse(patch.content, patch.title ?? note.title).length === 0) {
       return {
         error: 'EMPTY_BODY',
         message: `An edit that empties #${id} leaves a filename behind. Delete it instead.`,

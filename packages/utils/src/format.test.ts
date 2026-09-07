@@ -144,3 +144,20 @@ describe('authorOfPath', () => {
     expect(authorOfPath('/vault/memoryless/a.md')).toBe('person');
   });
 });
+
+describe('noteProse — a heading that is not the title', () => {
+  // Someone wrote `# 테스트` under the title `테스트1` and was told the note had
+  // nothing in it. Without a title to compare against, any leading heading was
+  // read as the title said twice.
+  it('is prose when the title is known and the heading is not it', () => {
+    expect(noteProse('# 테스트', '테스트1')).toBe('# 테스트');
+  });
+
+  it('is still shell when the heading really is the title', () => {
+    expect(noteProse('# 테스트1', '테스트1')).toBe('');
+  });
+
+  it('keeps what follows a heading that does echo the title', () => {
+    expect(noteProse('# T\n\n본문이다.', 'T')).toBe('본문이다.');
+  });
+});

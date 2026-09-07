@@ -999,7 +999,14 @@ export const route = async (
       amendKind,
       actor: 'user',
     });
-    if (isSaveRejection(result)) return bad(409, 'save-rejected', result.message);
+    // A body that is nothing but the title again is the one rejection a person
+    // can hit here, and it has a code this screen already speaks. The rest are
+    // the agent's contract, and they arrive as the message they came with.
+    if (isSaveRejection(result)) {
+      return result.error === 'EMPTY_BODY'
+        ? bad(400, 'empty-body', result.message)
+        : bad(409, 'save-rejected', result.message);
+    }
     return json(noteDetail(client, result.note.id, vaultPath));
   }
   if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
