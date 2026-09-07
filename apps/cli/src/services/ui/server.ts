@@ -9,6 +9,7 @@ import {
   type SearchOptions,
   saveNote,
   searchPage,
+  slotTemplate,
 } from '@memex/core';
 import {
   approveRule,
@@ -495,6 +496,12 @@ export const route = async (
     if (sha === undefined) return json(await readHistory(note.filePath));
     const content = await readRevision(note.filePath, sha);
     return content === null ? notFound : json({ sha, content });
+  }
+  // The sections a kind of note asks for, which the screen offers as a starting
+  // point. Served rather than restated: two copies of the shape drift, and the
+  // one that decides whether a save is accepted is this one.
+  if (method === 'GET' && url.pathname === '/api/templates') {
+    return json(Object.fromEntries(LAYERS.map((layer) => [layer, slotTemplate(layer, '미분류')])));
   }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));

@@ -5,6 +5,7 @@ import type { NoteDetail } from './api.ts';
 import { NoteItem } from './bits.tsx';
 import { correctionDraft, missingNoteDraft } from './drafts.ts';
 import { Composer, NoteEditor } from './editing.tsx';
+import { titleOf, withTitle } from './heading.ts';
 import { dictionaries, setLocale } from './i18n.ts';
 import { isDirty, patchFor } from './patch.ts';
 
@@ -102,9 +103,11 @@ describe('Composer', () => {
     },
   });
 
-  // The body is CodeMirror's now, and it paints nothing outside a browser. What
-  // the draft carries is the part worth protecting anyway: a correction opens
-  // already pointing back at the note it corrects.
+  // The body is CodeMirror's now, and it paints nothing outside a browser — and
+  // the title moved into it, so neither is on screen here. What the draft
+  // carries is the part worth protecting anyway: a correction opens already
+  // pointing back at the note it corrects, and the title is the first line of
+  // what the composer opens with.
   it('starts a correction that points back at the note', () => {
     const draft = correctionDraft(past, t);
     expect(draft).not.toBeNull();
@@ -113,9 +116,9 @@ describe('Composer', () => {
     expect(draft.title).toBe('[Amendment] what happened');
     expect(draft.body).toContain('[[what happened]]');
     expect(draft.amends).toBe(past.id);
+    expect(titleOf(withTitle(draft.title, draft.body))).toBe('[Amendment] what happened');
 
     const html = render(<Composer draft={draft} into={into(past)} onCancel={() => undefined} />);
-    expect(html).toContain('[Amendment] what happened');
     expect(html).toContain('projects/memex');
   });
 
@@ -125,8 +128,9 @@ describe('Composer', () => {
 
   it('starts a missing note from the name that pointed nowhere', () => {
     const draft = missingNoteDraft('a note nobody wrote', t);
+    expect(titleOf(withTitle(draft.title, draft.body))).toBe('a note nobody wrote');
+
     const html = render(<Composer draft={draft} into={into(note())} onCancel={() => undefined} />);
-    expect(html).toContain('a note nobody wrote');
     expect(html).toContain(t.edit.createNote);
   });
 

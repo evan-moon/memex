@@ -838,3 +838,18 @@ describe('POST /api/notes — what a person can be told', () => {
     expect(body(reply).error).toMatchObject({ code: 'empty-body' });
   });
 });
+
+describe('GET /api/templates', () => {
+  // The screen offers these as a starting point, and the same list decides
+  // whether a save is accepted. One copy, served.
+  it('gives the sections each kind of note is written in', async () => {
+    const reply = await route(deps, 'GET', new URL('/api/templates', 'http://localhost'), null);
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toMatchObject({
+      state: '## 지금 참인 것\n\n## 아직 모르는 것\n\n## 남은 것',
+    });
+    expect(String(body(reply).past)).toContain('## 이것이 바꾼 것');
+    expect(String(body(reply).rule)).toContain('## 어기면 보이는 것');
+  });
+});

@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { type SaveState, useAutosave } from './autosave.ts';
@@ -7,8 +7,10 @@ import { Button, Card } from './bits.tsx';
 import { DiffView } from './DiffView.tsx';
 import type { Draft } from './drafts.ts';
 import { MarkdownEditor } from './editor/index.ts';
+import { bodyUnder, isUntouched, titleOf, withTitle } from './heading.ts';
 import { useT } from './i18n.ts';
 import { isDirty, patchFor } from './patch.ts';
+import { useTemplates } from './templates.ts';
 import { useVaultTitles } from './titles.ts';
 import { vaultChanged } from './vault.ts';
 
@@ -131,7 +133,7 @@ export const NoteEditor = ({
             <select value={layer} onChange={(e) => setLayer(e.target.value)} className={inputClass}>
               {LAYERS.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {t.layers[option]?.name ?? option}
                 </option>
               ))}
             </select>
@@ -199,9 +201,26 @@ export const Composer = ({
   const t = useT();
   const navigate = useNavigate();
   const titles = useVaultTitles();
-  const [title, setTitle] = useState(draft.title);
-  const [body, setBody] = useState(draft.body);
+  const templates = useTemplates();
+  const [body, setBody] = useState(withTitle(draft.title, draft.body));
   const [layer, setLayer] = useState(draft.layer);
+
+  // The note names itself in its first line. Nothing else knows the title, so
+  // nothing else has to be kept in step with it.
+  const title = titleOf(body);
+  const under = bodyUnder(body);
+
+  // A kind of note brings the sections it is written in, and takes them back
+  // when the kind changes — but only while nobody has written into them.
+  useEffect(() => {
+    if (templates === null) return;
+    setBody((current) =>
+      isUntouched(bodyUnder(current), Object.values(templates))
+        ? withTitle(titleOf(current), templates[layer] ?? '')
+        : current,
+    );
+  }, [templates, layer]);
+
   const { failure, busy, submit } = useWriter<void>(async () => {
     const created = await api.createNote({
       title,
@@ -231,28 +250,25 @@ export const Composer = ({
       {draft.explain ? <p className="mt-1 text-xs text-muted">{draft.explain}</p> : null}
       {quoted !== undefined && said ? <DiffView before={quoted} after={said} /> : null}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
-        <Field label={t.edit.title}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
-        </Field>
-        {draft.fixedLayer ? null : (
+      {draft.fixedLayer ? null : (
+        <div className="mt-3">
           <Field label={t.edit.layer}>
             <select value={layer} onChange={(e) => setLayer(e.target.value)} className={inputClass}>
               {LAYERS.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {t.layers[option]?.name ?? option}
                 </option>
               ))}
             </select>
           </Field>
-        )}
-      </div>
+          <p className="mt-1 text-xs text-muted">{t.layers[layer]?.hint}</p>
+        </div>
+      )}
 
       <div className="mt-3">
-        <Field label={t.edit.body}>
-          <MarkdownEditor value={body} onChange={setBody} titles={titles} autoFocus />
-        </Field>
+        <MarkdownEditor value={body} onChange={setBody} titles={titles} autoFocus />
       </div>
+      {title === '' ? <p className="mt-2 text-xs text-muted">{t.edit.needsTitle}</p> : null}
 
       <p className="mt-2 text-xs text-muted">{draft.lands(into.folder ?? t.edit.vaultRoot)}</p>
 
@@ -260,7 +276,7 @@ export const Composer = ({
         <Button
           tone="primary"
           onClick={() => submit()}
-          disabled={busy || title.trim().length === 0 || body.trim().length === 0}
+          disabled={busy || title === '' || under.trim().length === 0}
         >
           {busy ? t.edit.saving : draft.submitLabel}
         </Button>

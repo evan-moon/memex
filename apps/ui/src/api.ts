@@ -677,6 +677,7 @@ export const api = {
     post<{ login: LoginState; apps: AppsScreen }>('/api/app/login', { app, method }),
   connectApp: (app: McpClientId) => post<AppsScreen>('/api/app/connect', { app }),
   tree: () => request<VaultTree>('/api/tree'),
+  templates: () => request<Record<string, string>>('/api/templates'),
   duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
   moveNote: (id: number, folder: string) =>
     post<{ path: string }>(`/api/note/${id}/move`, { folder }),
