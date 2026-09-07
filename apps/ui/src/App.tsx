@@ -34,7 +34,13 @@ import { RepairScreen } from './Repair.tsx';
 import { RulesScreen } from './Rules.tsx';
 import { SettingsScreen } from './Settings.tsx';
 import { Sidebar } from './Sidebar.tsx';
-import { NoteScreen, NotFoundScreen, SearchScreen, TopicScreen } from './screens.tsx';
+import {
+  NewNoteScreen,
+  NoteScreen,
+  NotFoundScreen,
+  SearchScreen,
+  TopicScreen,
+} from './screens.tsx';
 import { Tabs } from './Tabs.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
@@ -297,6 +303,7 @@ export const App = () => {
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />
+              <Route path="/new" element={<NewNoteScreen />} />
               <Route path="/note/:id" element={<NoteScreen />} />
               <Route path="/search" element={<SearchScreen />} />
               <Route path="/repair/evidence" element={<RepairScreen />} />

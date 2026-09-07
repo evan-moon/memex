@@ -1,6 +1,6 @@
 import { BookOpen, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { byKind } from './amendments.ts';
 import {
   type AmendedRef,
@@ -15,7 +15,7 @@ import {
   type TopicDetail,
 } from './api.ts';
 import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList, Page, Section } from './bits.tsx';
-import { correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
+import { blankDraft, correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
 import { Evidence } from './Evidence.tsx';
 import { Composer, NoteEditor } from './editing.tsx';
 import { HypothesisLinks } from './Hypothesis.tsx';
@@ -337,7 +337,7 @@ export const NoteScreen = () => {
                     node: (
                       <Composer
                         draft={draft}
-                        note={note}
+                        into={{ folder: note.folder, tags: note.tags }}
                         quoted={at}
                         onCancel={() => {
                           setDraft(null);
@@ -358,7 +358,11 @@ export const NoteScreen = () => {
         )}
         {/* Started from the header button, which names no paragraph. */}
         {draft && !at ? (
-          <Composer draft={draft} note={note} onCancel={() => setDraft(null)} />
+          <Composer
+            draft={draft}
+            into={{ folder: note.folder, tags: note.tags }}
+            onCancel={() => setDraft(null)}
+          />
         ) : null}
       </article>
       <HypothesisLinks
@@ -452,6 +456,30 @@ const DateField = ({
     />
   </label>
 );
+
+// A note written from nothing, which until now the app had no door for: every
+// composer opened against a note that was already wrong or already missing. The
+// folder comes from wherever the person right-clicked, so this screen holds no
+// state of its own beyond the draft.
+export const NewNoteScreen = () => {
+  const t = useT();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const folder = params.get('folder');
+  return (
+    <Page>
+      <Composer
+        draft={blankDraft(t)}
+        into={{ folder: folder === '' ? null : folder, tags: [] }}
+        onCancel={() => navigate(-1)}
+        // The sidebar reads the whole vault once, so a note it has not heard of
+        // would be missing from the shelf it was just put on. The file
+        // operations next door refresh the same way.
+        onCreated={(id) => window.location.assign(`/note/${id}`)}
+      />
+    </Page>
+  );
+};
 
 export const SearchScreen = () => {
   const t = useT();

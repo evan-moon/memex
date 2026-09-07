@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, FileText, FolderLock, FolderPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, type VaultRoot, type VaultTree } from './api.ts';
+import { api, type TreeFolder, type VaultRoot, type VaultTree } from './api.ts';
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu.tsx';
 import { useT } from './i18n.ts';
 import { closeTab, openTab } from './tabs.ts';
@@ -17,6 +17,7 @@ const Root = ({
   onNavigate,
   onMenu,
   onFolderMenu,
+  onRootMenu,
   expandAll,
 }: {
   root: VaultRoot;
@@ -24,7 +25,8 @@ const Root = ({
   expandAll: number;
   onNavigate?: () => void;
   onMenu: (note: { id: number; title: string }, at: MenuAt) => void;
-  onFolderMenu: (folder: { path: string; name: string }, at: MenuAt) => void;
+  onFolderMenu: (folder: TreeFolder, at: MenuAt) => void;
+  onRootMenu: (at: MenuAt) => void;
 }) => {
   const t = useT();
   const { id = '' } = useParams();
@@ -62,7 +64,10 @@ const Root = ({
     const parts = folder.path.split('/');
     return (
       parts.slice(0, -1).every((_, at) => open.has(parts.slice(0, at + 1).join('/'))) &&
-      holds(folder.path)
+      // A folder somebody just made holds nothing yet, and hiding it would
+      // read as the folder not having been made. Under a filter the row is
+      // about which notes are in it, so an empty one has nothing to say.
+      (holds(folder.path) || (filter === 'all' && folder.count === 0))
     );
   });
 
@@ -89,6 +94,10 @@ const Root = ({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onRootMenu({ x: event.clientX, y: event.clientY });
+        }}
         title={root.writable ? t.tree.writable(root.path) : t.tree.readonly(root.path)}
         className={`${ROW} font-medium`}
       >
@@ -158,9 +167,10 @@ export const Tree = ({
   );
   const [folderMenu, setFolderMenu] = useState<{
     root: VaultRoot;
-    folder: { path: string; name: string };
+    folder: TreeFolder;
     at: MenuAt;
   } | null>(null);
+  const [rootMenu, setRootMenu] = useState<{ root: VaultRoot; at: MenuAt } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [expandAll, setExpandAll] = useState<{ root: string; at: number } | null>(null);
 
@@ -254,11 +264,38 @@ export const Tree = ({
     ];
   };
 
-  // A folder is not a row in the database — it exists because notes sit in it.
-  // So it can be shown and expanded, and the rest of what Obsidian offers here
-  // would mean moving every note inside it. That is a bigger promise than this
-  // menu should make.
-  const folderItems = (root: VaultRoot, folder: { path: string; name: string }): MenuItem[] => [
+  // Everything a person can start from a folder. The vault is the one root
+  // where making and unmaking is on offer: a borrowed root belongs to the tool
+  // that wrote it, so there it stays a place to look at.
+  const makers = (root: VaultRoot, folder: string): MenuItem[] =>
+    root.writable
+      ? [
+          {
+            kind: 'item',
+            label: t.menu.newNote,
+            onPick: () => navigate(`/new?folder=${encodeURIComponent(folder)}`),
+          },
+          {
+            kind: 'item',
+            label: t.menu.newFolder,
+            onPick: () => {
+              const name = window.prompt(t.menu.newFolderPrompt, '');
+              if (name !== null && name.trim() !== '') {
+                run(api.newFolder(root.path, folder, name.trim()));
+              }
+            },
+          },
+          { kind: 'divider' },
+        ]
+      : [];
+
+  const notesUnder = (root: VaultRoot, folder: string) =>
+    Object.entries(root.notes)
+      .filter(([at]) => at === folder || at.startsWith(`${folder}/`))
+      .flatMap(([, list]) => list);
+
+  const folderItems = (root: VaultRoot, folder: TreeFolder): MenuItem[] => [
+    ...makers(root, folder.path),
     {
       kind: 'item',
       label: t.menu.expandAll,
@@ -277,6 +314,45 @@ export const Tree = ({
       label: t.menu.reveal,
       onPick: () => run(api.revealFolder(root.path, folder.path)),
     },
+    ...(root.writable
+      ? ([
+          { kind: 'divider' },
+          {
+            kind: 'item',
+            label: t.menu.deleteFolder,
+            danger: true,
+            // Deleting a folder deletes the notes in it, so the question says
+            // how many rather than leaving the person to open it and count.
+            onPick: () => {
+              const inside = notesUnder(root, folder.path);
+              if (window.confirm(t.menu.deleteFolderPrompt(folder.name, inside.length))) {
+                for (const note of inside) closeTab(note.id);
+                run(api.deleteFolder(root.path, folder.path));
+              }
+            },
+          },
+        ] as MenuItem[])
+      : []),
+  ];
+
+  // The root row is the vault itself, which is where a note with no folder in
+  // mind goes. It cannot be deleted, so it only offers the two makers.
+  const rootItems = (root: VaultRoot): MenuItem[] => [
+    ...makers(root, ''),
+    {
+      kind: 'item',
+      label: t.menu.expandAll,
+      onPick: () => setExpandAll({ root: root.id, at: Date.now() }),
+    },
+    { kind: 'divider' },
+    {
+      kind: 'item',
+      label: t.menu.copyPath,
+      onPick: () => {
+        navigator.clipboard.writeText(root.path).catch(() => {});
+      },
+    },
+    { kind: 'item', label: t.menu.reveal, onPick: () => run(api.revealFolder(root.path, '')) },
   ];
 
   return (
@@ -305,6 +381,7 @@ export const Tree = ({
           onNavigate={onNavigate}
           onMenu={(note, at) => setMenu({ note, at })}
           onFolderMenu={(folder, at) => setFolderMenu({ root, folder, at })}
+          onRootMenu={(at) => setRootMenu({ root, at })}
           expandAll={expandAll?.root === root.id ? expandAll.at : 0}
         />
       ))}
@@ -316,6 +393,13 @@ export const Tree = ({
           at={folderMenu.at}
           items={folderItems(folderMenu.root, folderMenu.folder)}
           onClose={() => setFolderMenu(null)}
+        />
+      )}
+      {rootMenu === null ? null : (
+        <ContextMenu
+          at={rootMenu.at}
+          items={rootItems(rootMenu.root)}
+          onClose={() => setRootMenu(null)}
         />
       )}
       {failed === null ? null : <p className="px-2 pt-2 text-[11px] text-danger">{failed}</p>}

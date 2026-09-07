@@ -10,6 +10,8 @@ import { isDirty, patchFor } from './patch.ts';
 
 const t = dictionaries.en;
 
+const into = (from: NoteDetail) => ({ folder: from.folder, tags: from.tags });
+
 const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   id: 7,
   title: 'a plan',
@@ -112,7 +114,7 @@ describe('Composer', () => {
     expect(draft.body).toContain('[[what happened]]');
     expect(draft.amends).toBe(past.id);
 
-    const html = render(<Composer draft={draft} note={past} onCancel={() => undefined} />);
+    const html = render(<Composer draft={draft} into={into(past)} onCancel={() => undefined} />);
     expect(html).toContain('[Amendment] what happened');
     expect(html).toContain('projects/memex');
   });
@@ -123,22 +125,22 @@ describe('Composer', () => {
 
   it('starts a missing note from the name that pointed nowhere', () => {
     const draft = missingNoteDraft('a note nobody wrote', t);
-    const html = render(<Composer draft={draft} note={note()} onCancel={() => undefined} />);
+    const html = render(<Composer draft={draft} into={into(note())} onCancel={() => undefined} />);
     expect(html).toContain('a note nobody wrote');
     expect(html).toContain(t.edit.createNote);
   });
 
   it('lets a new note choose its layer, but never a correction', () => {
     const missing = render(
-      <Composer draft={missingNoteDraft('x', t)} note={note()} onCancel={() => undefined} />,
+      <Composer draft={missingNoteDraft('x', t)} into={into(note())} onCancel={() => undefined} />,
     );
     expect(missing).toContain(t.edit.layer);
 
     const draft = correctionDraft(past, t);
     if (!draft) return;
-    expect(render(<Composer draft={draft} note={past} onCancel={() => undefined} />)).not.toContain(
-      t.edit.layer,
-    );
+    expect(
+      render(<Composer draft={draft} into={into(past)} onCancel={() => undefined} />),
+    ).not.toContain(t.edit.layer);
   });
 });
 

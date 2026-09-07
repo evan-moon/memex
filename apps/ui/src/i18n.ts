@@ -458,6 +458,14 @@ const en = {
     copyPath: 'Copy path',
     openDefault: 'Open in default app',
     reveal: 'Show in Finder',
+    newNote: 'New note here',
+    newFolder: 'New folder…',
+    newFolderPrompt: 'A name for the new folder',
+    deleteFolder: 'Delete folder',
+    deleteFolderPrompt: (name: string, notes: number) =>
+      notes === 0
+        ? `Delete “${name}”? It is empty, and nothing here can bring it back.`
+        : `Delete “${name}”? The ${notes} ${notes === 1 ? 'note' : 'notes'} inside go with it, and nothing here can bring them back.`,
   },
   history: {
     noRepo: 'This folder is not a git repository, so there are no versions to show.',
@@ -640,7 +648,9 @@ const en = {
     deadLinks: (n: number) => `Points at ${n} ${n === 1 ? 'note' : 'notes'} nobody wrote`,
     deadLinksWhy: 'Each is either a note still to write, or a name that never meant one.',
     write: 'Write it',
-    landsIn: (folder: string) => `Lands in ${folder}, beside the note it corrects.`,
+    blankTitle: 'New note',
+    landsIn: (folder: string) => `Lands in ${folder}.`,
+    landsBeside: (folder: string) => `Lands in ${folder}, beside the note it corrects.`,
     vaultRoot: 'the vault root',
   },
   hypothesis: {
@@ -1170,6 +1180,14 @@ const ko: typeof en = {
     copyPath: '경로 복사',
     openDefault: '기본 앱에서 열기',
     reveal: 'Finder에서 보기',
+    newNote: '여기에 새 노트',
+    newFolder: '새 폴더…',
+    newFolderPrompt: '새 폴더 이름',
+    deleteFolder: '폴더 삭제',
+    deleteFolderPrompt: (name, notes) =>
+      notes === 0
+        ? `“${name}” 폴더를 삭제할까요? 비어 있고, 앱에서는 되돌릴 수 없어요.`
+        : `“${name}” 폴더를 삭제할까요? 안에 있는 노트 ${notes}개까지 지워지고, 앱에서는 되돌릴 수 없어요.`,
   },
   history: {
     noRepo: '이 폴더는 버전 기록이 없어요.',
@@ -1341,7 +1359,9 @@ const ko: typeof en = {
     deadLinks: (n) => `아직 없는 노트 ${n}개를 가리켜요`,
     deadLinksWhy: '아직 안 쓴 노트거나, 애초에 노트를 뜻한 적 없는 이름이에요.',
     write: '쓰기',
-    landsIn: (folder) => `${folder}에 저장돼요. 정정하는 노트 옆이에요.`,
+    blankTitle: '새 노트',
+    landsIn: (folder) => `${folder}에 저장돼요.`,
+    landsBeside: (folder) => `${folder}에 저장돼요. 정정하는 노트 옆이에요.`,
     vaultRoot: '볼트 최상위',
   },
   hypothesis: {

@@ -10,6 +10,7 @@ export type Draft = {
   fixedLayer?: boolean;
   amends?: number;
   submitLabel: string;
+  lands: (folder: string) => string;
 };
 
 // `quoted` is the paragraph the reader was looking at when they said it was
@@ -28,6 +29,7 @@ export const correctionDraft = (note: NoteDetail, t: Strings, quoted?: string): 
         fixedLayer: true,
         amends: note.amendment.amends,
         submitLabel: t.edit.createCorrection,
+        lands: t.edit.landsBeside,
       }
     : null;
 
@@ -38,4 +40,16 @@ export const missingNoteDraft = (title: string, t: Strings): Draft => ({
   body: '',
   layer: 'past',
   submitLabel: t.edit.createNote,
+  lands: t.edit.landsIn,
+});
+
+// The one draft that starts from nothing. It opens where the person asked for
+// it rather than beside a note, so the folder is the only thing it inherits.
+export const blankDraft = (t: Strings): Draft => ({
+  heading: t.edit.blankTitle,
+  title: '',
+  body: '',
+  layer: 'state',
+  submitLabel: t.edit.createNote,
+  lands: t.edit.landsIn,
 });

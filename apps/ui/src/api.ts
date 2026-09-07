@@ -689,6 +689,10 @@ export const api = {
   revealNote: (id: number) => post<{ path: string }>(`/api/note/${id}/reveal`),
   revealFolder: (root: string, folder: string) =>
     post<{ path: string }>('/api/folder/reveal', { root, folder }),
+  newFolder: (root: string, folder: string, name: string) =>
+    post<{ path: string }>('/api/folder/new', { root, folder, name }),
+  deleteFolder: (root: string, folder: string) =>
+    post<{ removed: number }>('/api/folder/delete', { root, folder }),
   openNote: (id: number) => post<{ path: string }>(`/api/note/${id}/open`),
   onboarding: () => request<OnboardingState>('/api/onboarding'),
   pickFolder: () => post<{ path: string | null }>('/api/onboarding/pick'),

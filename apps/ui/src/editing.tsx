@@ -179,16 +179,23 @@ const StatusLine = ({
   );
 };
 
+// Where a new note lands. A correction lands beside the note it corrects and a
+// blank one lands where the person right-clicked, so the destination is passed
+// in rather than read off a note the composer may not have.
+export type Destination = { folder: string | null; tags: string[] };
+
 export const Composer = ({
   draft,
-  note,
+  into,
   quoted,
   onCancel,
+  onCreated,
 }: {
   draft: Draft;
-  note: NoteDetail;
+  into: Destination;
   quoted?: string;
   onCancel: () => void;
+  onCreated?: (id: number) => void;
 }) => {
   const t = useT();
   const navigate = useNavigate();
@@ -201,14 +208,15 @@ export const Composer = ({
       title,
       content: body,
       layer,
-      folder: note.folder ?? undefined,
-      tags: note.tags,
+      folder: into.folder ?? undefined,
+      tags: into.tags,
       amends: draft.amends,
       // A person writing here has said the earlier note is wrong. That is the
       // one case where `corrects` is not a guess.
       amendsKind: draft.amends === undefined ? undefined : 'corrects',
     });
-    navigate(`/note/${created.id}`);
+    if (onCreated) onCreated(created.id);
+    else navigate(`/note/${created.id}`);
   });
 
   // What the paragraph said against what it will say. The old text is not gone
@@ -245,7 +253,7 @@ export const Composer = ({
         </Field>
       </div>
 
-      <p className="mt-2 text-xs text-muted">{t.edit.landsIn(note.folder ?? t.edit.vaultRoot)}</p>
+      <p className="mt-2 text-xs text-muted">{draft.lands(into.folder ?? t.edit.vaultRoot)}</p>
 
       <div className="mt-3 flex items-center gap-2">
         <Button
