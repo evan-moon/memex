@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, FileText, FolderLock, FolderPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AskName, type Question } from './AskName.tsx';
 import { api, type TreeFolder, type VaultRoot, type VaultTree } from './api.ts';
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu.tsx';
 import { useT } from './i18n.ts';
@@ -171,6 +172,7 @@ export const Tree = ({
     at: MenuAt;
   } | null>(null);
   const [rootMenu, setRootMenu] = useState<{ root: VaultRoot; at: MenuAt } | null>(null);
+  const [asking, setAsking] = useState<Question | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [expandAll, setExpandAll] = useState<{ root: string; at: number } | null>(null);
 
@@ -213,20 +215,26 @@ export const Tree = ({
             {
               kind: 'item',
               label: t.menu.rename,
-              onPick: () => {
-                const next = window.prompt(t.menu.renamePrompt, note.title);
-                if (next !== null && next.trim() !== '') run(api.renameNote(note.id, next));
-              },
+              onPick: () =>
+                setAsking({
+                  heading: t.menu.renamePrompt,
+                  initial: note.title,
+                  submitLabel: t.menu.renameConfirm,
+                  onAnswer: (next) => run(api.renameNote(note.id, next)),
+                }),
             },
           ] as MenuItem[])
         : []),
       {
         kind: 'item',
         label: t.menu.move,
-        onPick: () => {
-          const folder = window.prompt(t.menu.movePrompt, writableRoot?.path ?? '');
-          if (folder !== null && folder.trim() !== '') run(api.moveNote(note.id, folder.trim()));
-        },
+        onPick: () =>
+          setAsking({
+            heading: t.menu.movePrompt,
+            initial: writableRoot?.path ?? '',
+            submitLabel: t.menu.moveConfirm,
+            onAnswer: (folder) => run(api.moveNote(note.id, folder)),
+          }),
       },
       { kind: 'divider' },
       {
@@ -278,12 +286,13 @@ export const Tree = ({
           {
             kind: 'item',
             label: t.menu.newFolder,
-            onPick: () => {
-              const name = window.prompt(t.menu.newFolderPrompt, '');
-              if (name !== null && name.trim() !== '') {
-                run(api.newFolder(root.path, folder, name.trim()));
-              }
-            },
+            onPick: () =>
+              setAsking({
+                heading: t.menu.newFolderPrompt,
+                initial: '',
+                submitLabel: t.menu.newFolderConfirm,
+                onAnswer: (name) => run(api.newFolder(root.path, folder, name)),
+              }),
           },
           { kind: 'divider' },
         ]
@@ -402,6 +411,7 @@ export const Tree = ({
           onClose={() => setRootMenu(null)}
         />
       )}
+      {asking === null ? null : <AskName question={asking} onClose={() => setAsking(null)} />}
       {failed === null ? null : <p className="px-2 pt-2 text-[11px] text-danger">{failed}</p>}
       {tree.roots.length === 0 ? <p className="px-2 text-xs text-muted">{t.tree.empty}</p> : null}
     </div>

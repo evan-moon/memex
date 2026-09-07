@@ -451,8 +451,10 @@ const en = {
     deletePrompt: (title: string) => `Delete “${title}”? The file goes to the Trash.`,
     rename: 'Rename…',
     renamePrompt: 'A new name for this note',
+    renameConfirm: 'Rename',
     move: 'Move file to…',
     movePrompt: 'Move it to which folder? A full path.',
+    moveConfirm: 'Move',
     expandAll: 'Expand every folder',
     copyPath: 'Copy path',
     openDefault: 'Open in default app',
@@ -460,6 +462,7 @@ const en = {
     newNote: 'New note here',
     newFolder: 'New folder…',
     newFolderPrompt: 'A name for the new folder',
+    newFolderConfirm: 'Create',
     deleteFolder: 'Delete folder',
     deleteFolderPrompt: (name: string, notes: number) =>
       notes === 0
@@ -1172,8 +1175,10 @@ const ko: typeof en = {
     deletePrompt: (title) => `“${title}”을 삭제할까요? 파일은 휴지통으로 가요.`,
     rename: '이름 바꾸기…',
     renamePrompt: '이 노트의 새 이름',
+    renameConfirm: '이름 바꾸기',
     move: '다른 폴더로 옮기기…',
     movePrompt: '어느 폴더로 옮길까요? 전체 경로로 적어 주세요.',
+    moveConfirm: '옮기기',
     expandAll: '하위 폴더 모두 펼치기',
     copyPath: '경로 복사',
     openDefault: '기본 앱에서 열기',
@@ -1181,6 +1186,7 @@ const ko: typeof en = {
     newNote: '여기에 새 노트',
     newFolder: '새 폴더…',
     newFolderPrompt: '새 폴더 이름',
+    newFolderConfirm: '만들기',
     deleteFolder: '폴더 삭제',
     deleteFolderPrompt: (name, notes) =>
       notes === 0

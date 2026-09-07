@@ -31,7 +31,13 @@ export const ContextMenu = ({
   }, [at]);
 
   useEffect(() => {
-    const dismiss = () => onClose();
+    // A press inside the menu is the menu being used. Closing on that unmounts
+    // the button between pointerdown and click, so the click never lands on it
+    // and nothing is ever picked — the menu would only ever close.
+    const dismiss = (event: PointerEvent) => {
+      if (box.current?.contains(event.target as Node)) return;
+      onClose();
+    };
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     // Capture, so a click that lands on something else closes this before that
     // something else acts on it.
