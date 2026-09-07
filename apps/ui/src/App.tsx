@@ -45,6 +45,7 @@ import { Tabs } from './Tabs.tsx';
 import { TagsScreen } from './Tags.tsx';
 import { ThreadScreen, ThreadsScreen } from './Thread.tsx';
 import { TodayScreen } from './Today.tsx';
+import { useVaultRevision } from './vault.ts';
 import './theme.ts';
 import { useAsync } from './useAsync.ts';
 
@@ -101,6 +102,10 @@ export const App = () => {
   );
   const gate = gateFrom(onboarding, onboardingFailure !== null, walked);
 
+  // Read again whenever the vault changes under the window — a note written, a
+  // file moved, a folder made or gone — so what is drawn from it catches up
+  // without the window being thrown away and rebuilt.
+  const revision = useVaultRevision();
   useEffect(() => {
     Promise.all([api.sidebar(), api.topics(), api.overview()]).then(([s, t, o]) => {
       setSidebar(s);
@@ -113,7 +118,7 @@ export const App = () => {
       .tree()
       .then(setTree)
       .catch(() => {});
-  }, []);
+  }, [revision]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the path is the trigger, not an input — dropping it would leave the menu open across navigation
   useEffect(() => setDrawer(false), [location.pathname]);

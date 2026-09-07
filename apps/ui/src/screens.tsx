@@ -472,10 +472,6 @@ export const NewNoteScreen = () => {
         draft={blankDraft(t)}
         into={{ folder: folder === '' ? null : folder, tags: [] }}
         onCancel={() => navigate(-1)}
-        // The sidebar reads the whole vault once, so a note it has not heard of
-        // would be missing from the shelf it was just put on. The file
-        // operations next door refresh the same way.
-        onCreated={(id) => window.location.assign(`/note/${id}`)}
       />
     </Page>
   );

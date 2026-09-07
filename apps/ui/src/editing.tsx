@@ -10,6 +10,7 @@ import { MarkdownEditor } from './editor/index.ts';
 import { useT } from './i18n.ts';
 import { isDirty, patchFor } from './patch.ts';
 import { useVaultTitles } from './titles.ts';
+import { vaultChanged } from './vault.ts';
 
 const LAYERS = ['state', 'rule', 'past'];
 
@@ -189,13 +190,11 @@ export const Composer = ({
   into,
   quoted,
   onCancel,
-  onCreated,
 }: {
   draft: Draft;
   into: Destination;
   quoted?: string;
   onCancel: () => void;
-  onCreated?: (id: number) => void;
 }) => {
   const t = useT();
   const navigate = useNavigate();
@@ -215,8 +214,10 @@ export const Composer = ({
       // one case where `corrects` is not a guess.
       amendsKind: draft.amends === undefined ? undefined : 'corrects',
     });
-    if (onCreated) onCreated(created.id);
-    else navigate(`/note/${created.id}`);
+    // The shelf has a note on it that was not there a moment ago, and the
+    // sidebar read the vault once when the window opened.
+    vaultChanged();
+    navigate(`/note/${created.id}`);
   });
 
   // What the paragraph said against what it will say. The old text is not gone

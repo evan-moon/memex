@@ -6,6 +6,7 @@ import { api, type TreeFolder, type VaultRoot, type VaultTree } from './api.ts';
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu.tsx';
 import { useT } from './i18n.ts';
 import { closeTab, openTab } from './tabs.ts';
+import { vaultChanged } from './vault.ts';
 
 const ROW =
   'flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[13px] hover:bg-surface-muted';
@@ -185,7 +186,9 @@ export const Tree = ({
   const run = (work: Promise<unknown>) => {
     setFailed(null);
     work
-      .then(() => window.location.reload())
+      // The vault changed, not the window. Reloading would take which folders
+      // are open, where the tree is scrolled and the note being read with it.
+      .then(() => vaultChanged())
       .catch((cause: unknown) => {
         setFailed(cause instanceof Error ? cause.message : String(cause));
       });
