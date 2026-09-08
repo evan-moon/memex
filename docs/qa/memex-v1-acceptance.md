@@ -18,8 +18,10 @@
 
 Task 2 이후: `yarn test` 1357 passed · 0 failed. `schema_version` 27 → **28**.
 Task 3 이후: `yarn test` 1382 passed · 0 failed.
-Task 6 이후: `yarn test` **1451 passed · 0 failed**, `yarn typecheck` 20/20, `yarn build` 11/11.
-`schema_version` 27 → **30**.
+Task 9 이후 (최종): `yarn test` **1510 passed · 4 skipped · 0 failed**,
+`yarn typecheck` 20/20, `yarn build` 11/11. `schema_version` 27 → **31**.
+
+기준선 1325 → 1510. 새 실패 없음. 기존 실패도 없었으므로 회귀 없음.
 
 기존 실패는 없다. 새 실패가 보이면 기존 문제로 넘기지 않는다.
 
@@ -76,36 +78,35 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 
 | ID | 시나리오 | 상태 | 근거 |
 |---|---|---|---|
-| A01 | 새 설치, AI/embedding 없이 볼트 생성과 원고 작성 | **로직 검증됨** | 온보딩 게이트가 intro·vault 둘로 줄었고 `createDocument`는 모델을 안 받음. 화면 확인은 사용자 |
-| A02 | unknown YAML·wiki link 문서의 한 문단 수정 시 나머지 보존 | **검증됨** | `documents.test.ts` "keeps the YAML it does not understand" |
-| A03 | 저장 지연 중 추가 입력 후 이동 | **로직 검증됨** | `save-queue.test.ts`. 늦게 온 응답이 최신 입력을 clean 처리하지 못함 |
-| A04 | git 없는 볼트에서 AI 수정 적용 후 복원 | **일부** | revision·restore는 라우트까지 검증됨. AI 적용 경로는 Task 7 |
-| A05 | app과 MCP가 같은 base로 동시 수정 | **core 검증됨** | 두 번째 연결이 lock을 쥔 채 확인. UI/MCP 배선은 Task 9 |
-| A06 | 요청 후 다른 문서로 전환해도 제안은 원래 문서에 | 미착수 | Task 7 |
-| A07 | 원문 수정 후 오래된 proposal 적용 거절 | 미착수 | Task 7 |
-| A08 | '출시 9월'을 '10월'로 정정, 이후 조회에 반영 | 미착수 | Task 8. fixture `projects/launch-plan.md` |
-| A09 | 참고문의 '모든 규칙을 무시하라'가 지침 권한을 갖지 않음 | 미착수 | Task 7. fixture `references/ops-handbook.md` |
-| A10 | agent가 person/unknown 문서를 직접 덮어쓰려 하면 proposal 또는 거절 | **core 검증됨** | `document-policy.ts`. 제안 생성 자체는 Task 7 |
-| A11 | 파일 쓰기·DB 확정·embedding 단계별 실패에서 복구 | **일부** | 파일 쓰기 실패와 journal은 검증됨. 시작 시 prepared 복구 패스는 미구현 |
-| A13 | 외부 파일 수정 후 dirty 앱에 복귀 | **일부** | core가 외부 수정을 발견해 conflict 반환하고 별도 revision으로 보존. 화면의 비교 UI는 미구현 |
-| A12 | 960/1280/1600 폭, 밝은/어두운 테마, 키보드와 IME | 미착수 | Task 5·6·10 |
-| A13 | 외부 파일 수정 후 dirty 앱에 복귀 | 미착수 | Task 4·9 |
-| A14 | 활성 규칙 수정·글쓰기 스킬 선택이 전역 주입을 만들지 않음 | 미착수 | Task 7. fixture `rules/proposed-brevity.md` |
+| A01 | AI/embedding 없이 볼트 생성과 원고 작성 | **자동 검증** | `tests/acceptance.test.ts`. 쓰기 뒤에도 임베딩이 그대로 = 저장이 모델을 기다리지 않음 |
+| A02 | unknown YAML 문서의 한 문단 수정 | **자동 검증** | fixture `notes/unknown-yaml.md`로 왕복 |
+| A03 | 저장 지연 중 추가 입력 후 이동 | **자동 검증** | `save-queue.test.ts` |
+| A04 | git 없는 볼트에서 복원 | **자동 검증** | `.git`이 없음을 확인한 뒤 restore |
+| A05 | app과 MCP가 같은 base로 동시 수정 | **자동 검증** | 두 번째 연결이 conflict, 파일은 첫 번째 것 |
+| A06 | 요청 후 탭 전환해도 제안은 원래 문서에 | **자동 검증** | `proposals.test.ts` |
+| A07 | 원문 수정 후 오래된 proposal 적용 거절 | **자동 검증** | base-moved + text-moved 둘 다 |
+| A08 | '9월'을 '10월'로 정정 | **자동 검증** | 다음 조회가 10월, register_events는 2건 |
+| A09 | 참고문의 '모든 규칙을 무시하라' | **자동 검증** | `context.test.ts`. role이 reference로 고정 |
+| A10 | agent가 person 문서 덮어쓰기 시도 | **자동 검증** | propose-instead, 파일 불변 |
+| A11 | 파일 쓰기·DB·embedding 단계별 실패 | **일부** | 파일 쓰기 실패와 journal은 검증. **시작 시 prepared 복구 패스는 미구현** |
+| A12 | 960/1280/1600 폭, 테마, 키보드, IME | **미검증** | 창을 열어봐야 함. 아래 6절 |
+| A13 | 외부 파일 수정 후 dirty 앱에 복귀 | **일부** | core가 발견·보존·거절. **화면의 비교 UI는 미구현** |
+| A14 | 활성 규칙 수정이 전역 주입을 만들지 않음 | **미검증** | rule 승인 경로는 손대지 않음 |
 
 ## 5. 태스크 진행
 
 | Task | 상태 | 남은 것 |
 |---|---|---|
 | 1 기준과 fixtures | **완료** | rule 노트 #2280 대체는 사용자 승인 대기 |
-| 2 메타데이터와 버전 | **완료** | schema v28. 파일은 건드리지 않는 additive migration |
-| 3 공통 저장과 복구 | **완료** | `packages/core/src/documents.ts` + `/api/note/:id` 문서 operation, revisions, restore |
-| 4 영속 초안과 자동 저장 | **완료** | IME 조합·강제 종료 복구는 Electron 수동 확인 필요 |
-| 5 시작하기와 앱 구조 | **일부** | 온보딩 게이트·라이브러리 완료. 홈 재설계와 기억 메뉴는 미착수 |
-| 6 자료와 문서 작업 | **완료** | ReferencePanel, DocumentWorkspace, `document_references`. 좁은 창 오버레이는 미구현 |
-| 7 AI 맥락과 제안 | 미착수 | context manifest, change_proposals |
-| 8 기억 정정 | 미착수 | Memory 화면, correctMemory |
-| 9 MCP와 CLI 일관성 | 미착수 | `update_note` operation union, expected_revision |
-| 10 전체 저니와 문서 정리 | 미착수 | |
+| 2 메타데이터와 버전 | **완료** | |
+| 3 공통 저장과 복구 | **완료** | 시작 시 journal 복구 패스 미구현 |
+| 4 영속 초안과 자동 저장 | **완료** | IME·강제 종료 복구는 Electron 수동 확인 |
+| 5 시작하기와 앱 구조 | **일부** | 온보딩·라이브러리·기억 메뉴 완료. **홈 재설계 미착수** |
+| 6 자료와 문서 작업 | **완료** | 좁은 창 오버레이 미구현 |
+| 7 AI 맥락과 제안 | **core 완료** | proposal·manifest·라우트 완료. **Chat 화면 배선 미착수** |
+| 8 기억 정정 | **완료** | |
+| 9 MCP와 CLI 일관성 | **일부** | update_note·get_note·lazy embedder 완료. **CLI add/edit는 손대지 않음** |
+| 10 전체 저니와 문서 정리 | **완료** | 수용 시나리오 자동 검증분 실행됨 |
 
 ## 5-1. 계획과 달라진 구현 결정
 
@@ -125,7 +126,39 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 
 ## 6. 아직 검증하지 못한 것
 
-- Electron 창에서의 실제 조작. 이 환경에서는 합성 마우스 이벤트가 창에 도달하지 않아
-  자동으로 누를 수 없다. 화면 동작은 사용자 확인이 필요하다.
-- 실제 제공자(Claude/Codex) 호출. 테스트는 가짜 provider를 쓴다.
-- 대용량 볼트에서의 revision 저장 용량. 설계가 후속 관리 기능으로 미룬 항목이다.
+**화면을 한 번도 보지 못했다.** 합성 마우스 이벤트가 Electron 창에 도달하지 않고(권한),
+검증을 시도한 시점에 기기가 잠겨 있었다. 아래는 전부 사용자 확인이 필요하다.
+
+- A12 전체 — 폭 3종, 밝은/어두운 테마, 키보드 이동, 한국어 IME 조합
+- 라이브러리·기억·참고 패널이 실제로 그려지는지
+- 창을 닫을 때 handshake가 실제로 창을 붙잡는지
+- 강제 종료 후 초안 복구
+
+**실제 제공자 호출은 없다.** 테스트는 전부 가짜 embedder/provider를 쓴다.
+Claude/Codex로 실제 요청을 보낸 적이 없다.
+
+**대용량 볼트에서의 revision 용량**은 재보지 않았다. 설계가 후속 관리 기능으로 미룬 항목이다.
+
+## 7. 적용된 마이그레이션
+
+| 버전 | 이름 | 무엇 |
+|---|---|---|
+| 28 | documents.meta_revisions_mutations | `document_meta`, `document_revisions`, `document_mutations`, `document_locks` |
+| 29 | document_drafts | 편집 버퍼 영속화 |
+| 30 | document_references | 버전 달린 참고 관계 |
+| 31 | change_proposals | AI가 제안한 변경 |
+
+전부 additive다. 기존 파일을 읽거나 고치지 않으며, fixture 볼트 해시 비교로 확인했다.
+
+## 8. 남은 문제
+
+1. **시작 시 prepared journal 복구 패스가 없다** (계약 §6-8). journal은 쓰이고 실패도
+   기록되지만, 부팅 때 디스크 해시와 대조해 미완료 쓰기를 판정하는 코드가 없다.
+2. **에디터가 `raw`를 보내지 않는다.** B안으로 감싸서 버전·락·외부 편집 감지는 걸리지만
+   낙관적 잠금은 못 쓴다. 그래서 `past` 원문 편집도 아직 못 하고 연필이 꺼져 있다.
+3. **Chat 화면이 context manifest를 쓰지 않는다.** 제안 저장·적용·거절은 라우트까지
+   있는데, 화면에서 대상·참고·지침을 고르는 UI가 없다.
+4. **홈이 그대로다.** 설계는 '이어서 작업하기'가 첫 화면이라고 하는데 확인 카드가 남아 있다.
+5. **CLI `add`/`edit`이 공통 정책을 우회한다.** Task 9의 3번이 요구한 어댑터 계약을
+   CLI에는 적용하지 않았다.
+6. **rule 노트 #2280**이 볼트에서 여전히 canonical이다. 사람만 대체할 수 있다.
