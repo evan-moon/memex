@@ -77,6 +77,9 @@ export const Sidebar = ({
         <NavLink to="/search" className={rowClass}>
           {t.sidebar.find}
         </NavLink>
+        <NavLink to="/memory" className={rowClass}>
+          {t.memory.title}
+        </NavLink>
         <button type="button" onClick={onChat} className={rowClass({ isActive: false })}>
           {t.sidebar.fix}
         </button>

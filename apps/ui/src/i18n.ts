@@ -491,6 +491,27 @@ const en = {
     state: { name: 'Belief', hint: 'What is true now. Rewrite it whenever it changes.' },
     rule: { name: 'Rule', hint: 'What the AI should follow. Takes effect once you approve it.' },
   } as Record<string, { name: string; hint: string }>,
+  memory: {
+    title: 'Memory',
+    empty: 'Nothing recorded here yet.',
+    wrong: 'This is wrong',
+    wasSaying: (said: string) => `Now: ${said}`,
+    newValue: 'What it should say',
+    apply: 'Record it',
+    retire: 'Stop using it',
+    status: {
+      unconfirmed: 'The AI recorded this',
+      confirmed: 'You confirmed this',
+      retired: 'No longer used',
+    } as Record<string, string>,
+    // No entry for `current`: the screen only reaches for this when the source
+    // has moved, and an empty string here would be a placeholder pretending to
+    // be a translation.
+    evidence: {
+      changed: 'The source has changed',
+      missing: 'The source is gone',
+    } as Record<string, string>,
+  },
   references: {
     tab: (n: number) => (n === 0 ? 'References' : `References ${n}`),
     find: 'Find something to write from',
@@ -1244,6 +1265,24 @@ const ko: typeof en = {
     state: { name: '현재 믿음', hint: '지금 참인 것이에요. 바뀌면 그때그때 고쳐 쓰면 돼요.' },
     rule: { name: '규칙', hint: 'AI가 따를 지침이에요. 승인해야 적용돼요.' },
   } as Record<string, { name: string; hint: string }>,
+  memory: {
+    title: '기억',
+    empty: '아직 기록된 게 없어요.',
+    wrong: '이건 틀렸어요',
+    wasSaying: (said) => `지금: ${said}`,
+    newValue: '무엇이 맞나요',
+    apply: '이걸로 기록',
+    retire: '더는 사용하지 않기',
+    status: {
+      unconfirmed: 'AI가 기록',
+      confirmed: '사용자 확인',
+      retired: '더는 사용하지 않음',
+    } as Record<string, string>,
+    evidence: {
+      changed: '근거가 바뀌었어요',
+      missing: '근거가 없어졌어요',
+    } as Record<string, string>,
+  },
   references: {
     tab: (n) => (n === 0 ? '참고' : `참고 ${n}`),
     find: '참고할 자료 찾기',

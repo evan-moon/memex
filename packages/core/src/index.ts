@@ -23,6 +23,23 @@ export {
   updateDocument,
   versionedEdit,
 } from './documents.ts';
+export type {
+  Correction,
+  CorrectionFailure,
+  CorrectionResult,
+  EvidenceState,
+  MemoryPage,
+  MemoryStatus,
+  MemoryTarget,
+  MemoryView,
+} from './memory.ts';
+export {
+  buildMemory,
+  correctMemory,
+  isCorrectionFailure,
+  memoryForSubject,
+  parseMemoryId,
+} from './memory.ts';
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   amendmentSuggestion,

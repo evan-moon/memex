@@ -322,6 +322,22 @@ export type DocumentReference = {
   state: 'current' | 'changed' | 'missing';
 };
 
+export type MemoryView = {
+  id: string;
+  subjectKey: string | null;
+  statement: string;
+  status: 'unconfirmed' | 'confirmed' | 'retired';
+  evidenceState: 'current' | 'changed' | 'missing';
+  evidence: { documentId: number; title: string | null }[];
+  supersededBy: string | null;
+  at: number;
+};
+
+export type MemoryPage = {
+  subjects: { subject: string; keys: number; lastAt: number }[];
+  items: MemoryView[];
+};
+
 export type LibraryFilter = 'all' | 'mine' | 'reference' | 'instruction';
 
 export type LibraryRow = {
@@ -726,6 +742,14 @@ export const api = {
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
+  memory: () => request<MemoryPage>('/api/memory'),
+  memoryFor: (subject: string) => request<MemoryPage>(`/api/memory/${encodeURIComponent(subject)}`),
+  correctMemory: (input: {
+    target: string;
+    expectedStatement?: string;
+    replacement?: string;
+    mutationId: string;
+  }) => post<{ target: string; status: string; statement: string }>('/api/memory/correct', input),
   references: (id: number) => request<DocumentReference[]>(`/api/note/${id}/references`),
   addReference: (id: number, sourceId: number, quote?: string) =>
     post<DocumentReference[]>(`/api/note/${id}/references`, { sourceId, quote }),

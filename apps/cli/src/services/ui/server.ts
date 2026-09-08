@@ -1,11 +1,14 @@
 import {
   applyProposal,
   approveRuleNote,
+  buildMemory,
   confirmNote,
+  correctMemory,
   type DocumentFailure,
   declineRuleNote,
   discardProposal,
   editNote,
+  isCorrectionFailure,
   isDocumentFailure,
   isEditRejection,
   isProposalFailure,
@@ -584,6 +587,35 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/buffers') {
     return json(unsavedDrafts(client, vaultPath));
+  }
+  // One list over claims and the register. Grouped by subject, because that is
+  // what somebody is looking for — not by which table it happens to be in.
+  if (method === 'GET' && url.pathname === '/api/memory') {
+    return json(buildMemory(client));
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/memory/')) {
+    const subject = decodeURIComponent(url.pathname.slice('/api/memory/'.length));
+    if (subject === '') return notFound;
+    return json(buildMemory(client, subject));
+  }
+  if (method === 'POST' && url.pathname === '/api/memory/correct') {
+    const asked = asRecord(payload);
+    const target = text(asked?.target);
+    const mutationId = text(asked?.mutationId);
+    if (target === undefined || mutationId === undefined) return bad(400, 'nothing-to-change');
+
+    const done = correctMemory(client, {
+      target,
+      expectedStatement: text(asked?.expectedStatement),
+      // Absent means retire. An empty string is somebody clearing the box, which
+      // is the same thing said a different way.
+      replacement: text(asked?.replacement),
+      reason: text(asked?.reason),
+      mutationId,
+    });
+    return isCorrectionFailure(done)
+      ? bad(done.error === 'not-found' ? 409 : 400, 'edit-rejected', done.message)
+      : json(done);
   }
   if (method === 'GET' && url.pathname === '/api/library') {
     const asked = url.searchParams.get('kind');
