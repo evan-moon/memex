@@ -67,8 +67,17 @@ export type DocumentFailure =
   | { error: 'write-failed'; message: string }
   | { error: 'busy'; message: string };
 
+const FAILURES = ['not-found', 'version-conflict', 'write-not-allowed', 'write-failed', 'busy'];
+
+// Named, not shaped. `editNote` refuses with an object carrying `error` too, and
+// a structural check swallowed those into the 500 branch — a rejection the
+// screen knows how to say, reported as a server fault.
 export const isDocumentFailure = (value: unknown): value is DocumentFailure =>
-  typeof value === 'object' && value !== null && 'error' in value;
+  typeof value === 'object' &&
+  value !== null &&
+  'error' in value &&
+  typeof value.error === 'string' &&
+  FAILURES.includes(value.error);
 
 const requestFor = (client: MemexClient, note: Note, context: DocumentContext) => ({
   actor: context.actor,
@@ -338,6 +347,72 @@ const writeUnderLock = (
 
     return { id, revision: revision.revisionId, raw: input.raw };
   });
+
+// The older edit path writes the file itself, through the renderer that keeps
+// frontmatter in step with the fields. Rather than reimplement that, this wraps
+// it: the same lock, the same check that the disk has not moved underneath, and
+// the same version recorded afterwards.
+//
+// What it does not get is the journal and the atomic swap, because the write in
+// the middle is not ours. Anything reaching for optimistic locking should call
+// `updateDocument` instead and send the version it was built on.
+export const versionedEdit = async <T>(
+  client: MemexClient,
+  id: number,
+  context: DocumentContext,
+  edit: () => Promise<T>,
+): Promise<T | DocumentFailure> => {
+  const note = getNote(client, id);
+  if (!note) return { error: 'not-found', message: `#${id} is not a document.` };
+
+  const verdict = canWriteDocument(requestFor(client, note, context));
+  if (!verdict.allowed) {
+    return { error: 'write-not-allowed', message: verdict.message, code: verdict.code };
+  }
+
+  try {
+    const before = rawOnDisk(note);
+    const known = currentRevision(client, id);
+    baselineIfMissing(client, note, before);
+
+    if (known !== undefined && known.fileHash !== hashOf(before)) {
+      const found = recordRevision(client, {
+        documentId: id,
+        rawContent: before,
+        actor: 'external',
+        reason: 'found on disk',
+      });
+      return {
+        error: 'version-conflict',
+        message: 'This document was changed somewhere else. Compare before writing over it.',
+        currentRevision: found.revisionId,
+        currentRaw: before,
+      };
+    }
+
+    const outcome = await withDocumentLock(client, id, context.holder ?? 'memex', edit);
+    const written = await outcome;
+
+    const after = rawOnDisk(getNote(client, id) ?? note);
+    if (after !== before) {
+      recordRevision(client, {
+        documentId: id,
+        rawContent: after,
+        actor: context.actor === 'user' ? 'user' : 'agent',
+        reason: 'edit',
+      });
+    }
+    return written;
+  } catch (cause) {
+    if (cause instanceof DocumentBusy) {
+      return {
+        error: 'busy',
+        message: 'Something else is writing this document right now. Try again in a moment.',
+      };
+    }
+    throw cause;
+  }
+};
 
 // Restoring is writing, not rewinding. The old text comes back as a new version
 // on top of the current one, so the thing being undone stays in the history.

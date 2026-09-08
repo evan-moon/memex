@@ -241,7 +241,17 @@ export const NoteScreen = () => {
   const borrowed = !note.writable;
   // The person may edit the text of a record now — the claims inside it are
   // still corrected rather than rewritten, and that is a different operation.
-  const editable = note.capabilities.canEdit;
+  //
+  // Not yet, though: the editor still sends the older patch shape, and that path
+  // refuses a record whoever is asking. Until the editor sends the raw file, the
+  // pencil stays off a record and the correction is still the way in. What
+  // capabilities can do today is take the pencil away — from a borrowed file, or
+  // where the server says no — never hand one out the save would refuse.
+  //
+  // Read defensively either way: a running app can be serving a build older than
+  // the page, and a screen that throws over one missing field is a worse answer
+  // than a screen that works out what it can for itself.
+  const editable = (note.capabilities?.canEdit ?? true) && note.layer !== 'past';
   return (
     <DocumentWorkspace note={note}>
       <Page>

@@ -117,9 +117,11 @@ export type NoteDetail = {
   corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
-  revision: string | null;
-  meta: DocumentMeta;
-  capabilities: Capabilities;
+  // Optional on purpose. The window can outlive the build that answers it, and
+  // a type that lies about that turns a stale server into a blank screen.
+  revision?: string | null;
+  meta?: DocumentMeta;
+  capabilities?: Capabilities;
 };
 
 export type DocumentMeta = {

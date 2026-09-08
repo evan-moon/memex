@@ -21,6 +21,7 @@ export {
   readDocument,
   restoreDocument,
   updateDocument,
+  versionedEdit,
 } from './documents.ts';
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {

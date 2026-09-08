@@ -14,6 +14,7 @@ import {
   searchPage,
   slotTemplate,
   updateDocument,
+  versionedEdit,
 } from '@memex/core';
 import {
   addReference,
@@ -1199,9 +1200,18 @@ export const route = async (
       return bad(400, 'nothing-to-change');
     }
 
-    const result = await editNote(deps.client, deps.embedder, vaultPath, noteId, patch, {
-      actor: 'user',
-    });
+    // The edit itself is unchanged. What is new is the boundary around it: the
+    // same lock the document write takes, the same check that the file has not
+    // moved underneath, and a version recorded for what it produced — so an edit
+    // made through this older shape is still recoverable.
+    const guarded = await versionedEdit(
+      client,
+      noteId,
+      { actor: 'user', vaultPath, holder: 'app' },
+      () => editNote(deps.client, deps.embedder, vaultPath, noteId, patch, { actor: 'user' }),
+    );
+    if (isDocumentFailure(guarded)) return documentFailure(guarded);
+    const result = guarded;
     if (result === null) return notFound;
     if (isEditRejection(result)) return bad(409, 'edit-rejected', result.message);
 

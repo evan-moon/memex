@@ -1040,3 +1040,66 @@ describe('references on a document', () => {
     expect(body(await get(`/api/note/${owner.id}/references`))).toEqual([]);
   });
 });
+
+// Plan B: the editor keeps sending what it always sent, and the boundary around
+// that write is what gained a version, a lock, and a look at the disk.
+describe('the older edit shape, now versioned', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const onDisk = (title: string, raw: string) => {
+    const note = addNote(title, 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('records a version for an edit sent the old way', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: unknown[] = JSON.parse(listed.body);
+    expect(revisions).toHaveLength(2);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('two');
+  });
+
+  it('keeps what was there before that first edit', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: { revisionId: string }[] = JSON.parse(listed.body);
+    const restored = await post(`/api/note/${note.id}/restore`, {
+      revision: revisions[revisions.length - 1].revisionId,
+      expectedRevision: revisions[0].revisionId,
+    });
+
+    expect(restored.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('one');
+  });
+
+  // The thing this buys that the old path never had: somebody edited the file
+  // in another editor, and the app does not write over it without saying so.
+  it('refuses when the file moved under it, and does not write', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+    writeFileSync(note.filePath, 'somebody else wrote this\n', 'utf8');
+
+    const reply = await post(`/api/note/${note.id}`, { body: 'three\n' });
+
+    expect(reply.status).toBe(409);
+    expect(body(reply).error).toMatchObject({ code: 'version-conflict' });
+    expect(readFileSync(note.filePath, 'utf8')).toBe('somebody else wrote this\n');
+  });
+
+  it('does not record a version for an edit that changed no file', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { tags: ['one'] });
+    await post(`/api/note/${note.id}`, { tags: ['one'] });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: unknown[] = JSON.parse(listed.body);
+    expect(revisions.length).toBeLessThanOrEqual(2);
+  });
+});
