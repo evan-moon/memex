@@ -20,6 +20,7 @@ export default defineConfig({
       'packages/*/src/**/*.test.ts?(x)',
       'apps/*/src/**/*.test.ts?(x)',
       'apps/docs/{app,lib}/**/*.test.ts?(x)',
+      'tests/**/*.test.ts?(x)',
     ],
     environment: 'node',
   },
