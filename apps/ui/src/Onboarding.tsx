@@ -4,7 +4,7 @@ import { EngineRows, OfferRows } from './Apps.tsx';
 import { api, type ModelState, type OnboardingState, toFailure } from './api.ts';
 import { offerable, thinkingIds, useApps } from './apps-setup.ts';
 import { useT } from './i18n.ts';
-import { currentStep, type Progress, STEPS, type Step } from './onboarding.ts';
+import { currentStep, type Progress, REQUIRED_STEPS, type Step } from './onboarding.ts';
 
 const MODEL_POLL_MS = 1000;
 
@@ -87,10 +87,11 @@ const Screen = ({
 // is still ahead of the reader, and colouring it says they have been somewhere
 // they have not.
 const Ticks = ({ at }: { at: Step | null }) => {
-  const here = at === null ? STEPS.length : STEPS.indexOf(at);
+  const here =
+    at === null ? REQUIRED_STEPS.length : REQUIRED_STEPS.findIndex((step) => step === at);
   return (
     <div className="mx-auto flex w-full max-w-[34rem] gap-1.5">
-      {STEPS.map((step, index) => (
+      {REQUIRED_STEPS.map((step, index) => (
         <span
           key={step}
           className={`onboard-tick ${index <= here ? 'onboard-tick-done' : ''}`}

@@ -290,6 +290,19 @@ export type NewNote = {
   amendsKind?: 'corrects' | 'continues';
 };
 
+export type LibraryFilter = 'all' | 'mine' | 'reference' | 'instruction';
+
+export type LibraryRow = {
+  id: number;
+  title: string;
+  folder: string;
+  kind: string;
+  updatedAt: number;
+  writingStatus: string | null;
+};
+
+export type LibraryPage = { rows: LibraryRow[]; counts: Record<LibraryFilter, number> };
+
 export type MergeCandidate = {
   kind: 'spelling' | 'overlap';
   keep: string;
@@ -678,6 +691,7 @@ export const api = {
   connectApp: (app: McpClientId) => post<AppsScreen>('/api/app/connect', { app }),
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
+  library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
   duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
   moveNote: (id: number, folder: string) =>
     post<{ path: string }>(`/api/note/${id}/move`, { folder }),

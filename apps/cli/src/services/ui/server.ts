@@ -91,6 +91,7 @@ import {
   revealPath,
 } from './files.ts';
 import { readHistory, readRevision } from './history.ts';
+import { buildLibrary, isLibraryFilter } from './library.ts';
 import type { ModelRunner } from './model.ts';
 import {
   bodyOf,
@@ -544,6 +545,10 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/buffers') {
     return json(unsavedDrafts(client, vaultPath));
+  }
+  if (method === 'GET' && url.pathname === '/api/library') {
+    const asked = url.searchParams.get('kind');
+    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all'));
   }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));

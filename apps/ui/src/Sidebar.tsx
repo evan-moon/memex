@@ -71,6 +71,9 @@ export const Sidebar = ({
             <i className="size-1.5 rounded-full bg-primary" aria-hidden />
           ) : null}
         </NavLink>
+        <NavLink to="/library" className={rowClass}>
+          {t.library.title}
+        </NavLink>
         <NavLink to="/search" className={rowClass}>
           {t.sidebar.find}
         </NavLink>

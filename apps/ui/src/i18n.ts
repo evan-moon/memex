@@ -491,6 +491,16 @@ const en = {
     state: { name: 'Belief', hint: 'What is true now. Rewrite it whenever it changes.' },
     rule: { name: 'Rule', hint: 'What the AI should follow. Takes effect once you approve it.' },
   } as Record<string, { name: string; hint: string }>,
+  library: {
+    title: 'Library',
+    empty: 'Nothing of that kind here yet.',
+    filters: {
+      all: 'Everything',
+      mine: 'My writing',
+      reference: 'References',
+      instruction: 'Instructions',
+    } as Record<string, string>,
+  },
   sidebar: {
     check: 'To check',
     find: 'Find',
@@ -1223,6 +1233,16 @@ const ko: typeof en = {
     state: { name: '현재 믿음', hint: '지금 참인 것이에요. 바뀌면 그때그때 고쳐 쓰면 돼요.' },
     rule: { name: '규칙', hint: 'AI가 따를 지침이에요. 승인해야 적용돼요.' },
   } as Record<string, { name: string; hint: string }>,
+  library: {
+    title: '라이브러리',
+    empty: '아직 그런 문서는 없어요.',
+    filters: {
+      all: '전체',
+      mine: '내 글',
+      reference: '참고 자료',
+      instruction: '지침',
+    } as Record<string, string>,
+  },
   sidebar: {
     check: '확인하기',
     find: '찾기',

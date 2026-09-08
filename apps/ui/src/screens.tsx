@@ -81,7 +81,7 @@ export const AmendedNotice = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendK
   );
 };
 
-const Pending = ({ failure }: { failure: ApiFailure | null }) => {
+export const Pending = ({ failure }: { failure: ApiFailure | null }) => {
   const t = useT();
   return (
     <Page>
