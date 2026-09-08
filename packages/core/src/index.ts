@@ -1,3 +1,27 @@
+export type {
+  Actor,
+  Capabilities,
+  WriteRefusal,
+  WriteRequest,
+  WriteVerdict,
+} from './document-policy.ts';
+export { canWriteDocument, capabilitiesFor } from './document-policy.ts';
+export type {
+  CreateDocument,
+  DocumentContext,
+  DocumentFailure,
+  DocumentRead,
+  DocumentWritten,
+  UpdateDocument,
+} from './documents.ts';
+export {
+  createDocument,
+  forgetDocument,
+  isDocumentFailure,
+  readDocument,
+  restoreDocument,
+  updateDocument,
+} from './documents.ts';
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   amendmentSuggestion,

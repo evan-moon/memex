@@ -90,6 +90,8 @@ export {
   listDeferrals,
   wakeDeferrals,
 } from './deferrals.ts';
+export type { LockHeld } from './document-locks.ts';
+export { DocumentBusy, lockOn, withDocumentLock } from './document-locks.ts';
 export type {
   DocumentKind,
   DocumentMeta,

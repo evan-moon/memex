@@ -601,6 +601,12 @@ const MIGRATIONS: readonly Migration[] = [
         );
         CREATE INDEX IF NOT EXISTS document_mutations_by_stage
           ON document_mutations (stage, at);
+
+        CREATE TABLE IF NOT EXISTS document_locks (
+          document_id INTEGER PRIMARY KEY,
+          holder      TEXT    NOT NULL,
+          at          INTEGER NOT NULL
+        );
       `);
     },
   },
