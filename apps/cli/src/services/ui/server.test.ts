@@ -853,3 +853,42 @@ describe('GET /api/templates', () => {
     expect(String(body(reply).rule)).toContain('## 어기면 보이는 것');
   });
 });
+
+describe('the editor’s buffer, kept where a crash cannot reach it', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('keeps and returns what was typed', async () => {
+    await post('/api/buffer/k-1', { content: '반쯤 쓴 문단', sequence: 1, documentId: 7 });
+
+    expect(body(await get('/api/buffer/k-1'))).toMatchObject({
+      content: '반쯤 쓴 문단',
+      documentId: 7,
+    });
+  });
+
+  it('has nothing for a key nobody wrote', async () => {
+    expect(body(await get('/api/buffer/never'))).toBeNull();
+  });
+
+  // These arrive from the tab still being typed in and nothing under them
+  // promises order.
+  it('refuses a sequence older than the one it holds', async () => {
+    await post('/api/buffer/k-1', { content: 'two', sequence: 2 });
+    await post('/api/buffer/k-1', { content: 'one', sequence: 1 });
+
+    expect(body(await get('/api/buffer/k-1'))).toMatchObject({ content: 'two' });
+  });
+
+  it('lists what a crash left behind', async () => {
+    await post('/api/buffer/k-1', { content: 'unsaved', sequence: 1 });
+
+    expect(body(await get('/api/buffers'))).toMatchObject([{ content: 'unsaved' }]);
+  });
+
+  it('is gone once the edit really landed', async () => {
+    await post('/api/buffer/k-1', { content: 'unsaved', sequence: 1 });
+    await route(deps, 'DELETE', new URL('/api/buffer/k-1', 'http://localhost'), null);
+
+    expect(body(await get('/api/buffer/k-1'))).toBeNull();
+  });
+});

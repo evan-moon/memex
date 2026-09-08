@@ -610,6 +610,29 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // What the editor is holding that the file does not have yet. Separate from
+    // `note_drafts`, which is a rewrite an agent prepared before anybody asked:
+    // this one is the person's own keystrokes, kept so that closing the window
+    // or losing power is not the same as losing the paragraph.
+    version: 29,
+    name: 'document_drafts',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS document_drafts (
+          draft_key     TEXT    PRIMARY KEY,
+          vault_id      TEXT    NOT NULL,
+          document_id   INTEGER,
+          base_revision TEXT,
+          content       TEXT    NOT NULL,
+          sequence      INTEGER NOT NULL DEFAULT 0,
+          at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS document_drafts_by_vault
+          ON document_drafts (vault_id, at DESC);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

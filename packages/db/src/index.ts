@@ -90,6 +90,13 @@ export {
   listDeferrals,
   wakeDeferrals,
 } from './deferrals.ts';
+export type { DocumentDraft, NewDocumentDraft } from './document-drafts.ts';
+export {
+  dropDocumentDraft,
+  getDocumentDraft,
+  putDocumentDraft,
+  unsavedDrafts,
+} from './document-drafts.ts';
 export type { LockHeld } from './document-locks.ts';
 export { DocumentBusy, lockOn, withDocumentLock } from './document-locks.ts';
 export type {

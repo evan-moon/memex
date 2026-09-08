@@ -20,9 +20,11 @@ import {
   deferReviewItem,
   deleteSession,
   dismissDanglingFor,
+  dropDocumentDraft,
   dropJudgement,
   getAmendmentsFor,
   getClaim,
+  getDocumentDraft,
   getInference,
   getNote,
   isNoteType,
@@ -31,6 +33,7 @@ import {
   listSessions,
   listSignals,
   type MemexClient,
+  putDocumentDraft,
   type RegisterScope,
   recordJudgement,
   refreshInferenceStaleness,
@@ -45,6 +48,7 @@ import {
   setRegister,
   setSignalStatus,
   startOfDay,
+  unsavedDrafts,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
 import { loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
@@ -502,6 +506,44 @@ export const route = async (
   // one that decides whether a save is accepted is this one.
   if (method === 'GET' && url.pathname === '/api/templates') {
     return json(Object.fromEntries(LAYERS.map((layer) => [layer, slotTemplate(layer, '미분류')])));
+  }
+  // The editor's buffer, kept where a crash cannot reach it. Separate from the
+  // debounced file save on purpose: one makes an edit permanent, the other makes
+  // it survivable in between.
+  // `/api/draft/:id` was already taken — that one is a rewrite an agent prepared
+  // for a note. This is the person's own keystrokes, which is a different thing
+  // with a worse name, so it gets a different word.
+  if (url.pathname.startsWith('/api/buffer/')) {
+    const draftKey = decodeURIComponent(url.pathname.slice('/api/buffer/'.length));
+    if (draftKey === '') return bad(400, 'not-found', 'No draft key given.');
+
+    if (method === 'GET') {
+      const draft = getDocumentDraft(client, draftKey);
+      return draft === undefined ? json(null) : json(draft);
+    }
+    if (method === 'POST') {
+      const asked = asRecord(payload);
+      const content = typeof asked?.content === 'string' ? asked.content : null;
+      const sequence = typeof asked?.sequence === 'number' ? asked.sequence : null;
+      if (content === null || sequence === null) return bad(400, 'nothing-to-change');
+      return json(
+        putDocumentDraft(client, {
+          draftKey,
+          vaultId: vaultPath,
+          documentId: positiveInt(asked?.documentId) ?? null,
+          baseRevision: typeof asked?.baseRevision === 'string' ? asked.baseRevision : null,
+          content,
+          sequence,
+        }),
+      );
+    }
+    if (method === 'DELETE') {
+      dropDocumentDraft(client, draftKey);
+      return json({ dropped: draftKey });
+    }
+  }
+  if (method === 'GET' && url.pathname === '/api/buffers') {
+    return json(unsavedDrafts(client, vaultPath));
   }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));

@@ -158,7 +158,7 @@ const movedItems = (client: MemexClient, injected: Map<number, number>): ReviewI
       correctedBy: null,
       correctedAt: 0,
       retired: [],
-      before: edge.sourceExcerpt === null ? null : (excerptOf(edge.sourceExcerpt) || null),
+      before: edge.sourceExcerpt === null ? null : excerptOf(edge.sourceExcerpt) || null,
       now: edge.missing ? null : bodyOf(client, edge.noteId),
     }));
 

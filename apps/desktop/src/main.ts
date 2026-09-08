@@ -63,6 +63,30 @@ const createWindow = (url: string) => {
     }
   });
 
+  // Closing is asked for, not announced. The page is given the chance to finish
+  // what it is holding, and only when it says the last keystroke is somewhere
+  // other than this window does the window go.
+  //
+  // A component unmounting and firing a save nobody waits on is not a close
+  // handshake — it is a promise dropped on the way out the door.
+  let closing = false;
+  window.on('close', (event) => {
+    if (closing) return;
+    event.preventDefault();
+    window.webContents
+      .executeJavaScript('window.memexReadyToClose?.() ?? true')
+      .then((ready: unknown) => {
+        closing = ready !== false;
+        if (closing) window.close();
+      })
+      .catch(() => {
+        // The page cannot answer — it crashed, or it is not ours. Refusing to
+        // close then would leave a window nobody can shut.
+        closing = true;
+        window.close();
+      });
+  });
+
   return window;
 };
 
