@@ -345,9 +345,12 @@ export type LibraryRow = {
   title: string;
   folder: string;
   kind: string;
+  origin: string;
   updatedAt: number;
   writingStatus: string | null;
 };
+
+export type SourceFolder = { path: string; mine: boolean };
 
 export type LibraryPage = { rows: LibraryRow[]; counts: Record<LibraryFilter, number> };
 
@@ -743,6 +746,10 @@ export const api = {
   templates: () => request<Record<string, string>>('/api/templates'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
   routes: () => request<{ routes: string[] }>('/api/routes'),
+  setOrigin: (id: number, origin: string) =>
+    post<{ origin: string }>(`/api/note/${id}/origin`, { origin }),
+  sources: () => request<SourceFolder[]>('/api/sources'),
+  markSource: (path: string, mine: boolean) => post<SourceFolder[]>('/api/sources', { path, mine }),
   memory: () => request<MemoryPage>('/api/memory'),
   memoryFor: (subject: string) => request<MemoryPage>(`/api/memory/${encodeURIComponent(subject)}`),
   correctMemory: (input: {

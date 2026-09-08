@@ -17,6 +17,9 @@ export type LibraryRow = {
   title: string;
   folder: string;
   kind: DocumentKind;
+  // Shown so a row can be disagreed with. A guess nobody can see is a guess
+  // nobody can correct.
+  origin: DocumentOrigin;
   updatedAt: number;
   writingStatus: string | null;
 };
@@ -92,6 +95,7 @@ export const buildLibrary = (
         title: row.title,
         folder: row.folder,
         kind: kindOf(meta.kind, row.layer, origin),
+        origin,
         updatedAt: row.updated_at,
         writingStatus: meta.writingStatus,
       },

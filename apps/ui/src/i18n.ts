@@ -402,6 +402,11 @@ const en = {
     searchModel: 'Search',
     searchModelHint:
       'Finds notes by meaning, so the words do not have to match. It stays on this machine and runs offline.',
+    sources: 'Folders memex reads',
+    sourcesHint:
+      'memex indexes these but never writes to them. Marking one says you wrote what is in it — a single document can still disagree with its folder.',
+    myWriting: 'I wrote this folder',
+    noSources: 'No folders connected yet.',
     thinkingApps: 'Who you talk to',
     thinkingAppsHint:
       'Writing and fixing notes in this app runs through one of these. memex never sees your password or token.',
@@ -527,6 +532,13 @@ const en = {
   library: {
     title: 'Library',
     empty: 'Nothing of that kind here yet.',
+    whoWrote: 'Who wrote this. Click to say it is yours, or to take that back.',
+    origins: {
+      person: 'Mine',
+      agent: 'AI',
+      external: 'Borrowed',
+      unknown: 'Not said',
+    } as Record<string, string>,
     filters: {
       all: 'Everything',
       mine: 'My writing',
@@ -1180,6 +1192,11 @@ const ko: typeof en = {
     searchModel: '검색',
     searchModelHint:
       '단어가 정확하지 않아도 뜻으로 찾아줘요. 이 컴퓨터에 남고, 받고 나면 인터넷 없이 돌아가요.',
+    sources: 'memex가 읽는 폴더',
+    sourcesHint:
+      '색인만 하고 쓰지는 않아요. 표시하면 그 안의 글을 직접 썼다는 뜻이고, 문서 하나하나는 라이브러리에서 따로 바꿀 수 있어요.',
+    myWriting: '내가 쓴 폴더',
+    noSources: '연결한 폴더가 없어요.',
     thinkingApps: '이야기할 상대',
     thinkingAppsHint:
       '앱 안에서 노트를 쓰고 고칠 때 이 중 하나를 거쳐요. 비밀번호나 토큰은 memex에 저장되지 않아요.',
@@ -1299,6 +1316,13 @@ const ko: typeof en = {
   library: {
     title: '라이브러리',
     empty: '아직 그런 문서는 없어요.',
+    whoWrote: '누가 썼는지. 눌러서 내 글이라고 하거나, 되돌릴 수 있어요.',
+    origins: {
+      person: '내 글',
+      agent: 'AI',
+      external: '빌려온 것',
+      unknown: '아직 몰라요',
+    } as Record<string, string>,
     filters: {
       all: '전체',
       mine: '내 글',

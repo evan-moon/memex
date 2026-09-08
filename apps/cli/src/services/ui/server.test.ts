@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  getDocumentMeta,
   getInference,
   getNote,
   insertNote,
@@ -1158,5 +1159,46 @@ describe('what an agent offered to change', () => {
 
   it('has nothing to apply for an offer that never existed', async () => {
     expect((await post('/api/proposal/never/apply', null)).status).toBe(404);
+  });
+});
+
+// A folder is a bulk answer and a file may disagree with it, which is the only
+// honest arrangement when somebody's own writing and somebody else's are in the
+// same directory.
+describe('who wrote this one', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('takes the person’s word for a single document', async () => {
+    const note = addNote('내가 쓴 글', 'state');
+
+    const reply = await post(`/api/note/${note.id}/origin`, { origin: 'person' });
+
+    expect(body(reply)).toMatchObject({ origin: 'person' });
+    expect(getDocumentMeta(client, note.id).origin).toBe('person');
+  });
+
+  // Taking it back is not a third answer. The file goes back to being read from
+  // how it arrived.
+  it('lets the answer be taken back', async () => {
+    const note = addNote('잘못 표시한 글', 'state');
+    await post(`/api/note/${note.id}/origin`, { origin: 'person' });
+
+    await post(`/api/note/${note.id}/origin`, { origin: 'unknown' });
+
+    expect(getDocumentMeta(client, note.id).origin).toBe('unknown');
+  });
+
+  it('refuses a word it does not know', async () => {
+    const note = addNote('글', 'state');
+    expect((await post(`/api/note/${note.id}/origin`, { origin: '내꺼' })).status).toBe(400);
+  });
+
+  it('lists the folders memex reads and which are the person’s', async () => {
+    const listed = body(await get('/api/sources'));
+    expect(Array.isArray(listed)).toBe(true);
+  });
+
+  it('will not mark a folder memex does not read', async () => {
+    expect((await post('/api/sources', { path: '/nowhere', mine: true })).status).toBe(404);
   });
 });

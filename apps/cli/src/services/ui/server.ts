@@ -59,6 +59,7 @@ import {
   sessionExists,
   sessionTurns,
   setClaimKind,
+  setDocumentMeta,
   setInferenceStatus,
   setNoteEvidence,
   setRegister,
@@ -268,6 +269,8 @@ const KNOWN_ROUTES = [
   '/api/note/:id/references',
   '/api/note/:id/revisions',
   '/api/note/:id/proposals',
+  '/api/note/:id/origin',
+  '/api/sources',
 ] as const;
 
 // The statuses the contract names, with what a client needs to recover: which
@@ -951,6 +954,53 @@ export const route = async (
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));
     const topic = buildTopic(client, tag);
     return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
+  }
+  // Who wrote this one. A folder can be marked in bulk and a file can disagree
+  // with its folder, which is the only honest answer when somebody's own writing
+  // and somebody else's sit in the same directory.
+  if (method === 'POST' && /^\/api\/note\/\d+\/origin$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    const asked = asRecord(payload);
+    const origin = asked?.origin;
+    if (
+      origin !== 'person' &&
+      origin !== 'agent' &&
+      origin !== 'external' &&
+      origin !== 'unknown'
+    ) {
+      return bad(400, 'nothing-to-change');
+    }
+    // `unknown` is not a third answer, it is taking the answer back: the file
+    // goes back to being read from how it arrived.
+    return json(setDocumentMeta(client, noteId, { origin }));
+  }
+
+  // The folders memex reads, and which of them hold the person's own writing.
+  if (method === 'GET' && url.pathname === '/api/sources') {
+    const config = loadConfig();
+    return json(
+      config.sources.map((source) => ({
+        path: source.path,
+        mine: source.mine === true,
+      })),
+    );
+  }
+  if (method === 'POST' && url.pathname === '/api/sources') {
+    const asked = asRecord(payload);
+    const path = text(asked?.path);
+    if (path === undefined || typeof asked?.mine !== 'boolean') {
+      return bad(400, 'nothing-to-change');
+    }
+    const config = loadConfig();
+    const sources = config.sources.map((source) =>
+      source.path === path ? { ...source, mine: asked.mine === true } : source,
+    );
+    if (!sources.some((source) => source.path === path)) {
+      return bad(404, 'not-found', 'That folder is not one memex reads.');
+    }
+    saveConfig({ ...config, sources });
+    return json(sources.map((source) => ({ path: source.path, mine: source.mine === true })));
   }
   // What an agent offered to change, and the two things a person can do about
   // it. Above the `/api/note/*` catch-all like the rest of the specific paths.
