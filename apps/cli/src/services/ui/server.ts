@@ -1,15 +1,19 @@
 import {
   approveRuleNote,
   confirmNote,
+  type DocumentFailure,
   declineRuleNote,
   editNote,
+  isDocumentFailure,
   isEditRejection,
   isSaveRejection,
   removeNote,
+  restoreDocument,
   type SearchOptions,
   saveNote,
   searchPage,
   slotTemplate,
+  updateDocument,
 } from '@memex/core';
 import {
   approveRule,
@@ -30,6 +34,7 @@ import {
   isNoteType,
   judgementsSince,
   lastJudgement,
+  listRevisions,
   listSessions,
   listSignals,
   type MemexClient,
@@ -240,6 +245,32 @@ const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
 });
 
 const notFound = bad(404, 'not-found');
+
+// The statuses the contract names, with what a client needs to recover: which
+// version is current, and what the file actually says now.
+const documentFailure = (failure: DocumentFailure): Reply => {
+  if (failure.error === 'version-conflict') {
+    return {
+      status: 409,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        error: { code: 'version-conflict', detail: failure.message },
+        currentRevision: failure.currentRevision,
+        currentRaw: failure.currentRaw,
+      }),
+    };
+  }
+  if (failure.error === 'write-not-allowed') {
+    return {
+      status: 403,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ error: { code: 'write-not-allowed', detail: failure.message } }),
+    };
+  }
+  if (failure.error === 'busy') return bad(409, 'file-op-failed', failure.message);
+  if (failure.error === 'not-found') return notFound;
+  return bad(500, 'file-op-failed', failure.message);
+};
 
 // One card, one meaning: the left action says the memory still stands. What that
 // writes differs by what the card holds — a claim gets a fresher timestamp, a rule
@@ -856,6 +887,13 @@ export const route = async (
     const topic = buildTopic(client, tag);
     return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
   }
+  // The document's own versions, and the way back to one of them. More specific
+  // than the `/api/note/*` shapes below, so they are matched first.
+  if (method === 'GET' && /^\/api\/note\/\d+\/revisions$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    return json(listRevisions(client, noteId).map(({ rawContent, ...rest }) => rest));
+  }
   if (method === 'GET' && url.pathname.startsWith('/api/note/')) {
     const detail = noteDetail(client, Number(url.pathname.split('/').pop()), vaultPath);
     return detail ? json(detail) : notFound;
@@ -1063,12 +1101,51 @@ export const route = async (
     }
     return json(noteDetail(client, result.note.id, vaultPath));
   }
+  if (method === 'POST' && /^\/api\/note\/\d+\/restore$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    const asked = asRecord(payload);
+    const wanted = typeof asked?.revision === 'string' ? asked.revision : null;
+    if (wanted === null) return bad(400, 'nothing-to-change');
+    const done = restoreDocument(
+      client,
+      noteId,
+      wanted,
+      typeof asked?.expectedRevision === 'string' ? asked.expectedRevision : null,
+      { actor: 'user', vaultPath, holder: 'app' },
+    );
+    return isDocumentFailure(done)
+      ? documentFailure(done)
+      : json(noteDetail(client, noteId, vaultPath));
+  }
   if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
     const noteId = Number(url.pathname.split('/').pop());
     const note = getNote(client, noteId);
     if (!note) return notFound;
 
     const fields = asRecord(payload);
+
+    // A document write is told from a memory edit by what it carries: the raw
+    // file and the version it was built on. The legacy shape below is untouched,
+    // because everything that speaks it still works.
+    if (fields && 'raw' in fields && typeof fields.raw === 'string') {
+      const mutationId = text(fields.mutationId);
+      if (mutationId === undefined) return bad(400, 'nothing-to-change');
+      const done = updateDocument(
+        client,
+        noteId,
+        {
+          raw: fields.raw,
+          expectedRevision:
+            typeof fields.expectedRevision === 'string' ? fields.expectedRevision : null,
+          mutationId,
+        },
+        { actor: 'user', vaultPath, holder: 'app' },
+      );
+      return isDocumentFailure(done)
+        ? documentFailure(done)
+        : json(noteDetail(client, noteId, vaultPath));
+    }
+
     const body = fields && 'body' in fields ? fields.body : undefined;
     if (body !== undefined && text(body) === undefined) return bad(400, 'empty-body');
     if (fields && 'title' in fields && text(fields.title) === undefined) {

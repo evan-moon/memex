@@ -117,6 +117,24 @@ export type NoteDetail = {
   corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
+  revision: string | null;
+  meta: DocumentMeta;
+  capabilities: Capabilities;
+};
+
+export type DocumentMeta = {
+  documentId: number;
+  mode: 'document' | 'legacy-memory';
+  kind: 'note' | 'reference' | 'draft' | 'instruction' | 'unknown';
+  origin: 'person' | 'external' | 'agent' | 'unknown';
+  writingStatus: 'working' | 'finished' | null;
+  currentRevision: string | null;
+};
+
+export type Capabilities = {
+  canEdit: boolean;
+  canPropose: boolean;
+  refusal: { code: string; message: string } | null;
 };
 
 export type NoteSource = { path: string; text: string | null };
@@ -692,6 +710,24 @@ export const api = {
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
+  writeDocument: (
+    id: number,
+    input: { raw: string; expectedRevision: string | null; mutationId: string },
+  ) => post<NoteDetail>(`/api/note/${id}`, input),
+  revisions: (id: number) =>
+    request<{ revisionId: string; at: number; actor: string; reason: string | null }[]>(
+      `/api/note/${id}/revisions`,
+    ),
+  restoreRevision: (id: number, revision: string, expectedRevision: string | null) =>
+    post<NoteDetail>(`/api/note/${id}/restore`, { revision, expectedRevision }),
+  buffer: (key: string) =>
+    request<{ content: string; baseRevision: string | null; sequence: number } | null>(
+      `/api/buffer/${encodeURIComponent(key)}`,
+    ),
+  keepBuffer: (
+    key: string,
+    input: { content: string; sequence: number; documentId?: number; baseRevision?: string | null },
+  ) => post<unknown>(`/api/buffer/${encodeURIComponent(key)}`, input),
   duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
   moveNote: (id: number, folder: string) =>
     post<{ path: string }>(`/api/note/${id}/move`, { folder }),

@@ -892,3 +892,104 @@ describe('the editor’s buffer, kept where a crash cannot reach it', () => {
     expect(body(await get('/api/buffer/k-1'))).toBeNull();
   });
 });
+
+// The document write, reached through the routes that already existed rather
+// than a second parallel set of them.
+describe('POST /api/note/:id as a document write', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const makeFile = (title: string, raw: string) => {
+    const note = addNote(title, 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('tells the screen which version it is editing and whether it may', async () => {
+    const note = addNote('a document', 'state');
+
+    const detail = body(await get(`/api/note/${note.id}`));
+
+    expect(detail).toMatchObject({ revision: null, capabilities: { canEdit: true } });
+    expect(detail.meta).toMatchObject({ origin: 'unknown' });
+  });
+
+  it('writes the raw file and hands back the new version', async () => {
+    const note = makeFile('a document', 'one\n');
+
+    const reply = await post(`/api/note/${note.id}`, {
+      raw: 'two\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('two\n');
+    expect(body(reply).revision).not.toBeNull();
+  });
+
+  it('refuses a write built on a version that moved, and says what is current', async () => {
+    const note = makeFile('a document', 'one\n');
+    const first = body(
+      await post(`/api/note/${note.id}`, {
+        raw: 'two\n',
+        expectedRevision: null,
+        mutationId: 'm-1',
+      }),
+    );
+
+    const stale = await post(`/api/note/${note.id}`, {
+      raw: 'three\n',
+      expectedRevision: 'a-version-that-never-was',
+      mutationId: 'm-2',
+    });
+
+    expect(stale.status).toBe(409);
+    expect(body(stale)).toMatchObject({
+      error: { code: 'version-conflict' },
+      currentRevision: first.revision,
+      currentRaw: 'two\n',
+    });
+  });
+
+  it('leaves the memory edit shape alone', async () => {
+    const note = addNote('a plan', 'state');
+
+    const reply = await post(`/api/note/${note.id}`, { title: 'a better plan' });
+
+    expect(reply.status).toBe(200);
+    expect(getNote(client, note.id)?.title).toBe('a better plan');
+  });
+
+  it('lists the versions without shipping every copy of the document', async () => {
+    const note = makeFile('a document', 'one\n');
+    await post(`/api/note/${note.id}`, { raw: 'two\n', expectedRevision: null, mutationId: 'm-1' });
+
+    const revisions = body(await get(`/api/note/${note.id}/revisions`));
+
+    expect(Array.isArray(revisions)).toBe(true);
+    expect(revisions).toHaveLength(2);
+    expect(revisions[0]).not.toHaveProperty('rawContent');
+  });
+
+  it('brings an old version back as a new one', async () => {
+    const note = makeFile('a document', 'one\n');
+    const second = body(
+      await post(`/api/note/${note.id}`, {
+        raw: 'two\n',
+        expectedRevision: null,
+        mutationId: 'm-1',
+      }),
+    );
+    const revisions = body(await get(`/api/note/${note.id}/revisions`)) as { revisionId: string }[];
+    const first = revisions[revisions.length - 1];
+
+    const reply = await post(`/api/note/${note.id}/restore`, {
+      revision: first.revisionId,
+      expectedRevision: second.revision,
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('one\n');
+  });
+});

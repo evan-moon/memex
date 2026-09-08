@@ -30,6 +30,16 @@ const note = (over: Partial<NoteDetail> = {}): NoteDetail => ({
   corrects: [],
   backlinks: [],
   related: [],
+  revision: null,
+  meta: {
+    documentId: 7,
+    mode: 'legacy-memory',
+    kind: 'unknown',
+    origin: 'unknown',
+    writingStatus: null,
+    currentRevision: null,
+  },
+  capabilities: { canEdit: true, canPropose: true, refusal: null },
   ...over,
 });
 
