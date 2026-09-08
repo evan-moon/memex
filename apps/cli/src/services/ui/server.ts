@@ -67,7 +67,7 @@ import {
   unsavedDrafts,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
-import { loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
+import { expandPath, loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
   installAssistant,
@@ -256,6 +256,19 @@ const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
 });
 
 const notFound = bad(404, 'not-found');
+
+// Named here rather than derived, because what matters is what this build was
+// compiled knowing about — which is exactly what a running process cannot learn
+// by looking at the source on disk.
+const KNOWN_ROUTES = [
+  '/api/library',
+  '/api/memory',
+  '/api/templates',
+  '/api/buffer/:key',
+  '/api/note/:id/references',
+  '/api/note/:id/revisions',
+  '/api/note/:id/proposals',
+] as const;
 
 // The statuses the contract names, with what a client needs to recover: which
 // version is current, and what the file actually says now.
@@ -617,9 +630,21 @@ export const route = async (
       ? bad(done.error === 'not-found' ? 409 : 400, 'edit-rejected', done.message)
       : json(done);
   }
+  // Which routes this build actually answers. The window hot-reloads and the
+  // server does not, so a page can be newer than the process serving it — and
+  // the symptom is a 404 that reads like missing data rather than a stale app.
+  // Twice in one day it was diagnosed by grepping the bundle; this is cheaper.
+  if (method === 'GET' && url.pathname === '/api/routes') {
+    return json({ routes: KNOWN_ROUTES });
+  }
   if (method === 'GET' && url.pathname === '/api/library') {
     const asked = url.searchParams.get('kind');
-    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all'));
+    // Which connected folders the person has said they wrote. Read fresh rather
+    // than captured, because settings can change while the window is open.
+    const authored = loadConfig()
+      .sources.filter((source) => source.mine === true)
+      .map((source) => expandPath(source.path));
+    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all', 500, authored));
   }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));

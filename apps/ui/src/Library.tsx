@@ -18,7 +18,7 @@ export const LibraryScreen = () => {
   const kind: LibraryFilter = FILTERS.find((f) => f === asked) ?? 'all';
   const { data, failure } = useAsync<LibraryPage>(() => api.library(kind), kind);
 
-  if (!data) return <Pending failure={failure} />;
+  if (!data) return <Pending failure={failure} needs="/api/library" />;
 
   const pick = (next: LibraryFilter) => {
     const now = new URLSearchParams(params);

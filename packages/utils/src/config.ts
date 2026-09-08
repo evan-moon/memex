@@ -8,6 +8,14 @@ const DEFAULT_VAULT_PATH = join(homedir(), 'Documents', 'Second Brain');
 
 export type MemexSource = {
   path: string;
+  // A folder memex reads is borrowed by default: another tool owns it and memex
+  // only indexes it. That says nothing about who wrote what is in it — somebody
+  // connecting the folder their own blog lives in is the author of every file
+  // there, and only they can say so.
+  //
+  // Marking a source `mine` is that answer, and it is about authorship alone. It
+  // does not grant write access: editing a borrowed file is still refused.
+  mine?: boolean;
 };
 
 // Which model does which kind of work, split by who is waiting: a turn someone

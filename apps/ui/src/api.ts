@@ -742,6 +742,7 @@ export const api = {
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
+  routes: () => request<{ routes: string[] }>('/api/routes'),
   memory: () => request<MemoryPage>('/api/memory'),
   memoryFor: (subject: string) => request<MemoryPage>(`/api/memory/${encodeURIComponent(subject)}`),
   correctMemory: (input: {

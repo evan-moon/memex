@@ -1,4 +1,10 @@
-import { type DocumentKind, getDocumentMeta, type MemexClient } from '@memex/db';
+import {
+  type DocumentKind,
+  type DocumentOrigin,
+  getDocumentMeta,
+  type MemexClient,
+} from '@memex/db';
+import { inVault } from '@memex/utils';
 
 // What the library shows. The folders stay exactly as they are on disk — the
 // design is explicit that connecting a folder does not rearrange it — and the
@@ -23,12 +29,40 @@ type Row = {
   folder: string;
   updated_at: number;
   layer: string;
+  source: string;
+  file_path: string;
 };
 
-// `mine` is not "author says person". That column defaults to person for the
-// whole corpus, so it is evidence of nothing. Only a document somebody actually
-// wrote here, or one they said was theirs, counts.
-const matches = (filter: LibraryFilter, kind: DocumentKind, origin: string): boolean => {
+// `notes.author` defaults to person for the whole corpus, so it is evidence of
+// nothing and is not read here. `source` and `layer` are different: they record
+// how a note arrived, and a value that was written down rather than defaulted
+// can be believed.
+//
+// A folder somebody connected because they wrote what is in it is borrowed as
+// far as indexing goes and theirs as far as authorship goes. Nothing in the
+// files says which, so the person says it once per folder rather than 216 times.
+const originOf = (
+  declared: DocumentOrigin,
+  source: string,
+  layer: string,
+  mine: boolean,
+): DocumentOrigin => {
+  if (declared !== 'unknown') return declared;
+  if (source === 'claude-code') return 'agent';
+  if (mine) return 'person';
+  if (source === 'manual') return 'person';
+  if (layer === 'external') return 'external';
+  return 'unknown';
+};
+
+const kindOf = (declared: DocumentKind, layer: string, origin: DocumentOrigin): DocumentKind => {
+  if (declared !== 'unknown') return declared;
+  if (layer === 'rule') return 'instruction';
+  if (origin === 'external') return 'reference';
+  return 'unknown';
+};
+
+const matches = (filter: LibraryFilter, kind: DocumentKind, origin: DocumentOrigin): boolean => {
   if (filter === 'all') return true;
   if (filter === 'mine') return origin === 'person';
   if (filter === 'reference') return kind === 'reference' || origin === 'external';
@@ -39,26 +73,29 @@ export const buildLibrary = (
   client: MemexClient,
   filter: LibraryFilter = 'all',
   limit = 500,
+  authored: string[] = [],
 ): LibraryPage => {
   const rows = client.sqlite
     .prepare(
-      `SELECT id, title, COALESCE(category, '') AS folder, updated_at, layer
+      `SELECT id, title, COALESCE(category, '') AS folder, updated_at, layer, source, file_path
        FROM notes ORDER BY updated_at DESC LIMIT ?`,
     )
     .all(limit) as Row[];
 
   const enriched = rows.map((row) => {
     const meta = getDocumentMeta(client, row.id);
+    const mine = authored.some((root) => inVault(row.file_path, root));
+    const origin = originOf(meta.origin, row.source, row.layer, mine);
     return {
       row: {
         id: row.id,
         title: row.title,
         folder: row.folder,
-        kind: row.layer === 'rule' ? ('instruction' as const) : meta.kind,
+        kind: kindOf(meta.kind, row.layer, origin),
         updatedAt: row.updated_at,
         writingStatus: meta.writingStatus,
       },
-      origin: meta.origin,
+      origin,
     };
   });
 

@@ -24,6 +24,7 @@ import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { rememberVisit } from './recent.ts';
 import { StalePanel } from './StalePanel.tsx';
+import { isStaleServer } from './stale.ts';
 import { openTab } from './tabs.ts';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
@@ -82,12 +83,22 @@ export const AmendedNotice = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendK
   );
 };
 
-export const Pending = ({ failure }: { failure: ApiFailure | null }) => {
+// `needs` names the route this screen cannot do without. When a request fails
+// and the running build has never heard of that route, the honest answer is not
+// "nothing here" — it is that the window outran the process serving it.
+export const Pending = ({ failure, needs }: { failure: ApiFailure | null; needs?: string }) => {
   const t = useT();
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    if (failure === null || needs === undefined) return;
+    isStaleServer(needs).then(setStale);
+  }, [failure, needs]);
+
   return (
     <Page>
       <div className="py-16 text-sm text-muted">
-        {failure ? t.error(failure) : t.common.loading}
+        {stale ? t.app.staleServer : failure ? t.error(failure) : t.common.loading}
       </div>
     </Page>
   );

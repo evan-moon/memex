@@ -115,7 +115,7 @@ export const MemoryScreen = () => {
     `${subject ?? 'all'}-${round}`,
   );
 
-  if (!data) return <Pending failure={failure} />;
+  if (!data) return <Pending failure={failure} needs="/api/memory" />;
 
   return (
     <Page>
