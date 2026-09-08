@@ -8,6 +8,18 @@ export {
 } from './backup.ts';
 export type { CardField, CardQuality, NoteCard } from './card.ts';
 export { extractCard } from './card.ts';
+export type {
+  ChangeProposal,
+  NewProposal,
+  ProposalRange,
+  ProposalStatus,
+} from './change-proposals.ts';
+export {
+  getProposal,
+  proposalsFor,
+  putProposal,
+  setProposalStatus,
+} from './change-proposals.ts';
 export {
   type ChangeKind,
   changeHead,

@@ -42,6 +42,8 @@ export {
   semanticSearchMulti,
   type WriteActor,
 } from './note.ts';
+export type { ProposalFailure } from './proposals.ts';
+export { applyProposal, discardProposal, isProposalFailure } from './proposals.ts';
 export { approveRuleNote, declineRuleNote } from './rules.ts';
 export type { StructuredLayer } from './slots.ts';
 export {

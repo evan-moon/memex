@@ -1,11 +1,14 @@
 import {
+  applyProposal,
   approveRuleNote,
   confirmNote,
   type DocumentFailure,
   declineRuleNote,
+  discardProposal,
   editNote,
   isDocumentFailure,
   isEditRejection,
+  isProposalFailure,
   isSaveRejection,
   removeNote,
   restoreDocument,
@@ -41,6 +44,7 @@ import {
   listSessions,
   listSignals,
   type MemexClient,
+  proposalsFor,
   putDocumentDraft,
   type RegisterScope,
   recordJudgement,
@@ -890,6 +894,30 @@ export const route = async (
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));
     const topic = buildTopic(client, tag);
     return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
+  }
+  // What an agent offered to change, and the two things a person can do about
+  // it. Above the `/api/note/*` catch-all like the rest of the specific paths.
+  if (method === 'GET' && /^\/api\/note\/\d+\/proposals$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    return json(proposalsFor(client, noteId));
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/proposal/')) {
+    const [id, action] = url.pathname.slice('/api/proposal/'.length).split('/');
+    if (!id) return notFound;
+
+    if (action === 'apply') {
+      const done = applyProposal(client, id, { actor: 'user', vaultPath, holder: 'app' });
+      if (isProposalFailure(done)) {
+        return done.error === 'not-found' ? notFound : bad(409, 'edit-rejected', done.message);
+      }
+      if (isDocumentFailure(done)) return documentFailure(done);
+      return json(done);
+    }
+    if (action === 'discard') {
+      const gone = discardProposal(client, id);
+      return gone === null ? notFound : json(gone);
+    }
   }
   // Like the revisions route below, these sit above the `/api/note/*` catch-all
   // or they never run.

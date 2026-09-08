@@ -9,6 +9,7 @@ import {
   type MemexClient,
   mintInference,
   openDb,
+  putProposal,
   serializeTags,
   setNoteEvidence,
   syncLinks,
@@ -1101,5 +1102,61 @@ describe('the older edit shape, now versioned', () => {
     const listed = await get(`/api/note/${note.id}/revisions`);
     const revisions: unknown[] = JSON.parse(listed.body);
     expect(revisions.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('what an agent offered to change', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const document = (raw: string) => {
+    const note = addNote('원고', 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('lists what is still on offer for a document', async () => {
+    const note = document('첫 문단.\n');
+    putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    expect(body(await get(`/api/note/${note.id}/proposals`))).toHaveLength(1);
+  });
+
+  it('applies one and writes the document', async () => {
+    const note = document('첫 문단.\n');
+    const proposal = putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    const reply = await post(`/api/proposal/${proposal.id}/apply`, null);
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('고쳐 쓴 문단.\n');
+  });
+
+  // The original never moves by this route, whatever was shown on screen.
+  it('leaves the document alone when the offer is thrown away', async () => {
+    const note = document('첫 문단.\n');
+    const proposal = putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    const reply = await post(`/api/proposal/${proposal.id}/discard`, null);
+
+    expect(body(reply)).toMatchObject({ status: 'discarded' });
+    expect(readFileSync(note.filePath, 'utf8')).toBe('첫 문단.\n');
+    expect(body(await get(`/api/note/${note.id}/proposals`))).toHaveLength(0);
+  });
+
+  it('has nothing to apply for an offer that never existed', async () => {
+    expect((await post('/api/proposal/never/apply', null)).status).toBe(404);
   });
 });

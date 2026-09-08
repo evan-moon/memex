@@ -657,6 +657,34 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // What an agent offered to change, kept until somebody decides. A proposal
+    // outlives the conversation that made it — the person may close the panel,
+    // read the source it cites, and come back — so it cannot live in a chat
+    // turn, and it carries the version it was written against so that coming
+    // back to a document that moved is a refusal rather than a silent mangling.
+    version: 31,
+    name: 'change_proposals',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS change_proposals (
+          id            TEXT    PRIMARY KEY,
+          document_id   INTEGER NOT NULL,
+          base_revision TEXT,
+          range_from    INTEGER,
+          range_to      INTEGER,
+          exact_text    TEXT,
+          replacement   TEXT    NOT NULL,
+          used_evidence TEXT    NOT NULL DEFAULT '[]',
+          status        TEXT    NOT NULL DEFAULT 'pending',
+          origin_client TEXT,
+          at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS change_proposals_by_document
+          ON change_proposals (document_id, at DESC);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
