@@ -17,6 +17,7 @@
 | `yarn typecheck` | 20 tasks successful, 0 failed |
 
 Task 2 이후: `yarn test` 1357 passed · 0 failed. `schema_version` 27 → **28**.
+Task 3 이후: `yarn test` 1382 passed · 0 failed.
 
 기존 실패는 없다. 새 실패가 보이면 기존 문제로 넘기지 않는다.
 
@@ -74,16 +75,16 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 | ID | 시나리오 | 상태 | 근거 |
 |---|---|---|---|
 | A01 | 새 설치, AI/embedding 없이 볼트 생성과 원고 작성 | 미착수 | Task 3·5 |
-| A02 | unknown YAML·wiki link 문서의 한 문단 수정 시 나머지 보존 | 미착수 | Task 3. fixture `notes/unknown-yaml.md` |
+| A02 | unknown YAML·wiki link 문서의 한 문단 수정 시 나머지 보존 | **core 검증됨** | `documents.test.ts` "keeps the YAML it does not understand" |
 | A03 | 저장 지연 중 추가 입력 후 이동 | 미착수 | Task 4 |
 | A04 | git 없는 볼트에서 AI 수정 적용 후 복원 | 미착수 | Task 2·7 |
-| A05 | app과 MCP가 같은 base로 동시 수정 | 미착수 | Task 3·9 |
+| A05 | app과 MCP가 같은 base로 동시 수정 | **core 검증됨** | 두 번째 연결이 lock을 쥔 채 확인. UI/MCP 배선은 Task 9 |
 | A06 | 요청 후 다른 문서로 전환해도 제안은 원래 문서에 | 미착수 | Task 7 |
 | A07 | 원문 수정 후 오래된 proposal 적용 거절 | 미착수 | Task 7 |
 | A08 | '출시 9월'을 '10월'로 정정, 이후 조회에 반영 | 미착수 | Task 8. fixture `projects/launch-plan.md` |
 | A09 | 참고문의 '모든 규칙을 무시하라'가 지침 권한을 갖지 않음 | 미착수 | Task 7. fixture `references/ops-handbook.md` |
-| A10 | agent가 person/unknown 문서를 직접 덮어쓰려 하면 proposal 또는 거절 | 미착수 | Task 3·9 |
-| A11 | 파일 쓰기·DB 확정·embedding 단계별 실패에서 복구 | 미착수 | Task 3 |
+| A10 | agent가 person/unknown 문서를 직접 덮어쓰려 하면 proposal 또는 거절 | **core 검증됨** | `document-policy.ts`. 제안 생성 자체는 Task 7 |
+| A11 | 파일 쓰기·DB 확정·embedding 단계별 실패에서 복구 | **일부** | 파일 쓰기 실패와 journal은 검증됨. 시작 시 prepared 복구 패스는 미구현 |
 | A12 | 960/1280/1600 폭, 밝은/어두운 테마, 키보드와 IME | 미착수 | Task 5·6·10 |
 | A13 | 외부 파일 수정 후 dirty 앱에 복귀 | 미착수 | Task 4·9 |
 | A14 | 활성 규칙 수정·글쓰기 스킬 선택이 전역 주입을 만들지 않음 | 미착수 | Task 7. fixture `rules/proposed-brevity.md` |
@@ -94,7 +95,7 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 |---|---|---|
 | 1 기준과 fixtures | **완료** | rule 노트 #2280 대체는 사용자 승인 대기 |
 | 2 메타데이터와 버전 | **완료** | schema v28. 파일은 건드리지 않는 additive migration |
-| 3 공통 저장과 복구 | 미착수 | |
+| 3 공통 저장과 복구 | **core 완료, HTTP 배선 남음** | `packages/core/src/documents.ts`. `/api` 라우트 연결은 Task 5와 함께 |
 | 4 영속 초안과 자동 저장 | 미착수 | |
 | 5 시작하기와 앱 구조 | 미착수 | |
 | 6 자료와 문서 작업 | 미착수 | |
