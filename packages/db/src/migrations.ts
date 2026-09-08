@@ -633,6 +633,30 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // What a document is being written from. The reference is a pointer with a
+    // version on it, never a copy: the passage stays in the document it came
+    // from, so when that document changes this can say so rather than quietly
+    // holding a sentence nobody stands behind any more.
+    version: 30,
+    name: 'document_references',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS document_references (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_document_id  INTEGER NOT NULL,
+          source_document_id INTEGER NOT NULL,
+          source_revision    TEXT,
+          quote              TEXT    NOT NULL DEFAULT '',
+          heading            TEXT,
+          at                 INTEGER NOT NULL,
+          UNIQUE (owner_document_id, source_document_id)
+        );
+        CREATE INDEX IF NOT EXISTS document_references_by_owner
+          ON document_references (owner_document_id, at DESC);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

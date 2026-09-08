@@ -981,7 +981,8 @@ describe('POST /api/note/:id as a document write', () => {
         mutationId: 'm-1',
       }),
     );
-    const revisions = body(await get(`/api/note/${note.id}/revisions`)) as { revisionId: string }[];
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: { revisionId: string }[] = JSON.parse(listed.body);
     const first = revisions[revisions.length - 1];
 
     const reply = await post(`/api/note/${note.id}/restore`, {
@@ -991,5 +992,51 @@ describe('POST /api/note/:id as a document write', () => {
 
     expect(reply.status).toBe(200);
     expect(readFileSync(note.filePath, 'utf8')).toBe('one\n');
+  });
+});
+
+describe('references on a document', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('points at a source rather than copying it into the body', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+
+    const reply = await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toMatchObject([{ sourceDocumentId: source.id, title: '인터뷰 메모' }]);
+    expect(getNote(client, owner.id)?.content).not.toContain('인터뷰');
+  });
+
+  it('is one reference however many times the same source is added', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+
+    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+    const twice = await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    expect(body(twice)).toHaveLength(1);
+  });
+
+  it('refuses a source that is not a note', async () => {
+    const owner = addNote('원고', 'state');
+    expect((await post(`/api/note/${owner.id}/references`, { sourceId: 9999 })).status).toBe(404);
+  });
+
+  it('lets one go', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    const gone = await route(
+      deps,
+      'DELETE',
+      new URL(`/api/note/${owner.id}/references`, 'http://localhost'),
+      { sourceId: source.id },
+    );
+
+    expect(body(gone)).toEqual([]);
+    expect(body(await get(`/api/note/${owner.id}/references`))).toEqual([]);
   });
 });

@@ -16,6 +16,7 @@ import {
   updateDocument,
 } from '@memex/core';
 import {
+  addReference,
   approveRule,
   BINGE_LIMIT,
   clearDeferral,
@@ -26,6 +27,7 @@ import {
   dismissDanglingFor,
   dropDocumentDraft,
   dropJudgement,
+  dropReference,
   getAmendmentsFor,
   getClaim,
   getDocumentDraft,
@@ -41,6 +43,7 @@ import {
   putDocumentDraft,
   type RegisterScope,
   recordJudgement,
+  referencesFor,
   refreshInferenceStaleness,
   restampInference,
   restoreClaim,
@@ -886,6 +889,33 @@ export const route = async (
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));
     const topic = buildTopic(client, tag);
     return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
+  }
+  // Like the revisions route below, these sit above the `/api/note/*` catch-all
+  // or they never run.
+  if (/^\/api\/note\/\d+\/references$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+
+    if (method === 'GET') return json(referencesFor(client, noteId));
+    if (method === 'POST') {
+      const asked = asRecord(payload);
+      const sourceId = positiveInt(asked?.sourceId);
+      if (sourceId === undefined) return bad(400, 'nothing-to-change');
+      if (!getNote(client, sourceId)) return bad(404, 'not-found', 'That source is not a note.');
+      addReference(client, {
+        ownerDocumentId: noteId,
+        sourceDocumentId: sourceId,
+        quote: text(asked?.quote) ?? '',
+        heading: text(asked?.heading) ?? null,
+      });
+      return json(referencesFor(client, noteId));
+    }
+    if (method === 'DELETE') {
+      const sourceId = positiveInt(asRecord(payload)?.sourceId);
+      if (sourceId === undefined) return bad(400, 'nothing-to-change');
+      dropReference(client, noteId, sourceId);
+      return json(referencesFor(client, noteId));
+    }
   }
   // The document's own versions, and the way back to one of them. More specific
   // than the `/api/note/*` shapes below, so they are matched first.

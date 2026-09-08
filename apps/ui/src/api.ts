@@ -308,6 +308,18 @@ export type NewNote = {
   amendsKind?: 'corrects' | 'continues';
 };
 
+export type DocumentReference = {
+  id: number;
+  ownerDocumentId: number;
+  sourceDocumentId: number;
+  sourceRevision: string | null;
+  quote: string;
+  heading: string | null;
+  at: number;
+  title: string | null;
+  state: 'current' | 'changed' | 'missing';
+};
+
 export type LibraryFilter = 'all' | 'mine' | 'reference' | 'instruction';
 
 export type LibraryRow = {
@@ -389,12 +401,14 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return data as T;
 };
 
-const post = <T>(path: string, body?: unknown) =>
+const send = <T>(method: string, path: string, body?: unknown) =>
   request<T>(path, {
-    method: 'POST',
+    method,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   });
+
+const post = <T>(path: string, body?: unknown) => send<T>('POST', path, body);
 
 export const searchQuery = (query: string, filters: SearchFilters): string => {
   const params = new URLSearchParams({ q: query });
@@ -710,6 +724,11 @@ export const api = {
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
+  references: (id: number) => request<DocumentReference[]>(`/api/note/${id}/references`),
+  addReference: (id: number, sourceId: number, quote?: string) =>
+    post<DocumentReference[]>(`/api/note/${id}/references`, { sourceId, quote }),
+  dropReference: (id: number, sourceId: number) =>
+    send<DocumentReference[]>('DELETE', `/api/note/${id}/references`, { sourceId }),
   writeDocument: (
     id: number,
     input: { raw: string; expectedRevision: string | null; mutationId: string },

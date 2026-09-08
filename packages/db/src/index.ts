@@ -116,6 +116,8 @@ export {
   preparedMutations,
   prepareMutation,
 } from './document-mutations.ts';
+export type { DocumentReference, NewReference, SourceState } from './document-references.ts';
+export { addReference, dropReference, referencesFor } from './document-references.ts';
 export type { NewRevision, Revision, RevisionActor } from './document-revisions.ts';
 export {
   currentRevision,
