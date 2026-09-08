@@ -18,8 +18,8 @@
 
 Task 2 이후: `yarn test` 1357 passed · 0 failed. `schema_version` 27 → **28**.
 Task 3 이후: `yarn test` 1382 passed · 0 failed.
-Task 5 이후: `yarn test` **1428 passed · 0 failed**, `yarn typecheck` 20/20, `yarn build` 11/11.
-`schema_version` 27 → **29**.
+Task 6 이후: `yarn test` **1451 passed · 0 failed**, `yarn typecheck` 20/20, `yarn build` 11/11.
+`schema_version` 27 → **30**.
 
 기존 실패는 없다. 새 실패가 보이면 기존 문제로 넘기지 않는다.
 
@@ -77,9 +77,9 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 | ID | 시나리오 | 상태 | 근거 |
 |---|---|---|---|
 | A01 | 새 설치, AI/embedding 없이 볼트 생성과 원고 작성 | **로직 검증됨** | 온보딩 게이트가 intro·vault 둘로 줄었고 `createDocument`는 모델을 안 받음. 화면 확인은 사용자 |
-| A02 | unknown YAML·wiki link 문서의 한 문단 수정 시 나머지 보존 | **core 검증됨** | `documents.test.ts` "keeps the YAML it does not understand" |
+| A02 | unknown YAML·wiki link 문서의 한 문단 수정 시 나머지 보존 | **검증됨** | `documents.test.ts` "keeps the YAML it does not understand" |
 | A03 | 저장 지연 중 추가 입력 후 이동 | **로직 검증됨** | `save-queue.test.ts`. 늦게 온 응답이 최신 입력을 clean 처리하지 못함 |
-| A04 | git 없는 볼트에서 AI 수정 적용 후 복원 | 미착수 | Task 2·7 |
+| A04 | git 없는 볼트에서 AI 수정 적용 후 복원 | **일부** | revision·restore는 라우트까지 검증됨. AI 적용 경로는 Task 7 |
 | A05 | app과 MCP가 같은 base로 동시 수정 | **core 검증됨** | 두 번째 연결이 lock을 쥔 채 확인. UI/MCP 배선은 Task 9 |
 | A06 | 요청 후 다른 문서로 전환해도 제안은 원래 문서에 | 미착수 | Task 7 |
 | A07 | 원문 수정 후 오래된 proposal 적용 거절 | 미착수 | Task 7 |
@@ -98,16 +98,21 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 |---|---|---|
 | 1 기준과 fixtures | **완료** | rule 노트 #2280 대체는 사용자 승인 대기 |
 | 2 메타데이터와 버전 | **완료** | schema v28. 파일은 건드리지 않는 additive migration |
-| 3 공통 저장과 복구 | **core 완료, HTTP 배선 남음** | `packages/core/src/documents.ts`. `/api` 라우트 연결은 Task 5와 함께 |
+| 3 공통 저장과 복구 | **완료** | `packages/core/src/documents.ts` + `/api/note/:id` 문서 operation, revisions, restore |
 | 4 영속 초안과 자동 저장 | **완료** | IME 조합·강제 종료 복구는 Electron 수동 확인 필요 |
 | 5 시작하기와 앱 구조 | **일부** | 온보딩 게이트·라이브러리 완료. 홈 재설계와 기억 메뉴는 미착수 |
-| 6 자료와 문서 작업 | 미착수 | ReferencePanel, DocumentWorkspace |
+| 6 자료와 문서 작업 | **완료** | ReferencePanel, DocumentWorkspace, `document_references`. 좁은 창 오버레이는 미구현 |
 | 7 AI 맥락과 제안 | 미착수 | context manifest, change_proposals |
 | 8 기억 정정 | 미착수 | Memory 화면, correctMemory |
 | 9 MCP와 CLI 일관성 | 미착수 | `update_note` operation union, expected_revision |
 | 10 전체 저니와 문서 정리 | 미착수 | |
 
 ## 5-1. 계획과 달라진 구현 결정
+
+- **`/api/note/:id/revisions`를 catch-all 위로 올려야 했다.** 계약 §9가 경고한 그대로,
+  기존 `GET /api/note/*`가 먼저 잡아서 테스트 2개가 깨졌다.
+- **`document_references`는 `(owner, source)`가 유일하다.** 같은 자료를 두 번 붙이면
+  한 줄이 갱신된다. 계약은 중복 처리를 요구했지만 방식은 정하지 않았다.
 
 - **`/api/buffer/:key`.** 계약은 초안 경로를 정하지 않았는데, `/api/draft/:id`는 이미
   에이전트가 준비한 재작성이 쓰고 있었다. 그대로 얹었더니 기존 테스트 2개가 깨져서 잡혔고,
