@@ -16,6 +16,8 @@
 | `yarn test` | 1325 passed · 4 skipped · **0 failed** (133 files) |
 | `yarn typecheck` | 20 tasks successful, 0 failed |
 
+Task 2 이후: `yarn test` 1357 passed · 0 failed. `schema_version` 27 → **28**.
+
 기존 실패는 없다. 새 실패가 보이면 기존 문제로 넘기지 않는다.
 
 ## 2. 설계 문서의 추정과 실제 코드
@@ -38,6 +40,15 @@
 | `services/ui/history.ts`가 git log/show를 쓴다 | 사실 |
 | additive migration 체계가 있다 | 사실. 버전 목록 29개, 현재 `schema_version = 27`, `index_meta`에 보관 |
 | `note.layer === 'past'`이면 편집이 제한된다 | 사실. UI는 연필을 감추고 `editNote`는 정정을 제안한다 |
+
+### 계획의 추정과 달랐던 것
+
+- **`schema.ts`는 고칠 필요가 없었다.** 계획은 Task 2에서 `schema.ts`·`client.ts` 수정을
+  예상했지만, drizzle로 모델링된 테이블은 `notes` 하나뿐이고 나머지는 전부 raw SQL이다.
+  새 테이블도 같은 방식(migration의 `CREATE TABLE` + prepared statement 저장소)으로 넣었다.
+- **journal은 세 번째 파일이 됐다.** 계획은 `document-revisions.ts`와 `document-meta.ts`만
+  이름을 댔는데, `document_mutations`는 수명이 다른 관심사(진행 중인 쓰기 시도 대 확정된
+  이력)라 `document-mutations.ts`로 분리했다.
 
 ### 문서가 다루지 않은 것
 
@@ -82,7 +93,7 @@ git 저장소가 아니다(설계가 요구하는 "git 없는 볼트" 조건).
 | Task | 상태 | 남은 것 |
 |---|---|---|
 | 1 기준과 fixtures | **완료** | rule 노트 #2280 대체는 사용자 승인 대기 |
-| 2 메타데이터와 버전 | 미착수 | |
+| 2 메타데이터와 버전 | **완료** | schema v28. 파일은 건드리지 않는 additive migration |
 | 3 공통 저장과 복구 | 미착수 | |
 | 4 영속 초안과 자동 저장 | 미착수 | |
 | 5 시작하기와 앱 구조 | 미착수 | |

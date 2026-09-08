@@ -89,7 +89,9 @@ describe('claimTrustFactor', () => {
 
   it('drops a note whose every claim has been closed', () => {
     const note = noteWith(['a']);
-    client.sqlite.prepare("UPDATE note_claims SET status = 'closed' WHERE note_id = ?").run(note.id);
+    client.sqlite
+      .prepare("UPDATE note_claims SET status = 'closed' WHERE note_id = ?")
+      .run(note.id);
     expect(claimTrustFactor(claimStandingFor(client, [note.id]).get(note.id))).toBe(
       CLAIM_TRUST.closed,
     );

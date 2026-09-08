@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { getNoteByFilePath, listNotes, type MemexClient, openDb } from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory } from '../../apps/cli/src/services/indexer.ts';
@@ -97,5 +98,53 @@ describe('the v1 fixture vault', () => {
 
     expect(approved).toContain('rule_status: canonical');
     expect(waiting).toContain('rule_status: provisional');
+  });
+});
+
+// A schema step runs against a vault somebody is in the middle of using. The one
+// thing it may never do is touch a file: the documents are the user's, and a
+// migration that rewrote them would be unrecoverable in a vault with no git.
+describe('a migration over the fixture vault', () => {
+  let vault: { path: string; dispose: () => void };
+  let db: { path: string; dispose: () => void };
+
+  beforeEach(() => {
+    vault = copyFixtureVault();
+    db = temporaryDbDir();
+  });
+
+  afterEach(() => {
+    vault.dispose();
+    db.dispose();
+  });
+
+  const fingerprint = (root: string): Record<string, string> => {
+    const walk = (at: string): string[] =>
+      readdirSync(at).flatMap((name) => {
+        const here = join(at, name);
+        return statSync(here).isDirectory() ? walk(here) : [here];
+      });
+    return Object.fromEntries(
+      walk(root).map((file) => [
+        relative(root, file),
+        createHash('sha256').update(readFileSync(file)).digest('hex'),
+      ]),
+    );
+  };
+
+  it('leaves every document byte for byte as it found it', async () => {
+    const client = openDb(db.path);
+    await indexDirectory(client, stubEmbedder, vault.path);
+    const before = fingerprint(vault.path);
+
+    // Forget the stamp so every step runs again over a populated database.
+    client.sqlite.prepare("DELETE FROM index_meta WHERE key = 'schema_version'").run();
+    client.sqlite.close();
+    const reopened = openDb(db.path);
+    const notes = listNotes(reopened, 100).length;
+    reopened.sqlite.close();
+
+    expect(fingerprint(vault.path)).toEqual(before);
+    expect(notes).toBe(16);
   });
 });

@@ -90,6 +90,31 @@ export {
   listDeferrals,
   wakeDeferrals,
 } from './deferrals.ts';
+export type {
+  DocumentKind,
+  DocumentMeta,
+  DocumentMetaPatch,
+  DocumentMode,
+  DocumentOrigin,
+  WritingStatus,
+} from './document-meta.ts';
+export { getDocumentMeta, setDocumentMeta } from './document-meta.ts';
+export type { Mutation, MutationStage, PreparedMutation } from './document-mutations.ts';
+export {
+  commitMutation,
+  failMutation,
+  findMutation,
+  preparedMutations,
+  prepareMutation,
+} from './document-mutations.ts';
+export type { NewRevision, Revision, RevisionActor } from './document-revisions.ts';
+export {
+  currentRevision,
+  getRevision,
+  hashOf,
+  listRevisions,
+  recordRevision,
+} from './document-revisions.ts';
 export type { NoteDraft } from './drafts.ts';
 export { basisOf, draftedNotes, dropDraft, getDraft, putDraft } from './drafts.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
