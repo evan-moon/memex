@@ -2,8 +2,10 @@ import type { AmendKind, Claim, ClaimStanding, MemexClient } from '@memex/db';
 import {
   claimScope,
   claimStandingFor,
+  currentRevision,
   getAmendments,
   getBacklinks,
+  getDocumentMeta,
   getNote,
   locateClaims,
 } from '@memex/db';
@@ -82,6 +84,20 @@ export const claimStandingSection = (standing: ClaimStanding | undefined): strin
   return `\n\n---\n**Claims read out of this note, and what a person said about them.** Prefer \u2713 over \u25cb; treat \u25cb as true as of its date and possibly stale since; do not repeat \u2715 as current.\n${lines.join('\n')}`;
 };
 
+// The version a write has to be built on, and what memex knows about where this
+// document came from. Written out here rather than left for `update_note` to
+// discover, because an agent that has to guess a revision will guess.
+export const documentLine = (client: MemexClient, id: number): string => {
+  const meta = getDocumentMeta(client, id);
+  const revision = currentRevision(client, id)?.revisionId ?? null;
+  if (revision === null && meta.origin === 'unknown') return '';
+  const parts = [
+    revision === null ? null : `revision: ${revision}`,
+    meta.origin === 'unknown' ? null : `origin: ${meta.origin}`,
+  ].filter((part) => part !== null);
+  return `\n${parts.join(' | ')}\n\nTo change this document, call update_note with operation: "edit-document" and expected_revision above. A document a person may have written is refused rather than overwritten — offer the change in conversation instead.`;
+};
+
 export const registerGetNote = (server: McpServer, client: MemexClient) => {
   server.tool(
     'get_note',
@@ -104,7 +120,7 @@ export const registerGetNote = (server: McpServer, client: MemexClient) => {
 
       const mirrorSection = note.author === 'agent' ? ownWorkHint : '';
 
-      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${standingSection}${backlinkSection}${mirrorSection}\n\n---\nid: ${note.id} | ${stamp(note)} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}`;
+      const text = `# ${note.title}\n\n${note.content}${amendmentSection}${standingSection}${backlinkSection}${mirrorSection}\n\n---\nid: ${note.id} | ${stamp(note)} | source: ${note.source} | created: ${new Date(note.createdAt).toLocaleDateString()}${documentLine(client, id)}`;
       return { content: [{ type: 'text', text }] };
     },
   );

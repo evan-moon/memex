@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { amendmentSections, claimStandingSection } from './get-note.ts';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { type MemexClient, openDb, recordRevision, setDocumentMeta } from '@memex/db';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { amendmentSections, claimStandingSection, documentLine } from './get-note.ts';
 
 const NOTE =
   '# 캐러셀 설계\n\n## 이것이 바꾼 것\n\n- 캐러셀은 4장으로 간다\n\n## 무슨 일이 있었나\n\n리서치는 8~10장이 최적이라고 말한다.';
@@ -92,5 +96,54 @@ describe('claimStandingSection', () => {
     });
     expect(out).toContain('✕ no longer true since 2026-09-01');
     expect(out).toContain('do not repeat ✕ as current');
+  });
+});
+
+describe('documentLine', () => {
+  let dir: string;
+  let client: MemexClient;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'memex-get-note-'));
+    client = openDb(dir);
+  });
+
+  afterEach(() => {
+    client.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const addNote = () => {
+    const row = client.sqlite
+      .prepare(
+        `INSERT INTO notes (title, content, file_path, created_at, updated_at)
+         VALUES ('a document', 'body', ?, 1, 1) RETURNING id`,
+      )
+      .get(join(dir, 'a.md')) as { id: number };
+    return row.id;
+  };
+
+  // An agent that has to guess a revision will guess, and a guess is exactly
+  // what expected_revision exists to refuse.
+  it('names the version a write has to be built on', () => {
+    const id = addNote();
+    const at = recordRevision(client, { documentId: id, rawContent: 'body', actor: 'user' });
+
+    const line = documentLine(client, id);
+
+    expect(line).toContain(at.revisionId);
+    expect(line).toContain('edit-document');
+  });
+
+  it('says nothing at all about a note memex has never saved', () => {
+    expect(documentLine(client, addNote())).toBe('');
+  });
+
+  it('says where a document came from once it knows', () => {
+    const id = addNote();
+    recordRevision(client, { documentId: id, rawContent: 'body', actor: 'user' });
+    setDocumentMeta(client, id, { origin: 'person' });
+
+    expect(documentLine(client, id)).toContain('origin: person');
   });
 });
