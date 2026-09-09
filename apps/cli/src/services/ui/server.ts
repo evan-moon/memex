@@ -259,6 +259,19 @@ const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
 
 const notFound = bad(404, 'not-found');
 
+// What the person picked, as the request stated it. Ids only: the text is read
+// here, so a request cannot hand the model a passage claiming it came from a
+// note it did not.
+const contextFrom = (value: unknown) => {
+  const asked = asRecord(value);
+  if (asked === null) return undefined;
+  return {
+    targetId: positiveInt(asked.targetId) ?? null,
+    referenceIds: ids(asked.referenceIds),
+    instructionIds: ids(asked.instructionIds),
+  };
+};
+
 // Named here rather than derived, because what matters is what this build was
 // compiled knowing about — which is exactly what a running process cannot learn
 // by looking at the source on disk.
@@ -778,6 +791,7 @@ export const route = async (
         choice,
         carried: carriedFrom(new URLSearchParams(url.search)),
         sessionId: typeof asked?.sessionId === 'number' ? asked.sessionId : null,
+        context: contextFrom(asked?.context),
       }),
     );
   }

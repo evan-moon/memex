@@ -518,6 +518,16 @@ const en = {
       missing: 'The source is gone',
     } as Record<string, string>,
   },
+  context: {
+    target: 'About:',
+    noTarget: 'a question, nothing in particular',
+    references: 'Reading:',
+    noReferences: 'nothing attached',
+    instructions: 'Following:',
+    noInstructions: 'nothing chosen',
+    choose: 'Choose',
+    provider: 'Through:',
+  },
   references: {
     tab: (n: number) => (n === 0 ? 'References' : `References ${n}`),
     find: 'Find something to write from',
@@ -1301,6 +1311,16 @@ const ko: typeof en = {
       changed: '근거가 바뀌었어요',
       missing: '근거가 없어졌어요',
     } as Record<string, string>,
+  },
+  context: {
+    target: '대상',
+    noTarget: '문서 없이 질문만',
+    references: '참고',
+    noReferences: '붙인 자료 없음',
+    instructions: '지침',
+    noInstructions: '고른 지침 없음',
+    choose: '고르기',
+    provider: '제공자',
   },
   references: {
     tab: (n) => (n === 0 ? '참고' : `참고 ${n}`),

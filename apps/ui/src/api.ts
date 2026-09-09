@@ -646,8 +646,17 @@ export const api = {
     operationId: string,
     choice: { provider: string; model: string },
     sessionId: number | null,
+    // Ids only. The text is read on the server, so a request cannot hand the
+    // model a passage claiming it came from a note it did not.
+    context?: { targetId: number | null; referenceIds: number[]; instructionIds: number[] },
   ) =>
-    post<ChatAnswer>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, sessionId }),
+    post<ChatAnswer>(`/api/chat${chatQuery(target)}`, {
+      message,
+      operationId,
+      choice,
+      sessionId,
+      context,
+    }),
   models: () => request<Catalog>('/api/models'),
   assignModel: (job: ModelJob, choice: Choice) =>
     post<Record<ModelJob, Choice>>('/api/models', { [job]: choice }),

@@ -8,6 +8,7 @@ import {
   startSession,
 } from '@memex/db';
 import type { LlmChoice } from '@memex/llm';
+import { buildContext } from '../chat/context.ts';
 import type { ApplyFailure, ChatFailure, Remedy } from '../chat/errors.ts';
 import { remedyFor } from '../chat/errors.ts';
 import type { Carried, Plan } from '../chat/plan.ts';
@@ -95,6 +96,9 @@ export type Asked = {
   operationId: string;
   choice: LlmChoice;
   sessionId: number | null;
+  // What the person picked for this request. Resolved into a snapshot here, so
+  // changing tabs while the turn runs does not change what it was about.
+  context?: { targetId: number | null; referenceIds?: number[]; instructionIds?: number[] };
 };
 
 const asSaid = (turns: ChatTurn[]): Said[] =>
@@ -123,6 +127,7 @@ export const startChat = async (
   const turn = await planTurn(deps, {
     message,
     carried,
+    context: asked.context === undefined ? undefined : buildContext(deps.client, asked.context),
     choice,
     history,
     signal: stopper.signal,

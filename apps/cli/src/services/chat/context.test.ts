@@ -143,3 +143,25 @@ describe('buildContext', () => {
     expect(buildContext(client, { targetId: null }).manifest.target).toBeNull();
   });
 });
+
+// What the turn actually gets handed. The manifest is a list of ids; this is
+// where those become the material the model sees.
+describe('what a chosen context puts in front of the model', () => {
+  it('includes a reference search would not have found', () => {
+    const target = add('원고', '전혀 다른 낱말');
+    const source = add('인터뷰 메모', '아르마딜로에 관하여');
+
+    const built = buildContext(client, { targetId: target, referenceIds: [source] });
+
+    expect(built.parts.map((p) => p.documentId)).toContain(source);
+    expect(built.parts.find((p) => p.documentId === source)?.text).toContain('아르마딜로');
+  });
+
+  // A14 at the service boundary: choosing none means none, not "all approved".
+  it('names no instruction when none was chosen', () => {
+    const target = add('원고', '본문');
+    add('담백하게 쓰기', '비유 금지');
+
+    expect(buildContext(client, { targetId: target }).manifest.instructionIds).toEqual([]);
+  });
+});
