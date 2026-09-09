@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
+import { recoverInterruptedWrites } from '@memex/core';
 import { type MemexClient, openDb } from '@memex/db';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import { guardEmbeddingModel } from '../embedding-guard.ts';
@@ -19,6 +20,16 @@ const openInBrowser = (target: string) => {
 export const createUiDeps = (): UiDeps & { client: MemexClient } => {
   const client = openDb(CONFIG_DIR);
   guardEmbeddingModel(client);
+
+  // A write that said what it would do and never said whether it did. Read on
+  // the way in, while nothing else is holding a document, so the journal is
+  // settled before the first request can build on it.
+  const interrupted = recoverInterruptedWrites(client);
+  for (const write of interrupted) {
+    console.error(
+      `[memex] an interrupted write to #${write.documentId}: ${write.outcome.replace('-', ' ')}`,
+    );
+  }
   // One runner, and the embedder is its. Loading the weights twice at once
   // corrupts the file both loaders are reading.
   const model = createModelRunner(MODEL_CACHE_DIR);

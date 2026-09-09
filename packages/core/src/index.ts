@@ -61,6 +61,8 @@ export {
 } from './note.ts';
 export type { ProposalFailure } from './proposals.ts';
 export { applyProposal, discardProposal, isProposalFailure } from './proposals.ts';
+export type { Recovered } from './recovery.ts';
+export { recoverInterruptedWrites } from './recovery.ts';
 export { approveRuleNote, declineRuleNote } from './rules.ts';
 export type { StructuredLayer } from './slots.ts';
 export {

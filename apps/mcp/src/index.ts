@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdirSync } from 'node:fs';
+import { recoverInterruptedWrites } from '@memex/core';
 import { ensureEmbeddingModel, listInferences, listSignals, openDb } from '@memex/db';
 import { createLazyEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
 import { createLazyReranker } from '@memex/rerank';
@@ -34,6 +35,13 @@ const vaultPath = expandPath(config.vault_path);
 mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
 const client = openDb(CONFIG_DIR);
+// Same pass the app runs. Whichever process opens the vault first settles the
+// journal, and the other finds nothing left to do.
+for (const write of recoverInterruptedWrites(client)) {
+  console.error(
+    `[memex] an interrupted write to #${write.documentId}: ${write.outcome.replace('-', ' ')}`,
+  );
+}
 if (ensureEmbeddingModel(client, EMBEDDING_MODEL_ID) === 'model-changed') {
   console.error(
     '[memex] embedding model changed — stale vectors cleared. Semantic search is keyword-only until `memex reembed` is run.',
