@@ -6,6 +6,7 @@ import { createEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { actorOf } from '../actor.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 const LAYERS: ReadonlyArray<NoteLayer> = ['past', 'state', 'rule'];
@@ -115,7 +116,7 @@ export const registerAdd = (program: Command) => {
             type,
             folder: opts.folder,
             tags: opts.tag.length > 0 ? opts.tag : undefined,
-            actor: 'user',
+            actor: actorOf(),
             amends: opts.amends ? Number(opts.amends) : undefined,
           });
           if (isSaveRejection(result)) {

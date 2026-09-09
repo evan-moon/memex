@@ -52,10 +52,26 @@ export const DocumentWorkspace = ({
         </button>
       </div>
 
+      {/* A column when there is room and an overlay when there is not. Below
+          960px a third column leaves the document too narrow to read, and the
+          spec is explicit that a narrow window may not cost you your place — so
+          the document keeps its state either way and the panel comes over it. */}
       {panel === null ? null : (
-        <aside className="w-[22rem] shrink-0 overflow-y-auto border-glass-line border-l p-3">
-          <ReferencePanel documentId={note.id} references={references} onChanged={setReferences} />
-        </aside>
+        <>
+          <button
+            type="button"
+            aria-label={t.common.close}
+            onClick={() => show(null)}
+            className="fixed inset-0 z-30 bg-black/40 min-[960px]:hidden"
+          />
+          <aside className="fixed inset-y-0 right-0 z-40 w-[22rem] max-w-[90vw] overflow-y-auto border-glass-line border-l bg-pane p-3 min-[960px]:static min-[960px]:z-auto min-[960px]:max-w-none min-[960px]:bg-transparent">
+            <ReferencePanel
+              documentId={note.id}
+              references={references}
+              onChanged={setReferences}
+            />
+          </aside>
+        </>
       )}
     </div>
   );
