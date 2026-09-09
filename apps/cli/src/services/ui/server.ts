@@ -109,6 +109,7 @@ import {
   revealPath,
 } from './files.ts';
 import { readHistory, readRevision } from './history.ts';
+import { buildHome } from './home.ts';
 import { buildLibrary, isLibraryFilter } from './library.ts';
 import type { ModelRunner } from './model.ts';
 import {
@@ -276,6 +277,7 @@ const contextFrom = (value: unknown) => {
 // compiled knowing about — which is exactly what a running process cannot learn
 // by looking at the source on disk.
 const KNOWN_ROUTES = [
+  '/api/home',
   '/api/library',
   '/api/memory',
   '/api/templates',
@@ -653,6 +655,9 @@ export const route = async (
   // Twice in one day it was diagnosed by grepping the bundle; this is cheaper.
   if (method === 'GET' && url.pathname === '/api/routes') {
     return json({ routes: KNOWN_ROUTES });
+  }
+  if (method === 'GET' && url.pathname === '/api/home') {
+    return json(buildHome(client));
   }
   if (method === 'GET' && url.pathname === '/api/library') {
     const asked = url.searchParams.get('kind');

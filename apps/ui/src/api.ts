@@ -338,6 +338,20 @@ export type MemoryPage = {
   items: MemoryView[];
 };
 
+export type HomeDocument = {
+  id: number;
+  title: string;
+  folder: string;
+  updatedAt: number;
+  snippet: string;
+};
+
+export type Home = {
+  continuing: HomeDocument | null;
+  recent: HomeDocument[];
+  changes: { id: number; title: string; why: string }[];
+};
+
 export type LibraryFilter = 'all' | 'mine' | 'reference' | 'instruction';
 
 export type LibraryRow = {
@@ -753,6 +767,7 @@ export const api = {
   connectApp: (app: McpClientId) => post<AppsScreen>('/api/app/connect', { app }),
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
+  home: () => request<Home>('/api/home'),
   library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
   routes: () => request<{ routes: string[] }>('/api/routes'),
   setOrigin: (id: number, origin: string) =>

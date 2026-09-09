@@ -539,6 +539,11 @@ const en = {
     missing: 'The source is no longer here.',
     gone: 'A document that is gone',
   },
+  home: {
+    continuing: 'Where you left off',
+    keepWriting: 'Keep writing',
+    recent: 'Recently edited',
+  },
   library: {
     title: 'Library',
     empty: 'Nothing of that kind here yet.',
@@ -1332,6 +1337,11 @@ const ko: typeof en = {
     changed: '인용한 뒤로 원문이 바뀌었어요.',
     missing: '원문이 이제 없어요.',
     gone: '사라진 문서',
+  },
+  home: {
+    continuing: '이어서 작업하기',
+    keepWriting: '계속 쓰기',
+    recent: '최근 수정한 문서',
   },
   library: {
     title: '라이브러리',
