@@ -1199,6 +1199,6 @@ describe('who wrote this one', () => {
   });
 
   it('will not mark a folder memex does not read', async () => {
-    expect((await post('/api/sources', { path: '/nowhere', mine: true })).status).toBe(404);
+    expect((await post('/api/sources', { path: '/nowhere', reference: true })).status).toBe(404);
   });
 });

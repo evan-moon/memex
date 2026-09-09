@@ -350,7 +350,7 @@ export type LibraryRow = {
   writingStatus: string | null;
 };
 
-export type SourceFolder = { path: string; mine: boolean };
+export type SourceFolder = { path: string; reference: boolean };
 
 export type LibraryPage = { rows: LibraryRow[]; counts: Record<LibraryFilter, number> };
 

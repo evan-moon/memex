@@ -642,12 +642,12 @@ export const route = async (
   }
   if (method === 'GET' && url.pathname === '/api/library') {
     const asked = url.searchParams.get('kind');
-    // Which connected folders the person has said they wrote. Read fresh rather
-    // than captured, because settings can change while the window is open.
-    const authored = loadConfig()
-      .sources.filter((source) => source.mine === true)
+    // Read fresh rather than captured: settings can change while the window is
+    // open, and the answer is one config read.
+    const borrowed = loadConfig()
+      .sources.filter((source) => source.reference === true)
       .map((source) => expandPath(source.path));
-    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all', 500, authored));
+    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all', 500, borrowed));
   }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));
@@ -982,25 +982,27 @@ export const route = async (
     return json(
       config.sources.map((source) => ({
         path: source.path,
-        mine: source.mine === true,
+        reference: source.reference === true,
       })),
     );
   }
   if (method === 'POST' && url.pathname === '/api/sources') {
     const asked = asRecord(payload);
     const path = text(asked?.path);
-    if (path === undefined || typeof asked?.mine !== 'boolean') {
+    if (path === undefined || typeof asked?.reference !== 'boolean') {
       return bad(400, 'nothing-to-change');
     }
     const config = loadConfig();
     const sources = config.sources.map((source) =>
-      source.path === path ? { ...source, mine: asked.mine === true } : source,
+      source.path === path ? { ...source, reference: asked.reference === true } : source,
     );
     if (!sources.some((source) => source.path === path)) {
       return bad(404, 'not-found', 'That folder is not one memex reads.');
     }
     saveConfig({ ...config, sources });
-    return json(sources.map((source) => ({ path: source.path, mine: source.mine === true })));
+    return json(
+      sources.map((source) => ({ path: source.path, reference: source.reference === true })),
+    );
   }
   // What an agent offered to change, and the two things a person can do about
   // it. Above the `/api/note/*` catch-all like the rest of the specific paths.

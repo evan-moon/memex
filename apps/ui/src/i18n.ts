@@ -404,8 +404,8 @@ const en = {
       'Finds notes by meaning, so the words do not have to match. It stays on this machine and runs offline.',
     sources: 'Folders memex reads',
     sourcesHint:
-      'memex indexes these but never writes to them. Marking one says you wrote what is in it — a single document can still disagree with its folder.',
-    myWriting: 'I wrote this folder',
+      'Anything that did not come from memex counts as your writing, because it did. Mark a folder here if it is somebody else’s — a single document can still disagree with its folder.',
+    notMyWriting: 'Somebody else wrote this',
     noSources: 'No folders connected yet.',
     thinkingApps: 'Who you talk to',
     thinkingAppsHint:
@@ -1194,8 +1194,8 @@ const ko: typeof en = {
       '단어가 정확하지 않아도 뜻으로 찾아줘요. 이 컴퓨터에 남고, 받고 나면 인터넷 없이 돌아가요.',
     sources: 'memex가 읽는 폴더',
     sourcesHint:
-      '색인만 하고 쓰지는 않아요. 표시하면 그 안의 글을 직접 썼다는 뜻이고, 문서 하나하나는 라이브러리에서 따로 바꿀 수 있어요.',
-    myWriting: '내가 쓴 폴더',
+      'memex가 쓴 게 아니면 직접 쓰신 글로 봐요. 남의 글이 든 폴더만 표시해 주세요. 문서 하나하나는 라이브러리에서 따로 바꿀 수 있어요.',
+    notMyWriting: '남이 쓴 폴더예요',
     noSources: '연결한 폴더가 없어요.',
     thinkingApps: '이야기할 상대',
     thinkingAppsHint:

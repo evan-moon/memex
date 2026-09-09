@@ -58,10 +58,10 @@ const JobRow = ({ job, choice, t }: { job: ModelJob; choice: Choice; t: Strings 
   </div>
 );
 
-// A folder memex reads is borrowed, which is about indexing. Whether the person
-// wrote what is in it is a different question, and the only one who can answer
-// it is them. Marking it here is a bulk answer: any single document in the
-// library can still disagree with its folder.
+// A file that did not come through memex's own write path was written by the
+// person in another editor — that is the default, and the sidebar has always
+// used it. This is the exception: a folder connected because it is somebody
+// else's. A single document in the library can still disagree with its folder.
 const SourceRows = () => {
   const t = useT();
   const [rows, setRows] = useState<SourceFolder[] | null>(null);
@@ -76,9 +76,9 @@ const SourceRows = () => {
   if (rows === null) return <p className="text-[11px] text-muted">{t.common.loading}</p>;
   if (rows.length === 0) return <p className="text-[11px] text-muted">{t.settings.noSources}</p>;
 
-  const mark = (path: string, mine: boolean) => {
+  const mark = (path: string, reference: boolean) => {
     api
-      .markSource(path, mine)
+      .markSource(path, reference)
       .then(setRows)
       .catch(() => {});
   };
@@ -92,12 +92,12 @@ const SourceRows = () => {
           </span>
           <button
             type="button"
-            onClick={() => mark(row.path, !row.mine)}
+            onClick={() => mark(row.path, !row.reference)}
             className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
-              row.mine ? 'bg-accent-soft text-foreground' : 'text-muted hover:bg-surface-muted'
+              row.reference ? 'bg-accent-soft text-foreground' : 'text-muted hover:bg-surface-muted'
             }`}
           >
-            {t.settings.myWriting}
+            {t.settings.notMyWriting}
           </button>
         </li>
       ))}

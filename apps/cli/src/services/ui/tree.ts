@@ -3,10 +3,9 @@ import { join } from 'node:path';
 import type { MemexClient } from '@memex/db';
 import { expandPath, inVault, loadConfig } from '@memex/utils';
 
-// Who put the note there. `claude-code` is memex's own write path; `manual` is
-// someone typing in the app; anything else is a file that appeared without going
-// through either — written in another editor.
-export type Writer = 'agent' | 'person';
+export type { Writer } from './authorship.ts';
+
+import { type Writer, writerOf } from './authorship.ts';
 
 export type TreeNote = { id: number; title: string; writer: Writer };
 
@@ -73,7 +72,7 @@ const group = (rows: Row[]): Record<string, TreeNote[]> =>
       {
         id: row.id,
         title: row.title,
-        writer: row.source === 'claude-code' ? 'agent' : 'person',
+        writer: writerOf(row.source),
       },
     ];
     return acc;
