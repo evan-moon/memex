@@ -13,6 +13,7 @@ import {
   isEditRejection,
   isProposalFailure,
   isSaveRejection,
+  readDocument,
   removeNote,
   restoreDocument,
   type SearchOptions,
@@ -1295,14 +1296,30 @@ export const route = async (
     // A document write is told from a memory edit by what it carries: the raw
     // file and the version it was built on. The legacy shape below is untouched,
     // because everything that speaks it still works.
-    if (fields && 'raw' in fields && typeof fields.raw === 'string') {
+    const asDocument =
+      fields &&
+      typeof fields.mutationId === 'string' &&
+      (typeof fields.raw === 'string' || typeof fields.body === 'string');
+    if (asDocument && fields) {
       const mutationId = text(fields.mutationId);
       if (mutationId === undefined) return bad(400, 'nothing-to-change');
+
+      // The screen edits a body; the file is a body with frontmatter around it.
+      // Recomposing here rather than in the editor keeps the one piece of logic
+      // that knows how a note file is put together on the side that owns the
+      // file — and keeps the editor from having to carry YAML it never shows.
+      const current = readDocument(client, noteId, { actor: 'user', vaultPath });
+      if (isDocumentFailure(current)) return documentFailure(current);
+      const raw =
+        typeof fields.raw === 'string'
+          ? fields.raw
+          : recompose(current.raw, String(fields.body), note.title);
+
       const done = updateDocument(
         client,
         noteId,
         {
-          raw: fields.raw,
+          raw,
           expectedRevision:
             typeof fields.expectedRevision === 'string' ? fields.expectedRevision : null,
           mutationId,

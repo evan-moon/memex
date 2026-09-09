@@ -51,9 +51,7 @@ A memory the AI got wrong still reaches the person, and this app is still the do
 - `state` — a projection of what is true now. Freely updatable, and it declares the records it was built from.
 - `rule` — standing guidance for the agent. Proposed by the agent, injected only after a person approves it.
 
-> ~~Superseded (2026-09-08): "`past` is immutable; a `past` note has no pencil at all."~~ Editing the text of a record and correcting the claim inside it are separate operations by design. The first is a normal edit with history; the second is still a correction.
->
-> **Not built yet.** The document write path allows it and is tested; the editor still sends the older patch shape, which refuses a record whoever is asking. Until the editor sends the raw file, a `past` note still has no pencil and the correction is the way in.
+> ~~Superseded (2026-09-08): "`past` is immutable; a `past` note has no pencil at all."~~ Editing the text of a record and correcting the claim inside it are separate operations by design. The first is a normal edit with history; the second is still a correction. Built 2026-09-10: a record has a pencil, its body goes through the document write, and every version is kept. An agent is still sent to a correction.
 
 Nothing else in this category makes forgetting explicit. Because an agent never forgets, memex replaces forgetting with three named mechanisms: retirement of a claim (`invalidates`), retrieval budget, and cued recall.
 

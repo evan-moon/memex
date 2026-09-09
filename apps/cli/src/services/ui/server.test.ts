@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateDocument } from '@memex/core';
 import {
   getDocumentMeta,
   getInference,
@@ -1200,5 +1201,75 @@ describe('who wrote this one', () => {
 
   it('will not mark a folder memex does not read', async () => {
     expect((await post('/api/sources', { path: '/nowhere', reference: true })).status).toBe(404);
+  });
+});
+
+// The gap the redesign named and left open until now: a person could not change
+// the words in a record. Correcting the claims inside one is still a separate
+// operation; changing what it says is not.
+describe('editing the text of a record', () => {
+  const record = (raw: string) => {
+    const note = addNote('일어난 일', 'past');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('lets a person fix a line in a past note', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n- 둘째 항목\n');
+
+    const reply = await post(`/api/note/${note.id}`, {
+      body: '- 첫째 항목\n- 고친 둘째 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('고친 둘째 항목');
+  });
+
+  it('keeps the frontmatter the screen never showed', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\ncssclass: wide\n---\n\n- 첫째 항목\n');
+
+    await post(`/api/note/${note.id}`, {
+      body: '- 고친 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    const onDisk = readFileSync(note.filePath, 'utf8');
+    expect(onDisk).toContain('cssclass: wide');
+    expect(onDisk).toContain('layer: past');
+  });
+
+  it('keeps every version of it', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n');
+    await post(`/api/note/${note.id}`, {
+      body: '- 고친 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    const listed = await route(
+      deps,
+      'GET',
+      new URL(`/api/note/${note.id}/revisions`, 'http://localhost'),
+      null,
+    );
+    expect(JSON.parse(listed.body)).toHaveLength(2);
+  });
+
+  // The agent still cannot. Rewriting a record is what the correction is for.
+  it('still sends the agent to a correction', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n');
+
+    const refused = updateDocument(
+      client,
+      note.id,
+      { raw: 'the agent rewrote it\n', expectedRevision: null, mutationId: 'm-1' },
+      { actor: 'agent', vaultPath: vaultDir },
+    );
+
+    expect(refused).toMatchObject({ code: 'correct-instead' });
   });
 });

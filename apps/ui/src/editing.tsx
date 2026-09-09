@@ -86,17 +86,33 @@ export const NoteEditor = ({
   const patch = patchFor(note, { title, tags, layer, body });
   const dirty = isDirty(patch);
 
+  // A body edit is a document write: it carries the version it was built on, and
+  // it goes through the path that keeps history and refuses to flatten somebody
+  // else's edit. Everything else is memory metadata and keeps the older shape.
+  //
+  // This is also what lets a record be edited at all. Correcting the claims
+  // inside one is still a separate operation; changing the words is not.
   const write = useCallback(
     async (next: NotePatch) => {
       setFailure(null);
       try {
-        onSaved(await api.updateNote(note.id, next));
+        const { body: edited, ...rest } = next;
+        const wrote =
+          edited === undefined
+            ? null
+            : await api.writeBody(note.id, {
+                body: edited,
+                expectedRevision: note.revision ?? null,
+                mutationId: crypto.randomUUID(),
+              });
+        const changed = Object.values(rest).some((value) => value !== undefined);
+        onSaved(changed ? await api.updateNote(note.id, rest) : (wrote ?? note));
       } catch (cause) {
         setFailure(toFailure(cause));
         throw cause;
       }
     },
-    [note.id, onSaved],
+    [note, onSaved],
   );
 
   const { state: saved, flush, retry, safeToClose } = useAutosave(patch, dirty, write);

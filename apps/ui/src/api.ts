@@ -767,6 +767,11 @@ export const api = {
     id: number,
     input: { raw: string; expectedRevision: string | null; mutationId: string },
   ) => post<NoteDetail>(`/api/note/${id}`, input),
+  // The screen edits a body; the server puts the frontmatter back around it.
+  writeBody: (
+    id: number,
+    input: { body: string; expectedRevision: string | null; mutationId: string },
+  ) => post<NoteDetail>(`/api/note/${id}`, input),
   revisions: (id: number) =>
     request<{ revisionId: string; at: number; actor: string; reason: string | null }[]>(
       `/api/note/${id}/revisions`,
