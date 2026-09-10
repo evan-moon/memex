@@ -1,17 +1,30 @@
 import {
+  applyProposal,
   approveRuleNote,
+  buildMemory,
   confirmNote,
+  correctMemory,
+  type DocumentFailure,
   declineRuleNote,
+  discardProposal,
   editNote,
+  isCorrectionFailure,
+  isDocumentFailure,
   isEditRejection,
+  isProposalFailure,
   isSaveRejection,
+  readDocument,
   removeNote,
+  restoreDocument,
   type SearchOptions,
   saveNote,
   searchPage,
   slotTemplate,
+  updateDocument,
+  versionedEdit,
 } from '@memex/core';
 import {
+  addReference,
   approveRule,
   BINGE_LIMIT,
   clearDeferral,
@@ -20,19 +33,26 @@ import {
   deferReviewItem,
   deleteSession,
   dismissDanglingFor,
+  dropDocumentDraft,
   dropJudgement,
+  dropReference,
   getAmendmentsFor,
   getClaim,
+  getDocumentDraft,
   getInference,
   getNote,
   isNoteType,
   judgementsSince,
   lastJudgement,
+  listRevisions,
   listSessions,
   listSignals,
   type MemexClient,
+  proposalsFor,
+  putDocumentDraft,
   type RegisterScope,
   recordJudgement,
+  referencesFor,
   refreshInferenceStaleness,
   restampInference,
   restoreClaim,
@@ -40,14 +60,16 @@ import {
   sessionExists,
   sessionTurns,
   setClaimKind,
+  setDocumentMeta,
   setInferenceStatus,
   setNoteEvidence,
   setRegister,
   setSignalStatus,
   startOfDay,
+  unsavedDrafts,
 } from '@memex/db';
 import type { LlmChoice, LlmProvider } from '@memex/llm';
-import { loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
+import { expandPath, loadConfig, MODEL_JOBS, saveConfig, writeDerivesFrom } from '@memex/utils';
 import {
   createLoginRunner,
   installAssistant,
@@ -87,6 +109,8 @@ import {
   revealPath,
 } from './files.ts';
 import { readHistory, readRevision } from './history.ts';
+import { buildHome } from './home.ts';
+import { buildLibrary, isLibraryFilter } from './library.ts';
 import type { ModelRunner } from './model.ts';
 import {
   bodyOf,
@@ -235,6 +259,61 @@ const bad = (status: number, code: ApiErrorCode, detail?: string): Reply => ({
 });
 
 const notFound = bad(404, 'not-found');
+
+// What the person picked, as the request stated it. Ids only: the text is read
+// here, so a request cannot hand the model a passage claiming it came from a
+// note it did not.
+const contextFrom = (value: unknown) => {
+  const asked = asRecord(value);
+  if (asked === null) return undefined;
+  return {
+    targetId: positiveInt(asked.targetId) ?? null,
+    referenceIds: ids(asked.referenceIds),
+    instructionIds: ids(asked.instructionIds),
+  };
+};
+
+// Named here rather than derived, because what matters is what this build was
+// compiled knowing about — which is exactly what a running process cannot learn
+// by looking at the source on disk.
+const KNOWN_ROUTES = [
+  '/api/home',
+  '/api/library',
+  '/api/memory',
+  '/api/templates',
+  '/api/buffer/:key',
+  '/api/note/:id/references',
+  '/api/note/:id/revisions',
+  '/api/note/:id/proposals',
+  '/api/note/:id/origin',
+  '/api/sources',
+] as const;
+
+// The statuses the contract names, with what a client needs to recover: which
+// version is current, and what the file actually says now.
+const documentFailure = (failure: DocumentFailure): Reply => {
+  if (failure.error === 'version-conflict') {
+    return {
+      status: 409,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        error: { code: 'version-conflict', detail: failure.message },
+        currentRevision: failure.currentRevision,
+        currentRaw: failure.currentRaw,
+      }),
+    };
+  }
+  if (failure.error === 'write-not-allowed') {
+    return {
+      status: 403,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ error: { code: 'write-not-allowed', detail: failure.message } }),
+    };
+  }
+  if (failure.error === 'busy') return bad(409, 'file-op-failed', failure.message);
+  if (failure.error === 'not-found') return notFound;
+  return bad(500, 'file-op-failed', failure.message);
+};
 
 // One card, one meaning: the left action says the memory still stands. What that
 // writes differs by what the card holds — a claim gets a fresher timestamp, a rule
@@ -503,6 +582,92 @@ export const route = async (
   if (method === 'GET' && url.pathname === '/api/templates') {
     return json(Object.fromEntries(LAYERS.map((layer) => [layer, slotTemplate(layer, '미분류')])));
   }
+  // The editor's buffer, kept where a crash cannot reach it. Separate from the
+  // debounced file save on purpose: one makes an edit permanent, the other makes
+  // it survivable in between.
+  // `/api/draft/:id` was already taken — that one is a rewrite an agent prepared
+  // for a note. This is the person's own keystrokes, which is a different thing
+  // with a worse name, so it gets a different word.
+  if (url.pathname.startsWith('/api/buffer/')) {
+    const draftKey = decodeURIComponent(url.pathname.slice('/api/buffer/'.length));
+    if (draftKey === '') return bad(400, 'not-found', 'No draft key given.');
+
+    if (method === 'GET') {
+      const draft = getDocumentDraft(client, draftKey);
+      return draft === undefined ? json(null) : json(draft);
+    }
+    if (method === 'POST') {
+      const asked = asRecord(payload);
+      const content = typeof asked?.content === 'string' ? asked.content : null;
+      const sequence = typeof asked?.sequence === 'number' ? asked.sequence : null;
+      if (content === null || sequence === null) return bad(400, 'nothing-to-change');
+      return json(
+        putDocumentDraft(client, {
+          draftKey,
+          vaultId: vaultPath,
+          documentId: positiveInt(asked?.documentId) ?? null,
+          baseRevision: typeof asked?.baseRevision === 'string' ? asked.baseRevision : null,
+          content,
+          sequence,
+        }),
+      );
+    }
+    if (method === 'DELETE') {
+      dropDocumentDraft(client, draftKey);
+      return json({ dropped: draftKey });
+    }
+  }
+  if (method === 'GET' && url.pathname === '/api/buffers') {
+    return json(unsavedDrafts(client, vaultPath));
+  }
+  // One list over claims and the register. Grouped by subject, because that is
+  // what somebody is looking for — not by which table it happens to be in.
+  if (method === 'GET' && url.pathname === '/api/memory') {
+    return json(buildMemory(client));
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/memory/')) {
+    const subject = decodeURIComponent(url.pathname.slice('/api/memory/'.length));
+    if (subject === '') return notFound;
+    return json(buildMemory(client, subject));
+  }
+  if (method === 'POST' && url.pathname === '/api/memory/correct') {
+    const asked = asRecord(payload);
+    const target = text(asked?.target);
+    const mutationId = text(asked?.mutationId);
+    if (target === undefined || mutationId === undefined) return bad(400, 'nothing-to-change');
+
+    const done = correctMemory(client, {
+      target,
+      expectedStatement: text(asked?.expectedStatement),
+      // Absent means retire. An empty string is somebody clearing the box, which
+      // is the same thing said a different way.
+      replacement: text(asked?.replacement),
+      reason: text(asked?.reason),
+      mutationId,
+    });
+    return isCorrectionFailure(done)
+      ? bad(done.error === 'not-found' ? 409 : 400, 'edit-rejected', done.message)
+      : json(done);
+  }
+  // Which routes this build actually answers. The window hot-reloads and the
+  // server does not, so a page can be newer than the process serving it — and
+  // the symptom is a 404 that reads like missing data rather than a stale app.
+  // Twice in one day it was diagnosed by grepping the bundle; this is cheaper.
+  if (method === 'GET' && url.pathname === '/api/routes') {
+    return json({ routes: KNOWN_ROUTES });
+  }
+  if (method === 'GET' && url.pathname === '/api/home') {
+    return json(buildHome(client));
+  }
+  if (method === 'GET' && url.pathname === '/api/library') {
+    const asked = url.searchParams.get('kind');
+    // Read fresh rather than captured: settings can change while the window is
+    // open, and the answer is one config read.
+    const borrowed = loadConfig()
+      .sources.filter((source) => source.reference === true)
+      .map((source) => expandPath(source.path));
+    return json(buildLibrary(client, isLibraryFilter(asked) ? asked : 'all', 500, borrowed));
+  }
   if (method === 'GET' && url.pathname === '/api/tree') {
     return json(buildTree(client));
   }
@@ -631,6 +796,7 @@ export const route = async (
         choice,
         carried: carriedFrom(new URLSearchParams(url.search)),
         sessionId: typeof asked?.sessionId === 'number' ? asked.sessionId : null,
+        context: contextFrom(asked?.context),
       }),
     );
   }
@@ -808,6 +974,113 @@ export const route = async (
     const tag = decodeURIComponent(url.pathname.slice('/api/topic/'.length));
     const topic = buildTopic(client, tag);
     return topic ? json({ ...topic, notes: topicNotes(client, tag) }) : notFound;
+  }
+  // Who wrote this one. A folder can be marked in bulk and a file can disagree
+  // with its folder, which is the only honest answer when somebody's own writing
+  // and somebody else's sit in the same directory.
+  if (method === 'POST' && /^\/api\/note\/\d+\/origin$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    const asked = asRecord(payload);
+    const origin = asked?.origin;
+    if (
+      origin !== 'person' &&
+      origin !== 'agent' &&
+      origin !== 'external' &&
+      origin !== 'unknown'
+    ) {
+      return bad(400, 'nothing-to-change');
+    }
+    // `unknown` is not a third answer, it is taking the answer back: the file
+    // goes back to being read from how it arrived.
+    return json(setDocumentMeta(client, noteId, { origin }));
+  }
+
+  // The folders memex reads, and which of them hold the person's own writing.
+  if (method === 'GET' && url.pathname === '/api/sources') {
+    const config = loadConfig();
+    return json(
+      config.sources.map((source) => ({
+        path: source.path,
+        reference: source.reference === true,
+      })),
+    );
+  }
+  if (method === 'POST' && url.pathname === '/api/sources') {
+    const asked = asRecord(payload);
+    const path = text(asked?.path);
+    if (path === undefined || typeof asked?.reference !== 'boolean') {
+      return bad(400, 'nothing-to-change');
+    }
+    const config = loadConfig();
+    const sources = config.sources.map((source) =>
+      source.path === path ? { ...source, reference: asked.reference === true } : source,
+    );
+    if (!sources.some((source) => source.path === path)) {
+      return bad(404, 'not-found', 'That folder is not one memex reads.');
+    }
+    saveConfig({ ...config, sources });
+    return json(
+      sources.map((source) => ({ path: source.path, reference: source.reference === true })),
+    );
+  }
+  // What an agent offered to change, and the two things a person can do about
+  // it. Above the `/api/note/*` catch-all like the rest of the specific paths.
+  if (method === 'GET' && /^\/api\/note\/\d+\/proposals$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    return json(proposalsFor(client, noteId));
+  }
+  if (method === 'POST' && url.pathname.startsWith('/api/proposal/')) {
+    const [id, action] = url.pathname.slice('/api/proposal/'.length).split('/');
+    if (!id) return notFound;
+
+    if (action === 'apply') {
+      const done = applyProposal(client, id, { actor: 'user', vaultPath, holder: 'app' });
+      if (isProposalFailure(done)) {
+        return done.error === 'not-found' ? notFound : bad(409, 'edit-rejected', done.message);
+      }
+      if (isDocumentFailure(done)) return documentFailure(done);
+      return json(done);
+    }
+    if (action === 'discard') {
+      const gone = discardProposal(client, id);
+      return gone === null ? notFound : json(gone);
+    }
+  }
+  // Like the revisions route below, these sit above the `/api/note/*` catch-all
+  // or they never run.
+  if (/^\/api\/note\/\d+\/references$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+
+    if (method === 'GET') return json(referencesFor(client, noteId));
+    if (method === 'POST') {
+      const asked = asRecord(payload);
+      const sourceId = positiveInt(asked?.sourceId);
+      if (sourceId === undefined) return bad(400, 'nothing-to-change');
+      if (!getNote(client, sourceId)) return bad(404, 'not-found', 'That source is not a note.');
+      addReference(client, {
+        ownerDocumentId: noteId,
+        sourceDocumentId: sourceId,
+        quote: text(asked?.quote) ?? '',
+        heading: text(asked?.heading) ?? null,
+      });
+      return json(referencesFor(client, noteId));
+    }
+    if (method === 'DELETE') {
+      const sourceId = positiveInt(asRecord(payload)?.sourceId);
+      if (sourceId === undefined) return bad(400, 'nothing-to-change');
+      dropReference(client, noteId, sourceId);
+      return json(referencesFor(client, noteId));
+    }
+  }
+  // The document's own versions, and the way back to one of them. More specific
+  // than the `/api/note/*` shapes below, so they are matched first.
+  if (method === 'GET' && /^\/api\/note\/\d+\/revisions$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    if (!getNote(client, noteId)) return notFound;
+    return json(listRevisions(client, noteId).map(({ rawContent, ...rest }) => rest));
   }
   if (method === 'GET' && url.pathname.startsWith('/api/note/')) {
     const detail = noteDetail(client, Number(url.pathname.split('/').pop()), vaultPath);
@@ -1016,12 +1289,67 @@ export const route = async (
     }
     return json(noteDetail(client, result.note.id, vaultPath));
   }
+  if (method === 'POST' && /^\/api\/note\/\d+\/restore$/.test(url.pathname)) {
+    const noteId = Number(url.pathname.split('/')[3]);
+    const asked = asRecord(payload);
+    const wanted = typeof asked?.revision === 'string' ? asked.revision : null;
+    if (wanted === null) return bad(400, 'nothing-to-change');
+    const done = restoreDocument(
+      client,
+      noteId,
+      wanted,
+      typeof asked?.expectedRevision === 'string' ? asked.expectedRevision : null,
+      { actor: 'user', vaultPath, holder: 'app' },
+    );
+    return isDocumentFailure(done)
+      ? documentFailure(done)
+      : json(noteDetail(client, noteId, vaultPath));
+  }
   if (method === 'POST' && url.pathname.startsWith('/api/note/')) {
     const noteId = Number(url.pathname.split('/').pop());
     const note = getNote(client, noteId);
     if (!note) return notFound;
 
     const fields = asRecord(payload);
+
+    // A document write is told from a memory edit by what it carries: the raw
+    // file and the version it was built on. The legacy shape below is untouched,
+    // because everything that speaks it still works.
+    const asDocument =
+      fields &&
+      typeof fields.mutationId === 'string' &&
+      (typeof fields.raw === 'string' || typeof fields.body === 'string');
+    if (asDocument && fields) {
+      const mutationId = text(fields.mutationId);
+      if (mutationId === undefined) return bad(400, 'nothing-to-change');
+
+      // The screen edits a body; the file is a body with frontmatter around it.
+      // Recomposing here rather than in the editor keeps the one piece of logic
+      // that knows how a note file is put together on the side that owns the
+      // file — and keeps the editor from having to carry YAML it never shows.
+      const current = readDocument(client, noteId, { actor: 'user', vaultPath });
+      if (isDocumentFailure(current)) return documentFailure(current);
+      const raw =
+        typeof fields.raw === 'string'
+          ? fields.raw
+          : recompose(current.raw, String(fields.body), note.title);
+
+      const done = updateDocument(
+        client,
+        noteId,
+        {
+          raw,
+          expectedRevision:
+            typeof fields.expectedRevision === 'string' ? fields.expectedRevision : null,
+          mutationId,
+        },
+        { actor: 'user', vaultPath, holder: 'app' },
+      );
+      return isDocumentFailure(done)
+        ? documentFailure(done)
+        : json(noteDetail(client, noteId, vaultPath));
+    }
+
     const body = fields && 'body' in fields ? fields.body : undefined;
     if (body !== undefined && text(body) === undefined) return bad(400, 'empty-body');
     if (fields && 'title' in fields && text(fields.title) === undefined) {
@@ -1045,9 +1373,18 @@ export const route = async (
       return bad(400, 'nothing-to-change');
     }
 
-    const result = await editNote(deps.client, deps.embedder, vaultPath, noteId, patch, {
-      actor: 'user',
-    });
+    // The edit itself is unchanged. What is new is the boundary around it: the
+    // same lock the document write takes, the same check that the file has not
+    // moved underneath, and a version recorded for what it produced — so an edit
+    // made through this older shape is still recoverable.
+    const guarded = await versionedEdit(
+      client,
+      noteId,
+      { actor: 'user', vaultPath, holder: 'app' },
+      () => editNote(deps.client, deps.embedder, vaultPath, noteId, patch, { actor: 'user' }),
+    );
+    if (isDocumentFailure(guarded)) return documentFailure(guarded);
+    const result = guarded;
     if (result === null) return notFound;
     if (isEditRejection(result)) return bad(409, 'edit-rejected', result.message);
 

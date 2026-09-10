@@ -15,6 +15,7 @@ import {
   type TopicDetail,
 } from './api.ts';
 import { Agent, Button, Card, Dates, Layer, NoteItem, NoteList, Page, Section } from './bits.tsx';
+import { DocumentWorkspace } from './DocumentWorkspace.tsx';
 import { blankDraft, correctionDraft, type Draft, missingNoteDraft } from './drafts.ts';
 import { Evidence } from './Evidence.tsx';
 import { Composer, NoteEditor } from './editing.tsx';
@@ -23,6 +24,7 @@ import { useT } from './i18n.ts';
 import { Markdown } from './Markdown.tsx';
 import { rememberVisit } from './recent.ts';
 import { StalePanel } from './StalePanel.tsx';
+import { isStaleServer } from './stale.ts';
 import { openTab } from './tabs.ts';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
@@ -81,12 +83,22 @@ export const AmendedNotice = ({ refs, kind }: { refs: AmendedRef[]; kind: AmendK
   );
 };
 
-const Pending = ({ failure }: { failure: ApiFailure | null }) => {
+// `needs` names the route this screen cannot do without. When a request fails
+// and the running build has never heard of that route, the honest answer is not
+// "nothing here" — it is that the window outran the process serving it.
+export const Pending = ({ failure, needs }: { failure: ApiFailure | null; needs?: string }) => {
   const t = useT();
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    if (failure === null || needs === undefined) return;
+    isStaleServer(needs).then(setStale);
+  }, [failure, needs]);
+
   return (
     <Page>
       <div className="py-16 text-sm text-muted">
-        {failure ? t.error(failure) : t.common.loading}
+        {stale ? t.app.staleServer : failure ? t.error(failure) : t.common.loading}
       </div>
     </Page>
   );
@@ -238,172 +250,188 @@ export const NoteScreen = () => {
   // instead. A borrowed file is not read-only: it is the person's own file,
   // indexed from outside the vault, and what it is closed to is the agent.
   const borrowed = !note.writable;
-  const editable = note.layer !== 'past';
+  // The person may edit the text of a record now — the claims inside it are
+  // still corrected rather than rewritten, and that is a different operation.
+  //
+  // A record has a pencil now. Its body goes through the document write, which
+  // keeps every version and refuses to flatten an edit made elsewhere, and the
+  // claims inside it are still corrected by a new note rather than rewritten.
+  //
+  // Read defensively: a running app can be serving a build older than the page,
+  // and a screen that throws over one missing field is a worse answer than one
+  // that works out what it can for itself.
+  const editable = note.capabilities?.canEdit ?? note.layer !== 'past';
   return (
-    <Page>
-      {/* Where the file is, the way a file manager says it. The title is the
+    <DocumentWorkspace note={note}>
+      <Page>
+        {/* Where the file is, the way a file manager says it. The title is the
           document's own first line now, so it is not repeated up here. Pinned:
           the way back to reading should not be something you scroll up to find
           in a note that runs for pages. */}
-      <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-5 py-2 text-xs text-muted backdrop-blur sm:-mx-7 sm:px-7">
-        <span className="text-muted">{note.folder === null ? t.edit.vaultRoot : note.folder}</span>
-        <span className="text-line-strong">/</span>
-        <Layer layer={note.layer} />
-        {note.author === 'agent' ? <Agent /> : null}
-        <Dates at={note.at} updatedAt={note.updatedAt} />
-        {note.tags.map((tag) => (
-          <Link key={tag} to={`/topic/${encodeURIComponent(tag)}`} className="text-primary">
-            {tag}
-          </Link>
-        ))}
-        <button type="button" onClick={() => setShowSource(!showSource)} className="text-primary">
-          {showSource ? t.note.hideSource : t.note.viewSource}
-        </button>
-        {/* Reading is the default and the pencil turns the page over, the way
+        <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-5 py-2 text-xs text-muted backdrop-blur sm:-mx-7 sm:px-7">
+          <span className="text-muted">
+            {note.folder === null ? t.edit.vaultRoot : note.folder}
+          </span>
+          <span className="text-line-strong">/</span>
+          <Layer layer={note.layer} />
+          {note.author === 'agent' ? <Agent /> : null}
+          <Dates at={note.at} updatedAt={note.updatedAt} />
+          {note.tags.map((tag) => (
+            <Link key={tag} to={`/topic/${encodeURIComponent(tag)}`} className="text-primary">
+              {tag}
+            </Link>
+          ))}
+          <button type="button" onClick={() => setShowSource(!showSource)} className="text-primary">
+            {showSource ? t.note.hideSource : t.note.viewSource}
+          </button>
+          {/* Reading is the default and the pencil turns the page over, the way
             it does next door. A record of what happened has no pencil: it can
             only be corrected by a new note. */}
-        <span className="ml-auto flex items-center gap-2">
-          {borrowed ? (
-            <span title={t.note.borrowed} className="text-muted">
-              {t.note.borrowedMine}
-            </span>
+          <span className="ml-auto flex items-center gap-2">
+            {borrowed ? (
+              <span title={t.note.borrowed} className="text-muted">
+                {t.note.borrowedMine}
+              </span>
+            ) : null}
+            {draft ? null : editable ? (
+              <button
+                type="button"
+                onClick={() => setEditing(!editing)}
+                title={editing ? t.edit.read : t.edit.start}
+                aria-label={editing ? t.edit.read : t.edit.start}
+                className={`rounded p-1.5 hover:bg-surface-muted ${editing ? 'text-foreground' : 'text-muted'}`}
+              >
+                {editing ? <BookOpen size={15} /> : <Pencil size={15} />}
+              </button>
+            ) : (
+              <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
+            )}
+          </span>
+        </div>
+        {showSource ? <SourcePanel id={note.id} /> : null}
+        {note.supersededBy.length > 0 || note.corrects.length > 0 ? (
+          <Link to={`/thread/${note.id}`} className="mt-4 block text-sm text-primary">
+            {t.threads.open}
+          </Link>
+        ) : null}
+        <AmendedNotice refs={byKind(note.supersededBy, 'corrects')} kind="corrects" />
+        <AmendedNotice refs={byKind(note.supersededBy, 'unknown')} kind="unknown" />
+        <AmendedNotice refs={byKind(note.supersededBy, 'continues')} kind="continues" />
+        {/* Which note this one corrects points backwards, so it is a footnote
+          rather than a warning: one quiet line, no rule and no box. */}
+        {note.corrects.length > 0 ? (
+          <div className="mt-3 text-sm">
+            <span className="text-muted">{t.note.corrects} </span>
+            <Link to={`/note/${note.corrects[0].id}`} className="text-primary">
+              {note.corrects[0].title}
+            </Link>
+          </div>
+        ) : null}
+        {/* Out of the way while writing. Sources and staleness are worth reading
+          and are noise to write past. */}
+        {editing || draft ? null : (
+          <>
+            <Evidence note={note} onSaved={setEdited} />
+            <StalePanel
+              note={note}
+              onSaved={setEdited}
+              onDismissed={() => setEdited({ ...note, stale: null })}
+            />
+          </>
+        )}
+        <article className={editing ? 'mt-6' : 'reading mt-7 rounded-card p-5 sm:p-7'}>
+          {editing ? (
+            <NoteEditor note={note} onSaved={setEdited} />
+          ) : note.content.trim() ? (
+            <Markdown
+              links={note.wikiLinks}
+              onPick={
+                draft
+                  ? undefined
+                  : note.layer === 'past'
+                    ? (quoted) => {
+                        setAt(quoted);
+                        setDraft(correctionDraft(note, t, quoted));
+                      }
+                    : () => setEditing(true)
+              }
+              slot={
+                draft && at
+                  ? {
+                      after: at,
+                      node: (
+                        <Composer
+                          draft={draft}
+                          into={{ folder: note.folder, tags: note.tags }}
+                          quoted={at}
+                          onCancel={() => {
+                            setDraft(null);
+                            setAt(null);
+                          }}
+                        />
+                      ),
+                    }
+                  : undefined
+              }
+            >
+              {note.content}
+            </Markdown>
+          ) : (
+            // Frontmatter-only stubs exist in the vault, and a silently blank
+            // article reads as the screen having failed to load.
+            <p className="text-sm text-muted">{t.note.emptyBody}</p>
+          )}
+          {/* Started from the header button, which names no paragraph. */}
+          {draft && !at ? (
+            <Composer
+              draft={draft}
+              into={{ folder: note.folder, tags: note.tags }}
+              onCancel={() => setDraft(null)}
+            />
           ) : null}
-          {draft ? null : editable ? (
+        </article>
+        <HypothesisLinks
+          heading={t.hypothesis.onNote}
+          hint={t.hypothesis.onNoteHint}
+          refs={note.hypotheses}
+        />
+
+        {note.deadLinks.length > 0 && dismissed ? (
+          <p className="mt-8 text-xs text-muted">{t.today.dismissed}</p>
+        ) : null}
+        {note.deadLinks.length > 0 && !dismissed ? (
+          <Section title={t.edit.deadLinks(note.deadLinks.length)} hint={t.edit.deadLinksWhy}>
+            <ul className="flex flex-col gap-1.5">
+              {note.deadLinks.map((title) => (
+                <li key={title} className="flex items-center gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-muted">[[{title}]]</span>
+                  <Button onClick={() => setDraft(missingNoteDraft(title, t))}>
+                    {t.edit.write}
+                  </Button>
+                </li>
+              ))}
+            </ul>
             <button
               type="button"
-              onClick={() => setEditing(!editing)}
-              title={editing ? t.edit.read : t.edit.start}
-              aria-label={editing ? t.edit.read : t.edit.start}
-              className={`rounded p-1.5 hover:bg-surface-muted ${editing ? 'text-foreground' : 'text-muted'}`}
+              onClick={() => api.dismissDangling(note.id).then(() => setDismissed(true))}
+              className="mt-3 text-xs text-muted underline-offset-2 hover:underline"
             >
-              {editing ? <BookOpen size={15} /> : <Pencil size={15} />}
+              {t.today.dismiss}
             </button>
-          ) : (
-            <Button onClick={() => setDraft(correctionDraft(note, t))}>{t.edit.correct}</Button>
-          )}
-        </span>
-      </div>
-      {showSource ? <SourcePanel id={note.id} /> : null}
-      {note.supersededBy.length > 0 || note.corrects.length > 0 ? (
-        <Link to={`/thread/${note.id}`} className="mt-4 block text-sm text-primary">
-          {t.threads.open}
-        </Link>
-      ) : null}
-      <AmendedNotice refs={byKind(note.supersededBy, 'corrects')} kind="corrects" />
-      <AmendedNotice refs={byKind(note.supersededBy, 'unknown')} kind="unknown" />
-      <AmendedNotice refs={byKind(note.supersededBy, 'continues')} kind="continues" />
-      {/* Which note this one corrects points backwards, so it is a footnote
-          rather than a warning: one quiet line, no rule and no box. */}
-      {note.corrects.length > 0 ? (
-        <div className="mt-3 text-sm">
-          <span className="text-muted">{t.note.corrects} </span>
-          <Link to={`/note/${note.corrects[0].id}`} className="text-primary">
-            {note.corrects[0].title}
-          </Link>
-        </div>
-      ) : null}
-      {/* Out of the way while writing. Sources and staleness are worth reading
-          and are noise to write past. */}
-      {editing || draft ? null : (
-        <>
-          <Evidence note={note} onSaved={setEdited} />
-          <StalePanel
-            note={note}
-            onSaved={setEdited}
-            onDismissed={() => setEdited({ ...note, stale: null })}
-          />
-        </>
-      )}
-      <article className={editing ? 'mt-6' : 'reading mt-7 rounded-card p-5 sm:p-7'}>
-        {editing ? (
-          <NoteEditor note={note} onSaved={setEdited} />
-        ) : note.content.trim() ? (
-          <Markdown
-            links={note.wikiLinks}
-            onPick={
-              draft
-                ? undefined
-                : note.layer === 'past'
-                  ? (quoted) => {
-                      setAt(quoted);
-                      setDraft(correctionDraft(note, t, quoted));
-                    }
-                  : () => setEditing(true)
-            }
-            slot={
-              draft && at
-                ? {
-                    after: at,
-                    node: (
-                      <Composer
-                        draft={draft}
-                        into={{ folder: note.folder, tags: note.tags }}
-                        quoted={at}
-                        onCancel={() => {
-                          setDraft(null);
-                          setAt(null);
-                        }}
-                      />
-                    ),
-                  }
-                : undefined
-            }
-          >
-            {note.content}
-          </Markdown>
-        ) : (
-          // Frontmatter-only stubs exist in the vault, and a silently blank
-          // article reads as the screen having failed to load.
-          <p className="text-sm text-muted">{t.note.emptyBody}</p>
-        )}
-        {/* Started from the header button, which names no paragraph. */}
-        {draft && !at ? (
-          <Composer
-            draft={draft}
-            into={{ folder: note.folder, tags: note.tags }}
-            onCancel={() => setDraft(null)}
-          />
+          </Section>
         ) : null}
-      </article>
-      <HypothesisLinks
-        heading={t.hypothesis.onNote}
-        hint={t.hypothesis.onNoteHint}
-        refs={note.hypotheses}
-      />
-
-      {note.deadLinks.length > 0 && dismissed ? (
-        <p className="mt-8 text-xs text-muted">{t.today.dismissed}</p>
-      ) : null}
-      {note.deadLinks.length > 0 && !dismissed ? (
-        <Section title={t.edit.deadLinks(note.deadLinks.length)} hint={t.edit.deadLinksWhy}>
-          <ul className="flex flex-col gap-1.5">
-            {note.deadLinks.map((title) => (
-              <li key={title} className="flex items-center gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate text-muted">[[{title}]]</span>
-                <Button onClick={() => setDraft(missingNoteDraft(title, t))}>{t.edit.write}</Button>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            onClick={() => api.dismissDangling(note.id).then(() => setDismissed(true))}
-            className="mt-3 text-xs text-muted underline-offset-2 hover:underline"
-          >
-            {t.today.dismiss}
-          </button>
-        </Section>
-      ) : null}
-      {note.backlinks.length > 0 ? (
-        <Section title={t.note.backlinks(note.backlinks.length)}>
-          <NoteList notes={note.backlinks} empty="" />
-        </Section>
-      ) : null}
-      {note.related.length > 0 ? (
-        <Section title={t.note.related} className="mt-4">
-          <NoteList notes={note.related} empty="" />
-        </Section>
-      ) : null}
-    </Page>
+        {note.backlinks.length > 0 ? (
+          <Section title={t.note.backlinks(note.backlinks.length)}>
+            <NoteList notes={note.backlinks} empty="" />
+          </Section>
+        ) : null}
+        {note.related.length > 0 ? (
+          <Section title={t.note.related} className="mt-4">
+            <NoteList notes={note.related} empty="" />
+          </Section>
+        ) : null}
+      </Page>
+    </DocumentWorkspace>
   );
 };
 

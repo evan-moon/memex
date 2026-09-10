@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AppRow, OnboardingState } from './api.ts';
 import { engineStageOf, linkStageOf, stageOf } from './apps-setup.ts';
-import { currentStep, gateFrom, type Progress, stepDone } from './onboarding.ts';
+import { currentStep, gateFrom, laterSteps, type Progress, stepDone } from './onboarding.ts';
 
 const fresh: Progress = {
   acked: [],
@@ -73,7 +73,14 @@ describe('the steps', () => {
   });
 
   it('walks past what is already done rather than making them redo it', () => {
-    expect(currentStep({ ...fresh, acked: ['intro', 'vault'], modelReady: true })).toBe('engine');
+    expect(currentStep({ ...fresh, acked: ['intro'] })).toBe('vault');
+  });
+
+  // Superseded 2026-09-08: this used to expect `engine`, because a machine with
+  // no AI CLI could not finish setup. Writing needs neither an AI nor a model,
+  // so neither holds the door any more.
+  it('does not hold the door for an AI that has not been connected', () => {
+    expect(currentStep({ ...fresh, acked: ['intro', 'vault'], modelReady: true })).toBeNull();
   });
 });
 
@@ -151,5 +158,33 @@ describe('the two questions in order', () => {
   it('moves on to registering once the sign-in is behind it', () => {
     expect(stageOf(app({ registration: { kind: 'absent' } }))).toBe('connect');
     expect(stageOf(app())).toBe('linked');
+  });
+});
+
+// A01. Writing needs no provider and no weights. Somebody who installs this,
+// points it at a folder and starts typing must not be stopped at a sign-in for
+// a feature they have not asked for yet.
+describe('what setup is allowed to hold up', () => {
+  const withVault: Progress = { acked: ['intro', 'vault'], thinking: [], modelReady: false };
+
+  it('is finished once a person has a vault, with no AI and no model', () => {
+    expect(currentStep(withVault)).toBeNull();
+  });
+
+  it('still asks for the two steps that are really the setup', () => {
+    expect(currentStep({ ...withVault, acked: [] })).toBe('intro');
+    expect(currentStep({ ...withVault, acked: ['intro'] })).toBe('vault');
+  });
+
+  // They are not gone — they are offered where they are needed, which is when
+  // somebody first asks for the thing that needs them.
+  it('still knows the AI and the model are not connected yet', () => {
+    expect(stepDone('engine', withVault)).toBe(false);
+    expect(stepDone('model', withVault)).toBe(false);
+    expect(laterSteps(withVault)).toEqual(['engine', 'model']);
+  });
+
+  it('has nothing left to offer once they are connected', () => {
+    expect(laterSteps({ ...withVault, thinking: ['claude-code'], modelReady: true })).toEqual([]);
   });
 });

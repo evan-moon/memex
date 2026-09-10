@@ -76,19 +76,36 @@ Keep pure helpers out of files that export components. React Fast Refresh gives 
 
 ## Who this is for
 
-**memex is a note tool an AI uses. It does not assume a person types into it.**
+**memex is a personal second brain. A person reads and writes in it, and an AI works from the
+same vault.**
 
-The agent writes the memories — `past`, `state`, and `rule` alike. A person writes for exactly
-one reason: the agent remembered something wrong. That is not a leftover chore handed to the
-UI; an agent cannot know it is wrong, so the correction is information that only exists outside
-the vault, and the app is its only door in.
+Both halves are load-bearing and neither is a chore handed to the other:
 
-The target user is **not a developer**. They install the app, the app registers the MCP server,
-and from then on they work in conversation and in the app. The CLI is not on that path.
+- The person writes their own documents here — notes, references, drafts, finished pieces. The
+  files are theirs, they edit them freely, and every version is recoverable.
+- The agent works from the same shelf: it finds evidence, proposes changes, and records the
+  memories it is permitted to record.
+
+A memory the agent got wrong still reaches the person, and the app is still the door for that
+judgement. It is no longer the only reason to open the app.
+
+The first user is an individual who already has Markdown material and a habit of working with an
+AI. They install the app, the app registers the MCP server, and from then on they work in the app
+and in conversation. The CLI is not on that path.
 
 `rule` is the one layer with a feedback loop — what the agent writes becomes its own next input.
 So `save_note` may write a rule, but it lands `provisional` and is not injected until a person
-approves it in the app. See `docs/plans/2026-08-28-what-memex-is.md`.
+approves it in the app.
+
+> **Superseded 2026-09-08.** This section used to read *"memex is a note tool an AI uses. It does
+> not assume a person types into it. A person writes for exactly one reason: the agent remembered
+> something wrong."* That premise is replaced by
+> `docs/plans/2026-09-08-second-brain-product-redesign.md`. The earlier document
+> (`docs/plans/2026-08-28-what-memex-is.md`) is kept, not deleted.
+>
+> Rule note **#2280** in the vault still carries the old premise and is injected into MCP
+> sessions. Changing this file does not retire it — a replacement rule has to be approved by the
+> person in the app.
 
 ## Surface policy
 
@@ -105,11 +122,14 @@ before. Existing commands stay in these groups (mirrored in `memex --help`):
 - **Insight engine** (deterministic signal/inference operations): `signals` (+ `signals mint`), `inferences`, `digest`, `layer`
 - **Maintenance** (measurement & scheduling): `stats` (+ `stats eval`, `stats flashback`), `schedule`
 
-**Read** is no longer a CLI group. The one screen is the Electron app: browse by topic and see what
-a later note corrected, fix what was remembered wrong by saying it (`/chat`), and connect an app to
-memex (`/connect`), because the non-developer cannot type `memex mcp install`. Signals appear there
-as annotations in context, and in a finite daily session that empties — never as a standing backlog
-counter.
+**Read** is no longer a CLI group. The one screen is the Electron app: write and edit your own
+documents, read what you already recorded beside what you are writing, see what a later note
+corrected, fix what was remembered wrong by saying it, and connect an app to memex, because
+nobody outside this repository types `memex mcp install`. Signals appear there as annotations in
+context — never as a standing backlog counter.
+
+The app's own surface is governed by `apps/ui/PRODUCT.md` and the 2026-09-08 design set, not by
+this list. What this section bounds is the CLI.
 
 Do NOT extend beyond these groups. Prefer a subcommand of an existing command over a new top-level command (`signals mint`, `stats eval`, `tags tidy`).
 

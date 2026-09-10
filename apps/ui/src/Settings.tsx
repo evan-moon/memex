@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EngineRows, LinkRows } from './Apps.tsx';
-import type { ModelJob } from './api.ts';
+import { api, type ModelJob, type SourceFolder } from './api.ts';
 import { useApps } from './apps-setup.ts';
 import { Page, Section } from './bits.tsx';
-import { type Locale, type Strings, setLocale, useLocale } from './i18n.ts';
+import { type Locale, type Strings, setLocale, useLocale, useT } from './i18n.ts';
 import { ModelCard } from './ModelCard.tsx';
 import { ModelSelect } from './ModelSelect.tsx';
 import { assignModel, type Choice, useCatalog } from './models.ts';
@@ -57,6 +58,53 @@ const JobRow = ({ job, choice, t }: { job: ModelJob; choice: Choice; t: Strings 
   </div>
 );
 
+// A file that did not come through memex's own write path was written by the
+// person in another editor — that is the default, and the sidebar has always
+// used it. This is the exception: a folder connected because it is somebody
+// else's. A single document in the library can still disagree with its folder.
+const SourceRows = () => {
+  const t = useT();
+  const [rows, setRows] = useState<SourceFolder[] | null>(null);
+
+  useEffect(() => {
+    api
+      .sources()
+      .then(setRows)
+      .catch(() => setRows([]));
+  }, []);
+
+  if (rows === null) return <p className="text-[11px] text-muted">{t.common.loading}</p>;
+  if (rows.length === 0) return <p className="text-[11px] text-muted">{t.settings.noSources}</p>;
+
+  const mark = (path: string, reference: boolean) => {
+    api
+      .markSource(path, reference)
+      .then(setRows)
+      .catch(() => {});
+  };
+
+  return (
+    <ul className="space-y-2">
+      {rows.map((row) => (
+        <li key={row.path} className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-muted">
+            {row.path}
+          </span>
+          <button
+            type="button"
+            onClick={() => mark(row.path, !row.reference)}
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+              row.reference ? 'bg-accent-soft text-foreground' : 'text-muted hover:bg-surface-muted'
+            }`}
+          >
+            {t.settings.notMyWriting}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 export const SettingsScreen = () => {
   const { locale, t } = useLocale();
   const theme = useTheme();
@@ -88,6 +136,9 @@ export const SettingsScreen = () => {
               { value: 'en', label: 'English' },
             ]}
           />
+        </Section>
+        <Section divided title={t.settings.sources} hint={t.settings.sourcesHint}>
+          <SourceRows />
         </Section>
         {/* Two directions, two sections. memex reaching a CLI is what makes the
             chat here work; an app reaching memex is what gets anything written

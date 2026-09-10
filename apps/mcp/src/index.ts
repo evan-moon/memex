@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { mkdirSync } from 'node:fs';
+import { recoverInterruptedWrites } from '@memex/core';
 import { ensureEmbeddingModel, listInferences, listSignals, openDb } from '@memex/db';
-import { createEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
+import { createLazyEmbedder, EMBEDDING_MODEL_ID } from '@memex/embed';
 import { createLazyReranker } from '@memex/rerank';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -34,12 +35,23 @@ const vaultPath = expandPath(config.vault_path);
 mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
 const client = openDb(CONFIG_DIR);
+// Same pass the app runs. Whichever process opens the vault first settles the
+// journal, and the other finds nothing left to do.
+for (const write of recoverInterruptedWrites(client)) {
+  console.error(
+    `[memex] an interrupted write to #${write.documentId}: ${write.outcome.replace('-', ' ')}`,
+  );
+}
 if (ensureEmbeddingModel(client, EMBEDDING_MODEL_ID) === 'model-changed') {
   console.error(
     '[memex] embedding model changed — stale vectors cleared. Semantic search is keyword-only until `memex reembed` is run.',
   );
 }
-const embedder = await createEmbedder(MODEL_CACHE_DIR);
+// Loaded on the first search rather than now. The weights are ~282MB, and a
+// server that waits for them before registering anything is a server that
+// cannot read a note or save a document until they land — which the design says
+// must not be true, because writing needs no model at all.
+const embedder = createLazyEmbedder(MODEL_CACHE_DIR);
 const reranker = process.env.MEMEX_RERANK === '1' ? createLazyReranker(MODEL_CACHE_DIR) : undefined;
 
 const baseInstructions = `

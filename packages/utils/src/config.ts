@@ -8,6 +8,15 @@ const DEFAULT_VAULT_PATH = join(homedir(), 'Documents', 'Second Brain');
 
 export type MemexSource = {
   path: string;
+  // A file that did not come through memex's own write path was written by the
+  // person, in another editor. That is the right default and the sidebar has
+  // always used it — somebody who connects the folder their blog lives in wrote
+  // every file in it.
+  //
+  // This is the exception: a folder connected because it is somebody else's.
+  // It is about authorship alone and grants nothing — a borrowed file stays
+  // read-only whatever it is labelled.
+  reference?: boolean;
 };
 
 // Which model does which kind of work, split by who is waiting: a turn someone

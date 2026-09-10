@@ -19,3 +19,27 @@ export const rememberRail = (shown: boolean) => {
     // memory rather than a broken app.
   }
 };
+
+const SIDE_KEY = 'memex-side-panel';
+
+// Which of the panels beside a document is open, if any. Same reasoning as the
+// rail: a preference about this machine, not a place a link can carry.
+export type SidePanel = 'references' | 'info' | null;
+
+export const sidePanelShown = (): SidePanel => {
+  try {
+    const stored = localStorage.getItem(SIDE_KEY);
+    return stored === 'references' || stored === 'info' ? stored : null;
+  } catch {
+    return null;
+  }
+};
+
+export const rememberSidePanel = (panel: SidePanel) => {
+  try {
+    if (panel === null) localStorage.removeItem(SIDE_KEY);
+    else localStorage.setItem(SIDE_KEY, panel);
+  } catch {
+    // Opens closed every time, which is a worse memory rather than a broken app.
+  }
+};

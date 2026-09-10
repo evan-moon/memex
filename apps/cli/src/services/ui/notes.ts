@@ -1,15 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
-import { amendmentSuggestion } from '@memex/core';
+import { type Actor, amendmentSuggestion, type Capabilities, capabilitiesFor } from '@memex/core';
 import {
   type AmendKind,
   claimScope,
+  currentRevision,
+  type DocumentMeta,
   evidenceFor,
   evidenceStaleness,
   findRelatedNotes,
   findUnresolvedLinks,
   getAmendments,
   getBacklinks,
+  getDocumentMeta,
   getNote,
   inferencesCiting,
   kindOfEdge,
@@ -63,6 +66,9 @@ export type NoteDetail = {
   corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
+  revision: string | null;
+  meta: DocumentMeta;
+  capabilities: Capabilities;
 };
 
 // Queries that select whole rows hand back snake_case keys at runtime whatever
@@ -245,6 +251,9 @@ export const noteDetail = (
   client: MemexClient,
   id: number,
   vaultPath: string,
+  // Who is looking. The capabilities a screen shows depend on it, and the host
+  // decides it from the surface the request came in on — never the request body.
+  actor: Actor = 'user',
 ): NoteDetail | null => {
   const note = getNote(client, id);
   if (!note) return null;
@@ -304,6 +313,16 @@ export const noteDetail = (
     corrects,
     backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
     related: withStatus(client, findRelatedNotes(client, id, 5).map(toRef)),
+    // What the screen needs before anybody types: which version it is editing,
+    // what kind of document this is, and whether it may write at all.
+    revision: currentRevision(client, id)?.revisionId ?? null,
+    meta: getDocumentMeta(client, id),
+    capabilities: capabilitiesFor({
+      actor,
+      meta: getDocumentMeta(client, id),
+      layer: note.layer,
+      inVault: inVault(note.filePath, vaultPath),
+    }),
   };
 };
 

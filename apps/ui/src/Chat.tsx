@@ -12,6 +12,7 @@ import {
   toFailure,
 } from './api.ts';
 import { Button } from './bits.tsx';
+import { ContextBar, type Picked } from './ContextBar.tsx';
 import { asShown, parseReply } from './chat-replay.ts';
 import { shownSteps, stepLine } from './chat-steps.ts';
 import { targetOnScreen } from './chat-target.ts';
@@ -343,6 +344,14 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
   const [draft, setDraft] = useState('');
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
+  // What was chosen for the next request. Instructions are opt-in: a writing
+  // skill nobody chose is not applied, which is the difference between guidance
+  // the person asked for and guidance that arrives on its own.
+  const [chosen, setChosen] = useState<Picked>({
+    targetId: null,
+    referenceIds: [],
+    instructionIds: [],
+  });
   // This conversation's model, started from the default. Changing it here does
   // not change what the next conversation starts on — that is the setting.
   // null means "whatever the chat job is set to". The footer's picker overrides
@@ -419,7 +428,12 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
     // conversation it belongs to. Changing model between turns costs nothing:
     // no provider was holding it.
     api
-      .chat(message, target, id, choice, sessionId)
+      // Sent as a snapshot. Changing tabs while this runs does not change what
+      // the request was about.
+      .chat(message, target, id, choice, sessionId, {
+        ...chosen,
+        targetId: target?.kind === 'note' ? target.id : null,
+      })
       .then((reply) => {
         setSessionId(reply.sessionId);
         setRound((n) => n + 1);
@@ -553,6 +567,13 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
               <span className="min-w-0 truncate text-xs">{carried.label}</span>
             </div>
           ) : null}
+          <ContextBar
+            targetId={target?.kind === 'note' ? target.id : null}
+            targetTitle={carried?.label ?? null}
+            picked={chosen}
+            onPicked={setChosen}
+            provider={`${choice.provider} · ${choice.model}`}
+          />
           <div className="flex items-end gap-2 px-1.5 py-1">
             <textarea
               value={draft}

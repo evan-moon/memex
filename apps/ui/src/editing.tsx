@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { type SaveState, useAutosave } from './autosave.ts';
 import { Button, Card } from './bits.tsx';
+import { whileEditing } from './closing.ts';
 import { DiffView } from './DiffView.tsx';
 import type { Draft } from './drafts.ts';
 import { MarkdownEditor } from './editor/index.ts';
@@ -85,20 +86,54 @@ export const NoteEditor = ({
   const patch = patchFor(note, { title, tags, layer, body });
   const dirty = isDirty(patch);
 
+  // A body edit is a document write: it carries the version it was built on, and
+  // it goes through the path that keeps history and refuses to flatten somebody
+  // else's edit. Everything else is memory metadata and keeps the older shape.
+  //
+  // This is also what lets a record be edited at all. Correcting the claims
+  // inside one is still a separate operation; changing the words is not.
   const write = useCallback(
     async (next: NotePatch) => {
       setFailure(null);
       try {
-        onSaved(await api.updateNote(note.id, next));
+        const { body: edited, ...rest } = next;
+        const wrote =
+          edited === undefined
+            ? null
+            : await api.writeBody(note.id, {
+                body: edited,
+                expectedRevision: note.revision ?? null,
+                mutationId: crypto.randomUUID(),
+              });
+        const changed = Object.values(rest).some((value) => value !== undefined);
+        onSaved(changed ? await api.updateNote(note.id, rest) : (wrote ?? note));
       } catch (cause) {
         setFailure(toFailure(cause));
         throw cause;
       }
     },
-    [note.id, onSaved],
+    [note, onSaved],
   );
 
-  const saved = useAutosave(patch, dirty, write);
+  const { state: saved, flush, retry, safeToClose } = useAutosave(patch, dirty, write);
+
+  // The window asks this editor whether it may go. Registered while the editor
+  // is open and forgotten the moment it is not, so a closed tab cannot keep the
+  // window alive on the strength of a buffer nobody is looking at.
+  useEffect(() => whileEditing({ flush, safeToClose }), [flush, safeToClose]);
+
+  // ⌘S does not mean "save" here — everything saves on its own. It means stop
+  // waiting for the pause, which is what somebody who just typed the last word
+  // of a paragraph is asking for.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 's' || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      flush();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [flush]);
 
   return (
     <div>
@@ -151,7 +186,14 @@ export const NoteEditor = ({
         <MarkdownEditor value={body} onChange={setBody} titles={titles} />
       </div>
 
-      <StatusLine body={body} note={note} saved={saved} />
+      <StatusLine
+        body={body}
+        note={note}
+        saved={saved}
+        onRetry={() => {
+          retry();
+        }}
+      />
       <Failure failure={failure} />
     </div>
   );
@@ -164,10 +206,12 @@ const StatusLine = ({
   body,
   note,
   saved,
+  onRetry,
 }: {
   body: string;
   note: NoteDetail;
   saved: SaveState;
+  onRetry: () => void;
 }) => {
   const t = useT();
   const words = body.trim() === '' ? 0 : body.trim().split(/\s+/).length;
@@ -176,7 +220,18 @@ const StatusLine = ({
       <span>{t.edit.backlinks(note.backlinks?.length ?? 0)}</span>
       <span>{t.edit.counts(words, body.length)}</span>
       <span className="ml-auto">
-        {saved === 'saving' ? t.edit.saving : saved === 'clean' ? t.edit.saved : t.edit.unsaved}
+        {saved === 'saving'
+          ? t.edit.saving
+          : saved === 'clean'
+            ? t.edit.saved
+            : saved === 'failed'
+              ? t.edit.saveFailed
+              : t.edit.unsaved}
+        {saved === 'failed' ? (
+          <button type="button" onClick={onRetry} className="text-primary">
+            {t.common.retry}
+          </button>
+        ) : null}
       </span>
     </p>
   );

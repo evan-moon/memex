@@ -6,6 +6,7 @@ import { createEmbedder } from '@memex/embed';
 import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/utils';
 import type { Command } from 'commander';
 import pc from 'picocolors';
+import { actorOf } from '../actor.ts';
 import { guardEmbeddingModel } from '../services/embedding-guard.ts';
 
 export const registerEdit = (program: Command) => {
@@ -67,7 +68,9 @@ export const registerEdit = (program: Command) => {
           vaultPath,
           Number(id),
           { title: title || undefined, content: content || undefined },
-          { actor: 'user' },
+          // Not `user` unconditionally: see actorOf. A CLI call with nothing
+          // attached to it is a script, and a script is not the vault owner.
+          { actor: actorOf() },
         );
 
         if (isEditRejection(result)) {

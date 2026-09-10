@@ -549,6 +549,142 @@ const MIGRATIONS: readonly Migration[] = [
       for (const row of rows) set.run(classifyClaim(row.text), row.id);
     },
   },
+  {
+    // A document's history has lived in git until now, and a vault that is not a
+    // repository has had none. These three tables are what makes a version
+    // recoverable without one: what the file said (`document_revisions`), what
+    // the document is (`document_meta`), and what a write was in the middle of
+    // when the process died (`document_mutations`).
+    //
+    // Purely additive. Nothing here reads or rewrites a note, because the whole
+    // point is that a document acquires a baseline the first time it is edited
+    // rather than having one invented for it now.
+    version: 28,
+    name: 'documents.meta_revisions_mutations',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS document_meta (
+          document_id      INTEGER PRIMARY KEY,
+          mode             TEXT    NOT NULL DEFAULT 'legacy-memory',
+          kind             TEXT    NOT NULL DEFAULT 'unknown',
+          origin           TEXT    NOT NULL DEFAULT 'unknown',
+          writing_status   TEXT,
+          current_revision TEXT,
+          updated_at       INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS document_revisions (
+          revision_id     TEXT    PRIMARY KEY,
+          document_id     INTEGER NOT NULL,
+          parent_revision TEXT,
+          raw_content     TEXT    NOT NULL,
+          file_hash       TEXT    NOT NULL,
+          actor           TEXT    NOT NULL,
+          at              INTEGER NOT NULL,
+          mutation_id     TEXT,
+          reason          TEXT
+        );
+        CREATE INDEX IF NOT EXISTS document_revisions_by_document
+          ON document_revisions (document_id, at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS document_revisions_by_mutation
+          ON document_revisions (mutation_id) WHERE mutation_id IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS document_mutations (
+          mutation_id       TEXT    PRIMARY KEY,
+          document_id       INTEGER NOT NULL,
+          expected_revision TEXT,
+          intended_hash     TEXT    NOT NULL,
+          stage             TEXT    NOT NULL,
+          result_revision   TEXT,
+          error             TEXT,
+          at                INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS document_mutations_by_stage
+          ON document_mutations (stage, at);
+
+        CREATE TABLE IF NOT EXISTS document_locks (
+          document_id INTEGER PRIMARY KEY,
+          holder      TEXT    NOT NULL,
+          at          INTEGER NOT NULL
+        );
+      `);
+    },
+  },
+  {
+    // What the editor is holding that the file does not have yet. Separate from
+    // `note_drafts`, which is a rewrite an agent prepared before anybody asked:
+    // this one is the person's own keystrokes, kept so that closing the window
+    // or losing power is not the same as losing the paragraph.
+    version: 29,
+    name: 'document_drafts',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS document_drafts (
+          draft_key     TEXT    PRIMARY KEY,
+          vault_id      TEXT    NOT NULL,
+          document_id   INTEGER,
+          base_revision TEXT,
+          content       TEXT    NOT NULL,
+          sequence      INTEGER NOT NULL DEFAULT 0,
+          at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS document_drafts_by_vault
+          ON document_drafts (vault_id, at DESC);
+      `);
+    },
+  },
+  {
+    // What a document is being written from. The reference is a pointer with a
+    // version on it, never a copy: the passage stays in the document it came
+    // from, so when that document changes this can say so rather than quietly
+    // holding a sentence nobody stands behind any more.
+    version: 30,
+    name: 'document_references',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS document_references (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_document_id  INTEGER NOT NULL,
+          source_document_id INTEGER NOT NULL,
+          source_revision    TEXT,
+          quote              TEXT    NOT NULL DEFAULT '',
+          heading            TEXT,
+          at                 INTEGER NOT NULL,
+          UNIQUE (owner_document_id, source_document_id)
+        );
+        CREATE INDEX IF NOT EXISTS document_references_by_owner
+          ON document_references (owner_document_id, at DESC);
+      `);
+    },
+  },
+  {
+    // What an agent offered to change, kept until somebody decides. A proposal
+    // outlives the conversation that made it — the person may close the panel,
+    // read the source it cites, and come back — so it cannot live in a chat
+    // turn, and it carries the version it was written against so that coming
+    // back to a document that moved is a refusal rather than a silent mangling.
+    version: 31,
+    name: 'change_proposals',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS change_proposals (
+          id            TEXT    PRIMARY KEY,
+          document_id   INTEGER NOT NULL,
+          base_revision TEXT,
+          range_from    INTEGER,
+          range_to      INTEGER,
+          exact_text    TEXT,
+          replacement   TEXT    NOT NULL,
+          used_evidence TEXT    NOT NULL DEFAULT '[]',
+          status        TEXT    NOT NULL DEFAULT 'pending',
+          origin_client TEXT,
+          at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS change_proposals_by_document
+          ON change_proposals (document_id, at DESC);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

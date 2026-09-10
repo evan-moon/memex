@@ -117,6 +117,26 @@ export type NoteDetail = {
   corrects: AmendedRef[];
   backlinks: NoteRef[];
   related: NoteRef[];
+  // Optional on purpose. The window can outlive the build that answers it, and
+  // a type that lies about that turns a stale server into a blank screen.
+  revision?: string | null;
+  meta?: DocumentMeta;
+  capabilities?: Capabilities;
+};
+
+export type DocumentMeta = {
+  documentId: number;
+  mode: 'document' | 'legacy-memory';
+  kind: 'note' | 'reference' | 'draft' | 'instruction' | 'unknown';
+  origin: 'person' | 'external' | 'agent' | 'unknown';
+  writingStatus: 'working' | 'finished' | null;
+  currentRevision: string | null;
+};
+
+export type Capabilities = {
+  canEdit: boolean;
+  canPropose: boolean;
+  refusal: { code: string; message: string } | null;
 };
 
 export type NoteSource = { path: string; text: string | null };
@@ -290,6 +310,64 @@ export type NewNote = {
   amendsKind?: 'corrects' | 'continues';
 };
 
+export type DocumentReference = {
+  id: number;
+  ownerDocumentId: number;
+  sourceDocumentId: number;
+  sourceRevision: string | null;
+  quote: string;
+  heading: string | null;
+  at: number;
+  title: string | null;
+  state: 'current' | 'changed' | 'missing';
+};
+
+export type MemoryView = {
+  id: string;
+  subjectKey: string | null;
+  statement: string;
+  status: 'unconfirmed' | 'confirmed' | 'retired';
+  evidenceState: 'current' | 'changed' | 'missing';
+  evidence: { documentId: number; title: string | null }[];
+  supersededBy: string | null;
+  at: number;
+};
+
+export type MemoryPage = {
+  subjects: { subject: string; keys: number; lastAt: number }[];
+  items: MemoryView[];
+};
+
+export type HomeDocument = {
+  id: number;
+  title: string;
+  folder: string;
+  updatedAt: number;
+  snippet: string;
+};
+
+export type Home = {
+  continuing: HomeDocument | null;
+  recent: HomeDocument[];
+  changes: { id: number; title: string; why: string }[];
+};
+
+export type LibraryFilter = 'all' | 'mine' | 'reference' | 'instruction';
+
+export type LibraryRow = {
+  id: number;
+  title: string;
+  folder: string;
+  kind: string;
+  origin: string;
+  updatedAt: number;
+  writingStatus: string | null;
+};
+
+export type SourceFolder = { path: string; reference: boolean };
+
+export type LibraryPage = { rows: LibraryRow[]; counts: Record<LibraryFilter, number> };
+
 export type MergeCandidate = {
   kind: 'spelling' | 'overlap';
   keep: string;
@@ -358,12 +436,14 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return data as T;
 };
 
-const post = <T>(path: string, body?: unknown) =>
+const send = <T>(method: string, path: string, body?: unknown) =>
   request<T>(path, {
-    method: 'POST',
+    method,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   });
+
+const post = <T>(path: string, body?: unknown) => send<T>('POST', path, body);
 
 export const searchQuery = (query: string, filters: SearchFilters): string => {
   const params = new URLSearchParams({ q: query });
@@ -580,8 +660,17 @@ export const api = {
     operationId: string,
     choice: { provider: string; model: string },
     sessionId: number | null,
+    // Ids only. The text is read on the server, so a request cannot hand the
+    // model a passage claiming it came from a note it did not.
+    context?: { targetId: number | null; referenceIds: number[]; instructionIds: number[] },
   ) =>
-    post<ChatAnswer>(`/api/chat${chatQuery(target)}`, { message, operationId, choice, sessionId }),
+    post<ChatAnswer>(`/api/chat${chatQuery(target)}`, {
+      message,
+      operationId,
+      choice,
+      sessionId,
+      context,
+    }),
   models: () => request<Catalog>('/api/models'),
   assignModel: (job: ModelJob, choice: Choice) =>
     post<Record<ModelJob, Choice>>('/api/models', { [job]: choice }),
@@ -678,6 +767,49 @@ export const api = {
   connectApp: (app: McpClientId) => post<AppsScreen>('/api/app/connect', { app }),
   tree: () => request<VaultTree>('/api/tree'),
   templates: () => request<Record<string, string>>('/api/templates'),
+  home: () => request<Home>('/api/home'),
+  library: (kind: LibraryFilter) => request<LibraryPage>(`/api/library?kind=${kind}`),
+  routes: () => request<{ routes: string[] }>('/api/routes'),
+  setOrigin: (id: number, origin: string) =>
+    post<{ origin: string }>(`/api/note/${id}/origin`, { origin }),
+  sources: () => request<SourceFolder[]>('/api/sources'),
+  markSource: (path: string, mine: boolean) => post<SourceFolder[]>('/api/sources', { path, mine }),
+  memory: () => request<MemoryPage>('/api/memory'),
+  memoryFor: (subject: string) => request<MemoryPage>(`/api/memory/${encodeURIComponent(subject)}`),
+  correctMemory: (input: {
+    target: string;
+    expectedStatement?: string;
+    replacement?: string;
+    mutationId: string;
+  }) => post<{ target: string; status: string; statement: string }>('/api/memory/correct', input),
+  references: (id: number) => request<DocumentReference[]>(`/api/note/${id}/references`),
+  addReference: (id: number, sourceId: number, quote?: string) =>
+    post<DocumentReference[]>(`/api/note/${id}/references`, { sourceId, quote }),
+  dropReference: (id: number, sourceId: number) =>
+    send<DocumentReference[]>('DELETE', `/api/note/${id}/references`, { sourceId }),
+  writeDocument: (
+    id: number,
+    input: { raw: string; expectedRevision: string | null; mutationId: string },
+  ) => post<NoteDetail>(`/api/note/${id}`, input),
+  // The screen edits a body; the server puts the frontmatter back around it.
+  writeBody: (
+    id: number,
+    input: { body: string; expectedRevision: string | null; mutationId: string },
+  ) => post<NoteDetail>(`/api/note/${id}`, input),
+  revisions: (id: number) =>
+    request<{ revisionId: string; at: number; actor: string; reason: string | null }[]>(
+      `/api/note/${id}/revisions`,
+    ),
+  restoreRevision: (id: number, revision: string, expectedRevision: string | null) =>
+    post<NoteDetail>(`/api/note/${id}/restore`, { revision, expectedRevision }),
+  buffer: (key: string) =>
+    request<{ content: string; baseRevision: string | null; sequence: number } | null>(
+      `/api/buffer/${encodeURIComponent(key)}`,
+    ),
+  keepBuffer: (
+    key: string,
+    input: { content: string; sequence: number; documentId?: number; baseRevision?: string | null },
+  ) => post<unknown>(`/api/buffer/${encodeURIComponent(key)}`, input),
   duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
   moveNote: (id: number, folder: string) =>
     post<{ path: string }>(`/api/note/${id}/move`, { folder }),

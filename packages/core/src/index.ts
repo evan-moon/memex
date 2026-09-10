@@ -1,3 +1,45 @@
+export type {
+  Actor,
+  Capabilities,
+  WriteRefusal,
+  WriteRequest,
+  WriteVerdict,
+} from './document-policy.ts';
+export { canWriteDocument, capabilitiesFor } from './document-policy.ts';
+export type {
+  CreateDocument,
+  DocumentContext,
+  DocumentFailure,
+  DocumentRead,
+  DocumentWritten,
+  UpdateDocument,
+} from './documents.ts';
+export {
+  createDocument,
+  forgetDocument,
+  isDocumentFailure,
+  readDocument,
+  restoreDocument,
+  updateDocument,
+  versionedEdit,
+} from './documents.ts';
+export type {
+  Correction,
+  CorrectionFailure,
+  CorrectionResult,
+  EvidenceState,
+  MemoryPage,
+  MemoryStatus,
+  MemoryTarget,
+  MemoryView,
+} from './memory.ts';
+export {
+  buildMemory,
+  correctMemory,
+  isCorrectionFailure,
+  memoryForSubject,
+  parseMemoryId,
+} from './memory.ts';
 export type { RankedResult, Reranker, SearchOptions, SearchPage } from './note.ts';
 export {
   amendmentSuggestion,
@@ -17,6 +59,10 @@ export {
   semanticSearchMulti,
   type WriteActor,
 } from './note.ts';
+export type { ProposalFailure } from './proposals.ts';
+export { applyProposal, discardProposal, isProposalFailure } from './proposals.ts';
+export type { Recovered } from './recovery.ts';
+export { recoverInterruptedWrites } from './recovery.ts';
 export { approveRuleNote, declineRuleNote } from './rules.ts';
 export type { StructuredLayer } from './slots.ts';
 export {

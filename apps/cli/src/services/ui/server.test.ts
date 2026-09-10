@@ -1,7 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateDocument } from '@memex/core';
 import {
+  getDocumentMeta,
   getInference,
   getNote,
   insertNote,
@@ -9,6 +11,7 @@ import {
   type MemexClient,
   mintInference,
   openDb,
+  putProposal,
   serializeTags,
   setNoteEvidence,
   syncLinks,
@@ -851,5 +854,422 @@ describe('GET /api/templates', () => {
     });
     expect(String(body(reply).past)).toContain('## 이것이 바꾼 것');
     expect(String(body(reply).rule)).toContain('## 어기면 보이는 것');
+  });
+});
+
+describe('the editor’s buffer, kept where a crash cannot reach it', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('keeps and returns what was typed', async () => {
+    await post('/api/buffer/k-1', { content: '반쯤 쓴 문단', sequence: 1, documentId: 7 });
+
+    expect(body(await get('/api/buffer/k-1'))).toMatchObject({
+      content: '반쯤 쓴 문단',
+      documentId: 7,
+    });
+  });
+
+  it('has nothing for a key nobody wrote', async () => {
+    expect(body(await get('/api/buffer/never'))).toBeNull();
+  });
+
+  // These arrive from the tab still being typed in and nothing under them
+  // promises order.
+  it('refuses a sequence older than the one it holds', async () => {
+    await post('/api/buffer/k-1', { content: 'two', sequence: 2 });
+    await post('/api/buffer/k-1', { content: 'one', sequence: 1 });
+
+    expect(body(await get('/api/buffer/k-1'))).toMatchObject({ content: 'two' });
+  });
+
+  it('lists what a crash left behind', async () => {
+    await post('/api/buffer/k-1', { content: 'unsaved', sequence: 1 });
+
+    expect(body(await get('/api/buffers'))).toMatchObject([{ content: 'unsaved' }]);
+  });
+
+  it('is gone once the edit really landed', async () => {
+    await post('/api/buffer/k-1', { content: 'unsaved', sequence: 1 });
+    await route(deps, 'DELETE', new URL('/api/buffer/k-1', 'http://localhost'), null);
+
+    expect(body(await get('/api/buffer/k-1'))).toBeNull();
+  });
+});
+
+// The document write, reached through the routes that already existed rather
+// than a second parallel set of them.
+describe('POST /api/note/:id as a document write', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const makeFile = (title: string, raw: string) => {
+    const note = addNote(title, 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('tells the screen which version it is editing and whether it may', async () => {
+    const note = addNote('a document', 'state');
+
+    const detail = body(await get(`/api/note/${note.id}`));
+
+    expect(detail).toMatchObject({ revision: null, capabilities: { canEdit: true } });
+    expect(detail.meta).toMatchObject({ origin: 'unknown' });
+  });
+
+  it('writes the raw file and hands back the new version', async () => {
+    const note = makeFile('a document', 'one\n');
+
+    const reply = await post(`/api/note/${note.id}`, {
+      raw: 'two\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('two\n');
+    expect(body(reply).revision).not.toBeNull();
+  });
+
+  it('refuses a write built on a version that moved, and says what is current', async () => {
+    const note = makeFile('a document', 'one\n');
+    const first = body(
+      await post(`/api/note/${note.id}`, {
+        raw: 'two\n',
+        expectedRevision: null,
+        mutationId: 'm-1',
+      }),
+    );
+
+    const stale = await post(`/api/note/${note.id}`, {
+      raw: 'three\n',
+      expectedRevision: 'a-version-that-never-was',
+      mutationId: 'm-2',
+    });
+
+    expect(stale.status).toBe(409);
+    expect(body(stale)).toMatchObject({
+      error: { code: 'version-conflict' },
+      currentRevision: first.revision,
+      currentRaw: 'two\n',
+    });
+  });
+
+  it('leaves the memory edit shape alone', async () => {
+    const note = addNote('a plan', 'state');
+
+    const reply = await post(`/api/note/${note.id}`, { title: 'a better plan' });
+
+    expect(reply.status).toBe(200);
+    expect(getNote(client, note.id)?.title).toBe('a better plan');
+  });
+
+  it('lists the versions without shipping every copy of the document', async () => {
+    const note = makeFile('a document', 'one\n');
+    await post(`/api/note/${note.id}`, { raw: 'two\n', expectedRevision: null, mutationId: 'm-1' });
+
+    const revisions = body(await get(`/api/note/${note.id}/revisions`));
+
+    expect(Array.isArray(revisions)).toBe(true);
+    expect(revisions).toHaveLength(2);
+    expect(revisions[0]).not.toHaveProperty('rawContent');
+  });
+
+  it('brings an old version back as a new one', async () => {
+    const note = makeFile('a document', 'one\n');
+    const second = body(
+      await post(`/api/note/${note.id}`, {
+        raw: 'two\n',
+        expectedRevision: null,
+        mutationId: 'm-1',
+      }),
+    );
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: { revisionId: string }[] = JSON.parse(listed.body);
+    const first = revisions[revisions.length - 1];
+
+    const reply = await post(`/api/note/${note.id}/restore`, {
+      revision: first.revisionId,
+      expectedRevision: second.revision,
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('one\n');
+  });
+});
+
+describe('references on a document', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('points at a source rather than copying it into the body', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+
+    const reply = await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    expect(reply.status).toBe(200);
+    expect(body(reply)).toMatchObject([{ sourceDocumentId: source.id, title: '인터뷰 메모' }]);
+    expect(getNote(client, owner.id)?.content).not.toContain('인터뷰');
+  });
+
+  it('is one reference however many times the same source is added', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+
+    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+    const twice = await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    expect(body(twice)).toHaveLength(1);
+  });
+
+  it('refuses a source that is not a note', async () => {
+    const owner = addNote('원고', 'state');
+    expect((await post(`/api/note/${owner.id}/references`, { sourceId: 9999 })).status).toBe(404);
+  });
+
+  it('lets one go', async () => {
+    const owner = addNote('원고', 'state');
+    const source = addNote('인터뷰 메모', 'past');
+    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+
+    const gone = await route(
+      deps,
+      'DELETE',
+      new URL(`/api/note/${owner.id}/references`, 'http://localhost'),
+      { sourceId: source.id },
+    );
+
+    expect(body(gone)).toEqual([]);
+    expect(body(await get(`/api/note/${owner.id}/references`))).toEqual([]);
+  });
+});
+
+// Plan B: the editor keeps sending what it always sent, and the boundary around
+// that write is what gained a version, a lock, and a look at the disk.
+describe('the older edit shape, now versioned', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const onDisk = (title: string, raw: string) => {
+    const note = addNote(title, 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('records a version for an edit sent the old way', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: unknown[] = JSON.parse(listed.body);
+    expect(revisions).toHaveLength(2);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('two');
+  });
+
+  it('keeps what was there before that first edit', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: { revisionId: string }[] = JSON.parse(listed.body);
+    const restored = await post(`/api/note/${note.id}/restore`, {
+      revision: revisions[revisions.length - 1].revisionId,
+      expectedRevision: revisions[0].revisionId,
+    });
+
+    expect(restored.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('one');
+  });
+
+  // The thing this buys that the old path never had: somebody edited the file
+  // in another editor, and the app does not write over it without saying so.
+  it('refuses when the file moved under it, and does not write', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { body: 'two\n' });
+    writeFileSync(note.filePath, 'somebody else wrote this\n', 'utf8');
+
+    const reply = await post(`/api/note/${note.id}`, { body: 'three\n' });
+
+    expect(reply.status).toBe(409);
+    expect(body(reply).error).toMatchObject({ code: 'version-conflict' });
+    expect(readFileSync(note.filePath, 'utf8')).toBe('somebody else wrote this\n');
+  });
+
+  it('does not record a version for an edit that changed no file', async () => {
+    const note = onDisk('a plan', '---\ntitle: a plan\n---\n\none\n');
+    await post(`/api/note/${note.id}`, { tags: ['one'] });
+    await post(`/api/note/${note.id}`, { tags: ['one'] });
+
+    const listed = await get(`/api/note/${note.id}/revisions`);
+    const revisions: unknown[] = JSON.parse(listed.body);
+    expect(revisions.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('what an agent offered to change', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  const document = (raw: string) => {
+    const note = addNote('원고', 'state');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('lists what is still on offer for a document', async () => {
+    const note = document('첫 문단.\n');
+    putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    expect(body(await get(`/api/note/${note.id}/proposals`))).toHaveLength(1);
+  });
+
+  it('applies one and writes the document', async () => {
+    const note = document('첫 문단.\n');
+    const proposal = putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    const reply = await post(`/api/proposal/${proposal.id}/apply`, null);
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toBe('고쳐 쓴 문단.\n');
+  });
+
+  // The original never moves by this route, whatever was shown on screen.
+  it('leaves the document alone when the offer is thrown away', async () => {
+    const note = document('첫 문단.\n');
+    const proposal = putProposal(client, {
+      documentId: note.id,
+      baseRevision: null,
+      replacement: '고쳐 쓴 문단.\n',
+    });
+
+    const reply = await post(`/api/proposal/${proposal.id}/discard`, null);
+
+    expect(body(reply)).toMatchObject({ status: 'discarded' });
+    expect(readFileSync(note.filePath, 'utf8')).toBe('첫 문단.\n');
+    expect(body(await get(`/api/note/${note.id}/proposals`))).toHaveLength(0);
+  });
+
+  it('has nothing to apply for an offer that never existed', async () => {
+    expect((await post('/api/proposal/never/apply', null)).status).toBe(404);
+  });
+});
+
+// A folder is a bulk answer and a file may disagree with it, which is the only
+// honest arrangement when somebody's own writing and somebody else's are in the
+// same directory.
+describe('who wrote this one', () => {
+  const get = (path: string) => route(deps, 'GET', new URL(path, 'http://localhost'), null);
+
+  it('takes the person’s word for a single document', async () => {
+    const note = addNote('내가 쓴 글', 'state');
+
+    const reply = await post(`/api/note/${note.id}/origin`, { origin: 'person' });
+
+    expect(body(reply)).toMatchObject({ origin: 'person' });
+    expect(getDocumentMeta(client, note.id).origin).toBe('person');
+  });
+
+  // Taking it back is not a third answer. The file goes back to being read from
+  // how it arrived.
+  it('lets the answer be taken back', async () => {
+    const note = addNote('잘못 표시한 글', 'state');
+    await post(`/api/note/${note.id}/origin`, { origin: 'person' });
+
+    await post(`/api/note/${note.id}/origin`, { origin: 'unknown' });
+
+    expect(getDocumentMeta(client, note.id).origin).toBe('unknown');
+  });
+
+  it('refuses a word it does not know', async () => {
+    const note = addNote('글', 'state');
+    expect((await post(`/api/note/${note.id}/origin`, { origin: '내꺼' })).status).toBe(400);
+  });
+
+  it('lists the folders memex reads and which are the person’s', async () => {
+    const listed = body(await get('/api/sources'));
+    expect(Array.isArray(listed)).toBe(true);
+  });
+
+  it('will not mark a folder memex does not read', async () => {
+    expect((await post('/api/sources', { path: '/nowhere', reference: true })).status).toBe(404);
+  });
+});
+
+// The gap the redesign named and left open until now: a person could not change
+// the words in a record. Correcting the claims inside one is still a separate
+// operation; changing what it says is not.
+describe('editing the text of a record', () => {
+  const record = (raw: string) => {
+    const note = addNote('일어난 일', 'past');
+    writeFileSync(note.filePath, raw, 'utf8');
+    client.sqlite.prepare('UPDATE notes SET content = ? WHERE id = ?').run(raw, note.id);
+    return note;
+  };
+
+  it('lets a person fix a line in a past note', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n- 둘째 항목\n');
+
+    const reply = await post(`/api/note/${note.id}`, {
+      body: '- 첫째 항목\n- 고친 둘째 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    expect(reply.status).toBe(200);
+    expect(readFileSync(note.filePath, 'utf8')).toContain('고친 둘째 항목');
+  });
+
+  it('keeps the frontmatter the screen never showed', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\ncssclass: wide\n---\n\n- 첫째 항목\n');
+
+    await post(`/api/note/${note.id}`, {
+      body: '- 고친 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    const onDisk = readFileSync(note.filePath, 'utf8');
+    expect(onDisk).toContain('cssclass: wide');
+    expect(onDisk).toContain('layer: past');
+  });
+
+  it('keeps every version of it', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n');
+    await post(`/api/note/${note.id}`, {
+      body: '- 고친 항목\n',
+      expectedRevision: null,
+      mutationId: 'm-1',
+    });
+
+    const listed = await route(
+      deps,
+      'GET',
+      new URL(`/api/note/${note.id}/revisions`, 'http://localhost'),
+      null,
+    );
+    expect(JSON.parse(listed.body)).toHaveLength(2);
+  });
+
+  // The agent still cannot. Rewriting a record is what the correction is for.
+  it('still sends the agent to a correction', async () => {
+    const note = record('---\ntitle: 일어난 일\nlayer: past\n---\n\n- 첫째 항목\n');
+
+    const refused = updateDocument(
+      client,
+      note.id,
+      { raw: 'the agent rewrote it\n', expectedRevision: null, mutationId: 'm-1' },
+      { actor: 'agent', vaultPath: vaultDir },
+    );
+
+    expect(refused).toMatchObject({ code: 'correct-instead' });
   });
 });

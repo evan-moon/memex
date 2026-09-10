@@ -95,7 +95,7 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 - **Date filter**, narrow search to a time range with `--from` / `--to`
 - **Note layers**, every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
 - **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
-- **Desktop view**, `memex ui` opens the vault by topic and splits each one into what still stands and what has gone out of date — corrected by a later note, or a plan with newer records piled up behind it
+- **Desktop app**, an Electron window that opens the vault by topic and splits each one into what still stands and what has gone out of date — corrected by a later note, or a plan with newer records piled up behind it. There is no `memex ui` command any more: the app is the screen
 - **Inference engine**, deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
 - **MCP server**, Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
@@ -319,6 +319,31 @@ flowchart TB
 - **[skope](https://github.com/evan-moon/skope)** · news, a personalized lens on the world
 
 You reach them through Claude Desktop, Claude Code, Cursor, or any other MCP client. The tools compose through the model, never by calling each other.
+
+---
+
+## Where this is going
+
+memex today is what the list above describes: an AI's memory, with a desktop
+window for supervising it. The direction being built now is a **personal second
+brain you also read and write in directly** — the same vault, used by a person
+writing from their own material and by an AI working from the same shelf.
+
+Design is in [`docs/plans/2026-09-08-second-brain-product-redesign.md`](docs/plans/2026-09-08-second-brain-product-redesign.md)
+and the two documents it links. **None of the following is built yet**, and this
+section exists so the feature list above stays honest about what ships today:
+
+| Goal | Status |
+|---|---|
+| Write and edit documents without an AI or embedding model ready | in progress |
+| Version history for every document, without needing git in the vault | in progress |
+| Editing the text of a `past` note (its claims are still corrected, not rewritten) | not started |
+| Reference panel — read your own sources beside what you are writing | not started |
+| A memory screen where a wrong value is corrected in place | not started |
+| `update_note` with `expected_revision` so two writers cannot silently overwrite | not started |
+
+Out of scope for this direction: sync, collaboration, publishing, a plugin
+system, and a graph canvas.
 
 ---
 

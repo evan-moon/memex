@@ -26,6 +26,7 @@ import { inVault, tagKey } from '@memex/utils';
 import { askWith } from '../llm.ts';
 import { bodyOf, plainSnippet } from '../ui/notes.ts';
 import { topicNotes } from '../ui/topics.ts';
+import type { BuiltContext } from './context.ts';
 import { type ApplyFailure, type ChatFailure, failureOf } from './errors.ts';
 import {
   type Carried,
@@ -202,18 +203,48 @@ export const gatherCandidates = async (
   deps: ChatDeps,
   carried: Carried | null,
   message: string,
+  // What the person picked for this one request. Named material goes in ahead
+  // of anything search turned up, because it was chosen and the rest was found.
+  chosen?: BuiltContext,
 ): Promise<Candidates> => {
   const { notes, searchable } = await noteCandidates(deps, carried, message);
 
+  // Already in the search results is fine; what matters is that a chosen one is
+  // present whether or not search found it.
+  const pickedIds = new Set(
+    (chosen?.parts ?? []).filter((part) => part.role === 'reference').map((p) => p.documentId),
+  );
+  const missing = [...pickedIds]
+    .filter((id) => !notes.some((note) => note.id === id))
+    .flatMap((id) => {
+      const note = getNote(deps.client, id);
+      return note ? [asCandidate(note, deps.vaultPath)] : [];
+    });
+  const withPicked = [...missing, ...notes];
+
   return {
-    notes,
+    notes: withPicked,
     searchable,
     register: registerCandidates(deps.client, carried, message),
     rules: listRules(deps.client, 'provisional')
       .slice(0, RULE_CANDIDATES)
       .map((rule) => ({ id: rule.id, title: rule.title, snippet: snippet(rule, DETAIL_CHARS) })),
-    skills: skillCandidates(deps.client),
+    // A skill the person did not choose is not applied. When they chose some,
+    // those are the whole list; when they chose none, the approved ones are
+    // offered as they always were.
+    skills: instructionsFrom(chosen) ?? skillCandidates(deps.client),
   };
+};
+
+const instructionsFrom = (chosen?: BuiltContext): SkillCandidate[] | null => {
+  if (chosen === undefined || chosen.manifest.instructionIds.length === 0) return null;
+  return chosen.parts
+    .filter((part) => part.role === 'instruction')
+    .map((part) => ({
+      id: part.documentId,
+      title: part.title,
+      snippet: part.text.slice(0, DETAIL_CHARS),
+    }));
 };
 
 const SKILL_TAG = tagKey('skill');
@@ -418,6 +449,9 @@ export type TurnRequest = {
   history?: Said[];
   signal?: AbortSignal;
   onStep?: (step: Step) => void;
+  // A snapshot taken when the request was sent. Changing tabs while it runs does
+  // not change what it was about.
+  context?: BuiltContext;
 };
 
 const asCandidate = (note: Note, vaultPath: string): NoteCandidate => ({
@@ -488,7 +522,7 @@ const notesOf = (lookup: Lookup) =>
 export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
   const { message, carried = null, choice, history = [], signal } = request;
   const report = request.onStep ?? (() => {});
-  const candidates = await gatherCandidates(deps, carried, message);
+  const candidates = await gatherCandidates(deps, carried, message, request.context);
   const ask = deps.ask ?? askWith(choice);
 
   // Everything the model has been shown, so a citation can be checked against

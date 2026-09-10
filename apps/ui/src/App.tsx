@@ -24,6 +24,8 @@ import { HistoryPanel } from './History.tsx';
 import { HypothesisScreen } from './Hypothesis.tsx';
 import { goBack, goForward, useHistory } from './history.ts';
 import { useLocale } from './i18n.ts';
+import { LibraryScreen } from './Library.tsx';
+import { MemoryScreen } from './Memory.tsx';
 import { Onboarding } from './Onboarding.tsx';
 import { Overview } from './Overview.tsx';
 import { gateFrom } from './onboarding.ts';
@@ -308,6 +310,9 @@ export const App = () => {
               <Route path="/topic/:tag" element={<TopicScreen />} />
               <Route path="/threads" element={<ThreadsScreen />} />
               <Route path="/thread/:id" element={<ThreadScreen />} />
+              <Route path="/library" element={<LibraryScreen />} />
+              <Route path="/memory" element={<MemoryScreen />} />
+              <Route path="/memory/:subject" element={<MemoryScreen />} />
               <Route path="/new" element={<NewNoteScreen />} />
               <Route path="/note/:id" element={<NoteScreen />} />
               <Route path="/search" element={<SearchScreen />} />

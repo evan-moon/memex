@@ -8,6 +8,18 @@ export {
 } from './backup.ts';
 export type { CardField, CardQuality, NoteCard } from './card.ts';
 export { extractCard } from './card.ts';
+export type {
+  ChangeProposal,
+  NewProposal,
+  ProposalRange,
+  ProposalStatus,
+} from './change-proposals.ts';
+export {
+  getProposal,
+  proposalsFor,
+  putProposal,
+  setProposalStatus,
+} from './change-proposals.ts';
 export {
   type ChangeKind,
   changeHead,
@@ -90,6 +102,42 @@ export {
   listDeferrals,
   wakeDeferrals,
 } from './deferrals.ts';
+export type { DocumentDraft, NewDocumentDraft } from './document-drafts.ts';
+export {
+  dropDocumentDraft,
+  getDocumentDraft,
+  putDocumentDraft,
+  unsavedDrafts,
+} from './document-drafts.ts';
+export type { LockHeld } from './document-locks.ts';
+export { DocumentBusy, lockOn, withDocumentLock } from './document-locks.ts';
+export type {
+  DocumentKind,
+  DocumentMeta,
+  DocumentMetaPatch,
+  DocumentMode,
+  DocumentOrigin,
+  WritingStatus,
+} from './document-meta.ts';
+export { getDocumentMeta, setDocumentMeta } from './document-meta.ts';
+export type { Mutation, MutationStage, PreparedMutation } from './document-mutations.ts';
+export {
+  commitMutation,
+  failMutation,
+  findMutation,
+  preparedMutations,
+  prepareMutation,
+} from './document-mutations.ts';
+export type { DocumentReference, NewReference, SourceState } from './document-references.ts';
+export { addReference, dropReference, referencesFor } from './document-references.ts';
+export type { NewRevision, Revision, RevisionActor } from './document-revisions.ts';
+export {
+  currentRevision,
+  getRevision,
+  hashOf,
+  listRevisions,
+  recordRevision,
+} from './document-revisions.ts';
 export type { NoteDraft } from './drafts.ts';
 export { basisOf, draftedNotes, dropDraft, getDraft, putDraft } from './drafts.ts';
 export type { Evidence, EvidenceEdge as NoteEvidenceEdge, Staleness } from './evidence.ts';
