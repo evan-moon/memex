@@ -2,12 +2,9 @@ import type { LlmChoice } from '@memex/llm';
 import { buildContext, type ContextRequest } from '../chat/context.ts';
 import type { ChatFailure } from '../chat/errors.ts';
 import { type ChatDeps, planTurn, type TurnRequest } from '../chat/turn.ts';
+import { type AuthoringDraft, authoringDraftFromMarkdown } from './authoring-draft.ts';
 
-export type AuthoringDraft = {
-  title: string;
-  body: string;
-  layer: 'past' | 'state';
-};
+export type { AuthoringDraft } from './authoring-draft.ts';
 
 export type AuthoringResult =
   | { kind: 'draft'; draft: AuthoringDraft }
@@ -63,6 +60,11 @@ export const draftDocument = async (
     };
   }
   if (turn.kind === 'failed') {
+    const recovered =
+      turn.failure === 'unreadable-plan' && turn.response !== undefined
+        ? authoringDraftFromMarkdown(turn.response)
+        : null;
+    if (recovered !== null) return { kind: 'draft', draft: recovered };
     return { kind: 'failed', failure: turn.failure, detail: turn.detail };
   }
   return {

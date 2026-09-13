@@ -278,6 +278,26 @@ describe('POST /api/authoring/draft', () => {
       body: { error: { code: 'draft-timeout' } },
     });
   });
+
+  it('keeps a Markdown draft when the provider omits the JSON envelope', async () => {
+    host = deps(answering('# 기억을 파일 시스템으로 만든다면\n\n기억은 저장보다 인출이 어렵다.'));
+
+    const drafted = await call('/api/authoring/draft', {
+      brief: 'write this',
+      operationId: 'draft-markdown',
+      choice: CHOICE,
+      context: { targetId: null, referenceIds: [], instructionIds: [] },
+    });
+
+    expect(drafted).toMatchObject({
+      status: 200,
+      body: {
+        title: '기억을 파일 시스템으로 만든다면',
+        body: '기억은 저장보다 인출이 어렵다.',
+        layer: 'past',
+      },
+    });
+  });
 });
 
 describe('pressing the button', () => {

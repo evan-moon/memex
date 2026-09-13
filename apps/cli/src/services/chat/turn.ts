@@ -124,7 +124,7 @@ export type Turn =
   | { kind: 'plan'; plan: Plan; confirmation: Confirmation; candidates: Candidates }
   | { kind: 'answer'; text: string; cites: Cited[]; candidates: Candidates }
   | { kind: 'unmapped'; reason: 'none' | 'unknown-target'; candidates: Candidates }
-  | { kind: 'failed'; failure: ChatFailure; detail: string };
+  | { kind: 'failed'; failure: ChatFailure; detail: string; response?: string };
 
 const snippet = (note: Note, chars = SNIPPET_CHARS) =>
   plainSnippet(bodyOf(note.content, note.title)).slice(0, chars);
@@ -566,6 +566,7 @@ export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Tu
         kind: 'failed',
         failure: 'unreadable-plan',
         detail: answer.text.slice(0, DETAIL_CHARS),
+        response: answer.text,
       };
     }
 
