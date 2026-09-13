@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generatedDraft } from './ai-authoring.ts';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { type SaveState, useAutosave } from './autosave.ts';
 import { Button, Card } from './bits.tsx';
@@ -10,7 +11,14 @@ import type { Draft } from './drafts.ts';
 import { MarkdownEditor } from './editor/index.ts';
 import { bodyUnder, isUntouched, titleOf, withTitle } from './heading.ts';
 import { useT } from './i18n.ts';
-import { decodeNewDocument, encodeNewDocument, hasDraftContent } from './new-document.ts';
+import { useCatalog } from './models.ts';
+import {
+  type AuthoringMode,
+  decodeNewDocument,
+  encodeNewDocument,
+  hasDraftContent,
+  hasRecoverableContent,
+} from './new-document.ts';
 import { isDirty, patchFor } from './patch.ts';
 import { useTemplates } from './templates.ts';
 import { useVaultTitles } from './titles.ts';
@@ -267,8 +275,11 @@ export const Composer = ({
   const navigate = useNavigate();
   const titles = useVaultTitles();
   const templates = useTemplates();
+  const catalog = useCatalog();
   const [body, setBody] = useState(withTitle(draft.title, draft.body));
   const [layer, setLayer] = useState(draft.layer);
+  const [mode, setMode] = useState<AuthoringMode>('human');
+  const [brief, setBrief] = useState('');
   const [bufferReady, setBufferReady] = useState(draftKey === undefined);
   const [bufferFailure, setBufferFailure] = useState<ApiFailure | null>(null);
   const sequence = useRef(0);
@@ -289,6 +300,8 @@ export const Composer = ({
           sequence.current = saved.sequence;
           setBody(restored.markdown);
           setLayer(restored.layer);
+          setMode(restored.mode ?? 'human');
+          setBrief(restored.brief ?? '');
         }
         setBufferReady(true);
       })
@@ -323,7 +336,7 @@ export const Composer = ({
   useEffect(() => {
     if (draftKey === undefined || !bufferReady) return;
     const timer = setTimeout(() => {
-      if (!hasDraftContent(body)) {
+      if (!hasRecoverableContent({ markdown: body, brief })) {
         api.dropBuffer(draftKey).catch((cause: unknown) => setBufferFailure(toFailure(cause)));
         return;
       }
@@ -331,21 +344,45 @@ export const Composer = ({
       sequence.current = next;
       api
         .keepBuffer(draftKey, {
-          content: encodeNewDocument({ markdown: body, layer, folder: into.folder }),
+          content: encodeNewDocument({
+            markdown: body,
+            layer,
+            folder: into.folder,
+            mode,
+            brief,
+          }),
           sequence: next,
         })
         .then(() => setBufferFailure(null))
         .catch((cause: unknown) => setBufferFailure(toFailure(cause)));
     }, 500);
     return () => clearTimeout(timer);
-  }, [body, layer, draftKey, bufferReady, into.folder]);
+  }, [body, layer, draftKey, bufferReady, into.folder, mode, brief]);
+
+  const generated = useWriter<string>(async (request) => {
+    const current = hasDraftContent(body) ? `\n\n현재 문서:\n${body}` : '';
+    const reply = await api.authoringDraft(`${request}${current}`, catalog.jobs.draft, {
+      targetId: null,
+      referenceIds: [],
+      instructionIds: [],
+    });
+    const next = generatedDraft(reply);
+    setBody(next.markdown);
+    setLayer(next.layer);
+  });
 
   const { failure, busy, submit } = useWriter<void>(async () => {
     if (draftKey !== undefined) {
       const next = sequence.current + 1;
       sequence.current = next;
       await api.keepBuffer(draftKey, {
-        content: encodeNewDocument({ markdown: body, layer, folder: into.folder }),
+        content: encodeNewDocument({
+          markdown: body,
+          layer,
+          folder: into.folder,
+          mode,
+          brief,
+        }),
         sequence: next,
       });
     }
@@ -391,6 +428,52 @@ export const Composer = ({
         <p className="mt-1 text-xs text-muted">{draft.explain}</p>
       )}
       {quoted !== undefined && said ? <DiffView before={quoted} after={said} /> : null}
+
+      {draft.emptyPage ? (
+        <div className="mb-8">
+          <div className="inline-flex rounded-md bg-surface-muted p-1 text-xs">
+            <button
+              type="button"
+              className={`rounded px-3 py-1.5 ${mode === 'human' ? 'bg-background text-foreground shadow-sm' : 'text-muted'}`}
+              onClick={() => setMode('human')}
+            >
+              {t.edit.writeMyself}
+            </button>
+            <button
+              type="button"
+              className={`flex items-center gap-1.5 rounded px-3 py-1.5 ${mode === 'ai' ? 'bg-background text-foreground shadow-sm' : 'text-muted'}`}
+              onClick={() => setMode('ai')}
+            >
+              <Sparkles size={13} />
+              {t.edit.startWithAi}
+            </button>
+          </div>
+          {mode === 'ai' ? (
+            <div className="mt-3 rounded-lg border border-glass-line bg-surface px-3 py-3">
+              <textarea
+                value={brief}
+                onChange={(event) => setBrief(event.target.value)}
+                rows={3}
+                placeholder={t.edit.aiBriefPlaceholder}
+                className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted"
+              />
+              <div className="mt-2 flex items-center justify-between gap-3 border-glass-line border-t pt-2">
+                <span className="truncate text-[11px] text-muted">
+                  {catalog.jobs.draft.provider} · {catalog.jobs.draft.model}
+                </span>
+                <Button
+                  tone="primary"
+                  disabled={generated.busy || brief.trim() === ''}
+                  onClick={() => generated.submit(brief.trim())}
+                >
+                  {generated.busy ? t.edit.drafting : t.edit.makeDraft}
+                </Button>
+              </div>
+              <Failure failure={generated.failure} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {draft.fixedLayer || draft.emptyPage ? null : (
         <div className="mt-3">

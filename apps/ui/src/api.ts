@@ -325,6 +325,8 @@ export type DailyNoteTarget =
   | { kind: 'note'; id: number }
   | { kind: 'draft'; draftKey: string; title: string; folder: string };
 
+export type AuthoringDraft = { title: string; body: string; layer: 'past' | 'state' };
+
 export type DocumentReference = {
   id: number;
   ownerDocumentId: number;
@@ -669,6 +671,11 @@ const chatQuery = (target: ChatTarget | null) => {
 };
 
 export const api = {
+  authoringDraft: (
+    brief: string,
+    choice: Choice,
+    context: { targetId: number | null; referenceIds: number[]; instructionIds: number[] },
+  ) => post<AuthoringDraft>('/api/authoring/draft', { brief, choice, context }),
   chat: (
     message: string,
     target: ChatTarget | null,

@@ -89,6 +89,7 @@ import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
 import { readCatalog } from '../model-catalog.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { readApps } from './apps.ts';
+import { draftDocument } from './authoring.ts';
 import {
   applyTicket,
   cancelChat,
@@ -297,6 +298,7 @@ const KNOWN_ROUTES = [
   '/api/library',
   '/api/memory',
   '/api/daily-note',
+  '/api/authoring/draft',
   '/api/templates',
   '/api/buffer/:key',
   '/api/note/:id/references',
@@ -825,6 +827,15 @@ export const route = async (
         context: contextFrom(asked?.context),
       }),
     );
+  }
+  if (method === 'POST' && url.pathname === '/api/authoring/draft') {
+    const asked = asRecord(payload);
+    const brief = text(asked?.brief);
+    if (brief === undefined) return bad(400, 'empty-message');
+    const choice = choiceFrom(asked?.choice);
+    if (choice === null) return bad(400, 'unknown-provider');
+    const result = await draftDocument(deps, brief, choice, contextFrom(asked?.context));
+    return result.kind === 'draft' ? json(result.draft) : bad(502, 'draft-failed', result.detail);
   }
   if (method === 'GET' && url.pathname === '/api/chat/sessions') {
     return json(listSessions(client));

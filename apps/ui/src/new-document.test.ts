@@ -3,14 +3,25 @@ import {
   decodeNewDocument,
   encodeNewDocument,
   hasDraftContent,
+  hasRecoverableContent,
   newDocumentPath,
 } from './new-document.ts';
 
 describe('new document buffers', () => {
   it('keeps Markdown and the selected memory layer together', () => {
-    const encoded = encodeNewDocument({ markdown: '# 제목\n\n본문', layer: 'past' });
+    const encoded = encodeNewDocument({
+      markdown: '# 제목\n\n본문',
+      layer: 'past',
+      mode: 'ai',
+      brief: '제품 소개 초안',
+    });
 
-    expect(decodeNewDocument(encoded)).toEqual({ markdown: '# 제목\n\n본문', layer: 'past' });
+    expect(decodeNewDocument(encoded)).toEqual({
+      markdown: '# 제목\n\n본문',
+      layer: 'past',
+      mode: 'ai',
+      brief: '제품 소개 초안',
+    });
   });
 
   it('recovers buffers written before the envelope existed', () => {
@@ -24,6 +35,10 @@ describe('new document buffers', () => {
     expect(hasDraftContent('# \n\n')).toBe(false);
     expect(hasDraftContent('# 제목\n\n')).toBe(true);
     expect(hasDraftContent('# \n\n본문')).toBe(true);
+  });
+
+  it('keeps an AI brief even before the document has text', () => {
+    expect(hasRecoverableContent({ markdown: '# \n\n', brief: '출시 글 초안' })).toBe(true);
   });
 
   it('puts a stable draft key in the new-document URL', () => {

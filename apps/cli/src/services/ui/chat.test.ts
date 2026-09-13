@@ -209,6 +209,29 @@ describe('what a turn is doing while it runs', () => {
   });
 });
 
+describe('POST /api/authoring/draft', () => {
+  it('returns a document draft without creating a note or chat session', async () => {
+    host = deps(
+      answering(
+        '{"action":"new-note","title":"AI와 함께 쓰기","content":"첫 문단","folder":null,"layer":"state","tags":[]}',
+      ),
+    );
+
+    const drafted = await call('/api/authoring/draft', {
+      brief: 'AI와 사람이 함께 쓰는 방식을 설명해줘',
+      choice: CHOICE,
+      context: { targetId: null, referenceIds: [], instructionIds: [] },
+    });
+
+    expect(drafted).toMatchObject({
+      status: 200,
+      body: { title: 'AI와 함께 쓰기', body: '첫 문단', layer: 'state' },
+    });
+    expect((await get('/api/chat/sessions')).body).toEqual([]);
+    expect(client.sqlite.prepare('SELECT COUNT(*) FROM notes').pluck().get()).toBe(0);
+  });
+});
+
 describe('pressing the button', () => {
   // Only a plan the server itself handed out can be applied, so what lands is
   // what was previewed — the window between reading and pressing cannot be used
