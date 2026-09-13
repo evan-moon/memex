@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { type SaveState, useAutosave } from './autosave.ts';
@@ -10,6 +10,7 @@ import type { Draft } from './drafts.ts';
 import { MarkdownEditor } from './editor/index.ts';
 import { bodyUnder, isUntouched, titleOf, withTitle } from './heading.ts';
 import { useT } from './i18n.ts';
+import { decodeNewDocument, encodeNewDocument, hasDraftContent } from './new-document.ts';
 import { isDirty, patchFor } from './patch.ts';
 import { useTemplates } from './templates.ts';
 import { useVaultTitles } from './titles.ts';
@@ -37,6 +38,13 @@ const Failure = ({ failure }: { failure: ApiFailure | null }) => {
     </p>
   );
 };
+
+const ComposerFrame = ({ document, children }: { document: boolean; children: React.ReactNode }) =>
+  document ? (
+    <div className="mx-auto min-h-[70vh] max-w-3xl px-2 pb-20 pt-12 sm:px-8">{children}</div>
+  ) : (
+    <Card className="mt-4 mb-4">{children}</Card>
+  );
 
 const useWriter = <T,>(run: (value: T) => Promise<void>) => {
   const [failure, setFailure] = useState<ApiFailure | null>(null);
@@ -246,11 +254,13 @@ export const Composer = ({
   draft,
   into,
   quoted,
+  draftKey,
   onCancel,
 }: {
   draft: Draft;
   into: Destination;
   quoted?: string;
+  draftKey?: string;
   onCancel: () => void;
 }) => {
   const t = useT();
@@ -259,6 +269,38 @@ export const Composer = ({
   const templates = useTemplates();
   const [body, setBody] = useState(withTitle(draft.title, draft.body));
   const [layer, setLayer] = useState(draft.layer);
+  const [bufferReady, setBufferReady] = useState(draftKey === undefined);
+  const [bufferFailure, setBufferFailure] = useState<ApiFailure | null>(null);
+  const sequence = useRef(0);
+
+  useEffect(() => {
+    if (draftKey === undefined) return;
+    let active = true;
+    api
+      .buffer(draftKey)
+      .then((saved) => {
+        if (!active) return;
+        if (saved?.documentId) {
+          navigate(`/note/${saved.documentId}`, { replace: true });
+          return;
+        }
+        if (saved !== null) {
+          const restored = decodeNewDocument(saved.content);
+          sequence.current = saved.sequence;
+          setBody(restored.markdown);
+          setLayer(restored.layer);
+        }
+        setBufferReady(true);
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setBufferFailure(toFailure(cause));
+        setBufferReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftKey, navigate]);
 
   // The note names itself in its first line. Nothing else knows the title, so
   // nothing else has to be kept in step with it.
@@ -268,15 +310,45 @@ export const Composer = ({
   // A kind of note brings the sections it is written in, and takes them back
   // when the kind changes — but only while nobody has written into them.
   useEffect(() => {
+    if (!bufferReady) return;
+    if (draft.emptyPage) return;
     if (templates === null) return;
     setBody((current) =>
       isUntouched(bodyUnder(current), Object.values(templates))
         ? withTitle(titleOf(current), templates[layer] ?? '')
         : current,
     );
-  }, [templates, layer]);
+  }, [templates, layer, bufferReady, draft.emptyPage]);
+
+  useEffect(() => {
+    if (draftKey === undefined || !bufferReady) return;
+    const timer = setTimeout(() => {
+      if (!hasDraftContent(body)) {
+        api.dropBuffer(draftKey).catch((cause: unknown) => setBufferFailure(toFailure(cause)));
+        return;
+      }
+      const next = sequence.current + 1;
+      sequence.current = next;
+      api
+        .keepBuffer(draftKey, {
+          content: encodeNewDocument({ markdown: body, layer }),
+          sequence: next,
+        })
+        .then(() => setBufferFailure(null))
+        .catch((cause: unknown) => setBufferFailure(toFailure(cause)));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [body, layer, draftKey, bufferReady]);
 
   const { failure, busy, submit } = useWriter<void>(async () => {
+    if (draftKey !== undefined) {
+      const next = sequence.current + 1;
+      sequence.current = next;
+      await api.keepBuffer(draftKey, {
+        content: encodeNewDocument({ markdown: body, layer }),
+        sequence: next,
+      });
+    }
     const created = await api.createNote({
       title,
       content: body,
@@ -284,15 +356,28 @@ export const Composer = ({
       folder: into.folder ?? undefined,
       tags: into.tags,
       amends: draft.amends,
+      draftKey,
       // A person writing here has said the earlier note is wrong. That is the
       // one case where `corrects` is not a guess.
       amendsKind: draft.amends === undefined ? undefined : 'corrects',
     });
+    if (draftKey !== undefined) await api.dropBuffer(draftKey);
     // The shelf has a note on it that was not there a moment ago, and the
     // sidebar read the vault once when the window opened.
     vaultChanged();
     navigate(`/note/${created.id}`);
   });
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 's' || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      if (busy || !bufferReady || title === '' || under.trim().length === 0) return;
+      submit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, bufferReady, title, under, submit]);
 
   // What the paragraph said against what it will say. The old text is not gone
   // — a `past` note is never edited — so this is what the correction claims,
@@ -300,12 +385,14 @@ export const Composer = ({
   const said = quoted === undefined ? null : bodyBelowQuote(body);
 
   return (
-    <Card className="mt-4 mb-4">
-      <h2 className="text-sm font-semibold">{draft.heading}</h2>
-      {draft.explain ? <p className="mt-1 text-xs text-muted">{draft.explain}</p> : null}
+    <ComposerFrame document={Boolean(draft.emptyPage)}>
+      {draft.emptyPage ? null : <h2 className="text-sm font-semibold">{draft.heading}</h2>}
+      {draft.emptyPage || !draft.explain ? null : (
+        <p className="mt-1 text-xs text-muted">{draft.explain}</p>
+      )}
       {quoted !== undefined && said ? <DiffView before={quoted} after={said} /> : null}
 
-      {draft.fixedLayer ? null : (
+      {draft.fixedLayer || draft.emptyPage ? null : (
         <div className="mt-3">
           <Field label={t.edit.layer}>
             <select value={layer} onChange={(e) => setLayer(e.target.value)} className={inputClass}>
@@ -320,18 +407,18 @@ export const Composer = ({
         </div>
       )}
 
-      <div className="mt-3">
+      <div className={draft.emptyPage ? '' : 'mt-3'}>
         <MarkdownEditor value={body} onChange={setBody} titles={titles} autoFocus />
       </div>
       {title === '' ? <p className="mt-2 text-xs text-muted">{t.edit.needsTitle}</p> : null}
 
-      <p className="mt-2 text-xs text-muted">{draft.lands(into.folder ?? t.edit.vaultRoot)}</p>
+      <p className="mt-3 text-xs text-muted">{draft.lands(into.folder ?? t.edit.vaultRoot)}</p>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2 border-glass-line border-t pt-3">
         <Button
           tone="primary"
           onClick={() => submit()}
-          disabled={busy || title === '' || under.trim().length === 0}
+          disabled={busy || !bufferReady || title === '' || under.trim().length === 0}
         >
           {busy ? t.edit.saving : draft.submitLabel}
         </Button>
@@ -339,7 +426,7 @@ export const Composer = ({
           {t.edit.cancel}
         </Button>
       </div>
-      <Failure failure={failure} />
-    </Card>
+      <Failure failure={failure ?? bufferFailure} />
+    </ComposerFrame>
   );
 };

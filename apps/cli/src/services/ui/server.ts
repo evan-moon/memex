@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import {
   applyProposal,
   approveRuleNote,
@@ -41,6 +42,7 @@ import {
   getDocumentDraft,
   getInference,
   getNote,
+  getNoteByFilePath,
   isNoteType,
   judgementsSince,
   lastJudgement,
@@ -150,6 +152,7 @@ const TITLE_LIMIT = 5000;
 const REPAIR_BATCH = 20;
 const REPAIR_BATCH_MAX = 50;
 const DECK_SESSIONS_MAX = 12;
+const creationByDraft = new Map<string, Promise<Reply>>();
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -191,6 +194,19 @@ const day = (value: string | null): number | undefined => {
 const clamp = (value: string | null, fallback: number, max: number): number => {
   const asked = Number(value ?? fallback);
   return Number.isFinite(asked) ? Math.min(Math.max(Math.trunc(asked), 1), max) : fallback;
+};
+
+const calendarDate = (date: Date): string =>
+  [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0'))
+    .join('-');
+
+const createOnce = (key: string, create: () => Promise<Reply>): Promise<Reply> => {
+  const current = creationByDraft.get(key);
+  if (current !== undefined) return current;
+  const pending = create().finally(() => creationByDraft.delete(key));
+  creationByDraft.set(key, pending);
+  return pending;
 };
 
 const filtersFrom = (params: URLSearchParams): SearchOptions => {
@@ -280,6 +296,7 @@ const KNOWN_ROUTES = [
   '/api/home',
   '/api/library',
   '/api/memory',
+  '/api/daily-note',
   '/api/templates',
   '/api/buffer/:key',
   '/api/note/:id/references',
@@ -389,6 +406,7 @@ export type UiDeps = {
   pickFolder?: () => Promise<string | null>;
   model: ModelRunner;
   fillShapes?: () => Promise<void>;
+  now?: () => Date;
 };
 
 const runners = new WeakMap<UiDeps, ReturnType<typeof createLoginRunner>>();
@@ -581,6 +599,14 @@ export const route = async (
   // one that decides whether a save is accepted is this one.
   if (method === 'GET' && url.pathname === '/api/templates') {
     return json(Object.fromEntries(LAYERS.map((layer) => [layer, slotTemplate(layer, '미분류')])));
+  }
+  if (method === 'GET' && url.pathname === '/api/daily-note') {
+    const title = calendarDate((deps.now ?? (() => new Date()))());
+    const folder = 'daily';
+    const note = getNoteByFilePath(client, join(vaultPath, folder, `${title}.md`));
+    return note === undefined
+      ? json({ kind: 'draft', draftKey: `daily:${title}`, title, folder })
+      : json({ kind: 'note', id: note.id });
   }
   // The editor's buffer, kept where a crash cannot reach it. Separate from the
   // debounced file save on purpose: one makes an edit permanent, the other makes
@@ -1266,28 +1292,41 @@ export const route = async (
     // Only a person writing in the app says a note is wrong. Anything that does
     // not say gets the weaker edge, the same as every other caller.
     const amendKind = fields?.amendsKind === 'corrects' ? 'corrects' : undefined;
+    const draftKey = text(fields?.draftKey);
+    const create = async (): Promise<Reply> => {
+      const buffered = draftKey === undefined ? undefined : getDocumentDraft(client, draftKey);
+      const existing = buffered?.documentId ? getNote(client, buffered.documentId) : undefined;
+      if (existing !== undefined) return json(noteDetail(client, existing.id, vaultPath));
 
-    const result = await saveNote(client, deps.embedder, vaultPath, {
-      title,
-      content,
-      source: 'manual',
-      layer,
-      type: isNoteType(fields?.type) ? fields.type : '미분류',
-      folder: text(fields?.folder),
-      tags: words(fields?.tags),
-      amends: positiveInt(fields?.amends),
-      amendKind,
-      actor: 'user',
-    });
-    // A body that is nothing but the title again is the one rejection a person
-    // can hit here, and it has a code this screen already speaks. The rest are
-    // the agent's contract, and they arrive as the message they came with.
-    if (isSaveRejection(result)) {
-      return result.error === 'EMPTY_BODY'
-        ? bad(400, 'empty-body', result.message)
-        : bad(409, 'save-rejected', result.message);
-    }
-    return json(noteDetail(client, result.note.id, vaultPath));
+      const result = await saveNote(client, deps.embedder, vaultPath, {
+        title,
+        content,
+        source: 'manual',
+        layer,
+        type: isNoteType(fields?.type) ? fields.type : '미분류',
+        folder: text(fields?.folder),
+        tags: words(fields?.tags),
+        amends: positiveInt(fields?.amends),
+        amendKind,
+        actor: 'user',
+      });
+      if (isSaveRejection(result)) {
+        return result.error === 'EMPTY_BODY'
+          ? bad(400, 'empty-body', result.message)
+          : bad(409, 'save-rejected', result.message);
+      }
+      if (draftKey !== undefined) {
+        putDocumentDraft(client, {
+          draftKey,
+          vaultId: vaultPath,
+          documentId: result.note.id,
+          content: buffered?.content ?? content,
+          sequence: buffered?.sequence ?? 0,
+        });
+      }
+      return json(noteDetail(client, result.note.id, vaultPath));
+    };
+    return draftKey === undefined ? create() : createOnce(`${vaultPath}:${draftKey}`, create);
   }
   if (method === 'POST' && /^\/api\/note\/\d+\/restore$/.test(url.pathname)) {
     const noteId = Number(url.pathname.split('/')[3]);

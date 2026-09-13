@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import type { Sidebar as SidebarData, VaultTree } from './api.ts';
 import { useT } from './i18n.ts';
+import { newDocumentPath } from './new-document.ts';
 import { Tree } from './Tree.tsx';
 
 const rowClass = ({ isActive }: { isActive: boolean }) =>
@@ -56,6 +57,7 @@ export const Sidebar = ({
   onChat: () => void;
 }) => {
   const t = useT();
+  const navigate = useNavigate();
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: closing the mobile drawer on tap
     <nav className="h-full overflow-y-auto pb-10" onClick={onNavigate}>
@@ -63,6 +65,15 @@ export const Sidebar = ({
           the title bar is hidden. */}
       <div className="drag h-13" />
       <div className="px-4">
+        <button
+          type="button"
+          className="mb-2 flex w-full items-center gap-2 rounded-md bg-foreground px-2 py-2 text-left text-background text-sm hover:opacity-90"
+          onClick={() => navigate(newDocumentPath(crypto.randomUUID()))}
+        >
+          <Plus size={15} />
+          {t.sidebar.newDocument}
+          <span className="ml-auto text-[11px] opacity-60">⌘N</span>
+        </button>
         <NavLink to="/" end className={rowClass}>
           {t.sidebar.check}
           {/* That something is waiting, not how much. A number here would grow
@@ -73,6 +84,9 @@ export const Sidebar = ({
         </NavLink>
         <NavLink to="/library" className={rowClass}>
           {t.library.title}
+        </NavLink>
+        <NavLink to="/daily" className={rowClass}>
+          {t.sidebar.daily}
         </NavLink>
         <NavLink to="/search" className={rowClass}>
           {t.sidebar.find}

@@ -1,6 +1,6 @@
 import { BookOpen, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { byKind } from './amendments.ts';
 import {
   type AmendedRef,
@@ -492,17 +492,42 @@ const DateField = ({
 export const NewNoteScreen = () => {
   const t = useT();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const folder = params.get('folder');
+  const requestedKey = params.get('draft');
+  const [generatedKey] = useState(() => `new:${crypto.randomUUID()}`);
+  const draftKey = requestedKey ?? generatedKey;
+
+  useEffect(() => {
+    if (requestedKey !== null) return;
+    const next = new URLSearchParams(params);
+    next.set('draft', draftKey);
+    setParams(next, { replace: true });
+  }, [requestedKey, draftKey, params, setParams]);
+
   return (
     <Page>
       <Composer
-        draft={blankDraft(t)}
+        key={draftKey}
+        draft={blankDraft(t, params.get('title') ?? '')}
+        draftKey={draftKey}
         into={{ folder: folder === '' ? null : folder, tags: [] }}
         onCancel={() => navigate(-1)}
       />
     </Page>
   );
+};
+
+export const DailyNoteScreen = () => {
+  const { data, failure } = useAsync(() => api.dailyNote(), 'daily-note');
+  if (data === null) return <Pending failure={failure} />;
+  if (data.kind === 'note') return <Navigate replace to={`/note/${data.id}`} />;
+  const params = new URLSearchParams({
+    draft: data.draftKey,
+    title: data.title,
+    folder: data.folder,
+  });
+  return <Navigate replace to={`/new?${params.toString()}`} />;
 };
 
 export const SearchScreen = () => {

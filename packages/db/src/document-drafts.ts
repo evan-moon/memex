@@ -65,8 +65,9 @@ export const putDocumentDraft = (client: MemexClient, input: NewDocumentDraft): 
   const draft: DocumentDraft = {
     draftKey: input.draftKey,
     vaultId: input.vaultId,
-    documentId: input.documentId ?? null,
-    baseRevision: input.baseRevision ?? null,
+    documentId: input.documentId === undefined ? (existing?.documentId ?? null) : input.documentId,
+    baseRevision:
+      input.baseRevision === undefined ? (existing?.baseRevision ?? null) : input.baseRevision,
     content: input.content,
     sequence: input.sequence,
     at: Date.now(),

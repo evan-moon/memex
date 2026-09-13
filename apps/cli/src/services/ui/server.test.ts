@@ -418,6 +418,63 @@ describe('POST /api/notes', () => {
       code: 'empty-body',
     });
   });
+
+  it('creates one note when the same draft is submitted twice at once', async () => {
+    await post('/api/buffer/new:k-1', { content: '# 새 노트\n\n본문', sequence: 1 });
+
+    const [first, second] = await Promise.all([
+      post('/api/notes', {
+        title: '새 노트',
+        content: '# 새 노트\n\n본문',
+        layer: 'state',
+        draftKey: 'new:k-1',
+      }),
+      post('/api/notes', {
+        title: '새 노트',
+        content: '# 새 노트\n\n본문',
+        layer: 'state',
+        draftKey: 'new:k-1',
+      }),
+    ]);
+
+    expect(body(first).id).toBe(body(second).id);
+    expect(
+      client.sqlite.prepare("SELECT COUNT(*) FROM notes WHERE title = '새 노트'").pluck().get(),
+    ).toBe(1);
+    expect(
+      body(await route(deps, 'GET', new URL('/api/buffer/new:k-1', 'http://localhost'), null)),
+    ).toMatchObject({ documentId: body(first).id });
+  });
+});
+
+describe('GET /api/daily-note', () => {
+  const getDaily = () => route(deps, 'GET', new URL('/api/daily-note', 'http://localhost'), null);
+
+  it('returns one stable draft for the local calendar day', async () => {
+    deps = { ...deps, now: () => new Date(2026, 8, 13, 23, 59) };
+
+    expect(body(await getDaily())).toEqual({
+      kind: 'draft',
+      draftKey: 'daily:2026-09-13',
+      title: '2026-09-13',
+      folder: 'daily',
+    });
+    expect(body(await getDaily())).toMatchObject({ draftKey: 'daily:2026-09-13' });
+  });
+
+  it('opens the daily note after its draft becomes a document', async () => {
+    deps = { ...deps, now: () => new Date(2026, 8, 13, 9) };
+    const target = body(await getDaily());
+    const created = await post('/api/notes', {
+      title: '2026-09-13',
+      content: '# 2026-09-13\n\n오늘 기록',
+      layer: 'state',
+      folder: 'daily',
+      draftKey: target.draftKey,
+    });
+
+    expect(body(await getDaily())).toEqual({ kind: 'note', id: body(created).id });
+  });
 });
 
 describe('GET /api/source/:id', () => {

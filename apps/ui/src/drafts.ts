@@ -8,6 +8,7 @@ export type Draft = {
   body: string;
   layer: string;
   fixedLayer?: boolean;
+  emptyPage?: boolean;
   amends?: number;
   submitLabel: string;
   lands: (folder: string) => string;
@@ -45,11 +46,12 @@ export const missingNoteDraft = (title: string, t: Strings): Draft => ({
 
 // The one draft that starts from nothing. It opens where the person asked for
 // it rather than beside a note, so the folder is the only thing it inherits.
-export const blankDraft = (t: Strings): Draft => ({
+export const blankDraft = (t: Strings, title = ''): Draft => ({
   heading: t.edit.blankTitle,
-  title: '',
+  title,
   body: '',
   layer: 'state',
+  emptyPage: true,
   submitLabel: t.edit.createNote,
   lands: t.edit.landsIn,
 });

@@ -26,6 +26,7 @@ import { goBack, goForward, useHistory } from './history.ts';
 import { useLocale } from './i18n.ts';
 import { LibraryScreen } from './Library.tsx';
 import { MemoryScreen } from './Memory.tsx';
+import { newDocumentPath } from './new-document.ts';
 import { Onboarding } from './Onboarding.tsx';
 import { Overview } from './Overview.tsx';
 import { gateFrom } from './onboarding.ts';
@@ -37,6 +38,7 @@ import { RulesScreen } from './Rules.tsx';
 import { SettingsScreen } from './Settings.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import {
+  DailyNoteScreen,
   NewNoteScreen,
   NoteScreen,
   NotFoundScreen,
@@ -137,6 +139,10 @@ export const App = () => {
         e.preventDefault();
         setPalette(true);
       }
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        navigate(newDocumentPath(crypto.randomUUID()));
+      }
       // What every macOS app binds these to. The mouse's own back and forward
       // buttons are handled by the window without asking.
       if (e.key === '[') {
@@ -150,7 +156,7 @@ export const App = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [navigate]);
 
   if (gate === 'unknown') {
     return <div className="p-10 text-sm text-muted">{t.common.loading}</div>;
@@ -315,6 +321,7 @@ export const App = () => {
               <Route path="/memory" element={<MemoryScreen />} />
               <Route path="/memory/:subject" element={<MemoryScreen />} />
               <Route path="/new" element={<NewNoteScreen />} />
+              <Route path="/daily" element={<DailyNoteScreen />} />
               <Route path="/note/:id" element={<NoteScreen />} />
               <Route path="/search" element={<SearchScreen />} />
               <Route path="/repair/evidence" element={<RepairScreen />} />

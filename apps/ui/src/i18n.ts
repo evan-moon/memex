@@ -563,6 +563,8 @@ const en = {
   },
   sidebar: {
     check: 'To check',
+    daily: 'Daily note',
+    newDocument: 'New document',
     find: 'Find',
     fix: 'Fix',
     notes: 'Notes',
@@ -1362,6 +1364,8 @@ const ko: typeof en = {
   },
   sidebar: {
     check: '확인하기',
+    daily: '오늘의 노트',
+    newDocument: '새 문서',
     find: '찾기',
     fix: '고치기',
     notes: '노트',

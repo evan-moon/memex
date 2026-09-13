@@ -304,11 +304,26 @@ export type NewNote = {
   title: string;
   content: string;
   layer: string;
+  draftKey?: string;
   folder?: string;
   tags?: string[];
   amends?: number;
   amendsKind?: 'corrects' | 'continues';
 };
+
+export type DocumentBuffer = {
+  draftKey: string;
+  vaultId: string;
+  documentId: number | null;
+  baseRevision: string | null;
+  content: string;
+  sequence: number;
+  at: number;
+};
+
+export type DailyNoteTarget =
+  | { kind: 'note'; id: number }
+  | { kind: 'draft'; draftKey: string; title: string; folder: string };
 
 export type DocumentReference = {
   id: number;
@@ -734,6 +749,7 @@ export const api = {
     }>(`/api/draft/${id}`, choice ? { choice } : undefined),
   updateNote: (id: number, patch: NotePatch) => post<NoteDetail>(`/api/note/${id}`, patch),
   createNote: (input: NewNote) => post<NoteDetail>('/api/notes', input),
+  dailyNote: () => request<DailyNoteTarget>('/api/daily-note'),
   stillTrue: (id: number) => post<{ ok: true }>(`/api/still-true/${id}`),
   rules: () => request<RulesScreen>('/api/rules'),
   approveRule: (id: number) => post<{ ok: true }>(`/api/rule/${id}/approve`),
@@ -802,14 +818,13 @@ export const api = {
     ),
   restoreRevision: (id: number, revision: string, expectedRevision: string | null) =>
     post<NoteDetail>(`/api/note/${id}/restore`, { revision, expectedRevision }),
-  buffer: (key: string) =>
-    request<{ content: string; baseRevision: string | null; sequence: number } | null>(
-      `/api/buffer/${encodeURIComponent(key)}`,
-    ),
+  buffer: (key: string) => request<DocumentBuffer | null>(`/api/buffer/${encodeURIComponent(key)}`),
   keepBuffer: (
     key: string,
     input: { content: string; sequence: number; documentId?: number; baseRevision?: string | null },
-  ) => post<unknown>(`/api/buffer/${encodeURIComponent(key)}`, input),
+  ) => post<DocumentBuffer>(`/api/buffer/${encodeURIComponent(key)}`, input),
+  dropBuffer: (key: string) =>
+    send<{ dropped: string }>('DELETE', `/api/buffer/${encodeURIComponent(key)}`),
   duplicateNote: (id: number) => post<{ path: string }>(`/api/note/${id}/duplicate`),
   moveNote: (id: number, folder: string) =>
     post<{ path: string }>(`/api/note/${id}/move`, { folder }),

@@ -56,6 +56,17 @@ describe('document drafts', () => {
     expect(getDocumentDraft(client, 'k-1')).toMatchObject({ content: 'two', sequence: 2 });
   });
 
+  it('keeps the created document link when a later buffer arrives', () => {
+    put({ documentId: 7, sequence: 2 });
+    put({ content: 'late keystroke', sequence: 3 });
+
+    expect(getDocumentDraft(client, 'k-1')).toMatchObject({
+      content: 'late keystroke',
+      documentId: 7,
+      sequence: 3,
+    });
+  });
+
   // These are written from the tab still being typed in, and nothing under them
   // promises order. An older one landing late must not undo a newer one.
   it('refuses a sequence older than the one it already has', () => {

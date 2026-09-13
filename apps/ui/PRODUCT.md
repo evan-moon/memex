@@ -57,7 +57,7 @@ Nothing else in this category makes forgetting explicit. Because an agent never 
 
 ## Operating Context
 
-Routes today: `/` overview, `/today`, `/topic/:tag`, `/threads`, `/thread/:id`, `/note/:id`, `/new`, `/search`, `/tags`, `/rules`, `/register`, `/register/:subject`, `/repair/evidence`, `/inference/:id`, `/settings`.
+Routes today: `/` overview, `/today`, `/daily`, `/topic/:tag`, `/threads`, `/thread/:id`, `/note/:id`, `/new`, `/search`, `/tags`, `/rules`, `/register`, `/register/:subject`, `/repair/evidence`, `/inference/:id`, `/settings`.
 
 Routes the redesign adds: `/library`, `/memory`, `/memory/:subjectKey`. Nothing in the list above is deleted in v1 — the auxiliary screens move under settings or under the screen they belong to, and existing deep links keep working.
 
