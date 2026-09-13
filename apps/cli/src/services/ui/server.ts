@@ -89,7 +89,7 @@ import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
 import { readCatalog } from '../model-catalog.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { readApps } from './apps.ts';
-import { draftDocument } from './authoring.ts';
+import { authoringFailureCode, draftDocument } from './authoring.ts';
 import {
   applyTicket,
   cancelChat,
@@ -243,6 +243,13 @@ export type ApiErrorCode =
   | 'draft-state-only'
   | 'draft-no-evidence'
   | 'draft-failed'
+  | 'draft-provider-missing'
+  | 'draft-logged-out'
+  | 'draft-quota'
+  | 'draft-model-refused'
+  | 'draft-timeout'
+  | 'draft-cancelled'
+  | 'draft-unreadable'
   | 'draft-no-claude'
   | 'empty-body'
   | 'edit-rejected'
@@ -840,7 +847,9 @@ export const route = async (
     const result = await runTracked(chatStateFor(deps).running, operationId, (activity) =>
       draftDocument(deps, brief, choice, contextFrom(asked?.context), activity),
     );
-    return result.kind === 'draft' ? json(result.draft) : bad(502, 'draft-failed', result.detail);
+    return result.kind === 'draft'
+      ? json(result.draft)
+      : bad(502, authoringFailureCode(result.failure), result.detail);
   }
   if (method === 'GET' && url.pathname === '/api/chat/sessions') {
     return json(listSessions(client));

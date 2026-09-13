@@ -262,6 +262,22 @@ describe('POST /api/authoring/draft', () => {
     held.release();
     await drafting;
   });
+
+  it('returns an actionable code when the provider goes quiet', async () => {
+    host = deps(async () => ({ error: 'The provider went quiet', code: 'timeout' }));
+
+    const drafted = await call('/api/authoring/draft', {
+      brief: 'write this',
+      operationId: 'draft-timeout',
+      choice: CHOICE,
+      context: { targetId: null, referenceIds: [], instructionIds: [] },
+    });
+
+    expect(drafted).toMatchObject({
+      status: 502,
+      body: { error: { code: 'draft-timeout' } },
+    });
+  });
 });
 
 describe('pressing the button', () => {

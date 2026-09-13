@@ -98,4 +98,10 @@ describe('reading what Codex answered', () => {
 
     expect(failure(await ask({ ...ASK, signal: controller.signal })).code).toBe('cancelled');
   });
+
+  it('uses the silence window chosen for Codex', async () => {
+    const ask = createCodex(fakeBinary('sleep 30'), 20);
+
+    expect(failure(await ask(ASK)).code).toBe('timeout');
+  });
 });

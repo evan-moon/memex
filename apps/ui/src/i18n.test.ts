@@ -50,11 +50,10 @@ describe('error', () => {
     expect(dictionaries.ko.error({ code: 'draft-state-only' })).toContain('현재 믿음 노트');
   });
 
-  it('falls back to the server detail when the code is unknown', () => {
+  it('does not expose provider internals when drafting times out', () => {
     const detail = 'claude exited with 1';
-    for (const locale of locales) {
-      expect(dictionaries[locale].error({ code: 'draft-failed', detail })).toBe(detail);
-    }
+    expect(dictionaries.en.error({ code: 'draft-timeout', detail })).toMatch(/stopped responding/i);
+    expect(dictionaries.ko.error({ code: 'draft-timeout', detail })).toContain('응답이 멈췄어요');
   });
 
   it('still says something when there is neither a known code nor a detail', () => {

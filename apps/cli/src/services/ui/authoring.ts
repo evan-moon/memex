@@ -1,5 +1,6 @@
 import type { LlmChoice } from '@memex/llm';
 import { buildContext, type ContextRequest } from '../chat/context.ts';
+import type { ChatFailure } from '../chat/errors.ts';
 import { type ChatDeps, planTurn, type TurnRequest } from '../chat/turn.ts';
 
 export type AuthoringDraft = {
@@ -10,7 +11,30 @@ export type AuthoringDraft = {
 
 export type AuthoringResult =
   | { kind: 'draft'; draft: AuthoringDraft }
-  | { kind: 'failed'; detail: string };
+  | { kind: 'failed'; failure: ChatFailure; detail: string };
+
+export type AuthoringFailureCode =
+  | 'draft-provider-missing'
+  | 'draft-logged-out'
+  | 'draft-quota'
+  | 'draft-model-refused'
+  | 'draft-failed'
+  | 'draft-timeout'
+  | 'draft-cancelled'
+  | 'draft-unreadable';
+
+const AUTHORING_CODE_BY_FAILURE: Record<ChatFailure, AuthoringFailureCode> = {
+  'not-installed': 'draft-provider-missing',
+  'logged-out': 'draft-logged-out',
+  quota: 'draft-quota',
+  'model-refused': 'draft-model-refused',
+  refused: 'draft-failed',
+  timeout: 'draft-timeout',
+  cancelled: 'draft-cancelled',
+  'unreadable-plan': 'draft-unreadable',
+};
+
+export const authoringFailureCode = (failure: ChatFailure) => AUTHORING_CODE_BY_FAILURE[failure];
 
 const requestFor = (brief: string): string =>
   `새 문서 초안을 작성해줘. 제목과 본문을 포함한 new-note 제안으로 답하고 실제 저장은 하지 마. 요구사항: ${brief}`;
@@ -38,6 +62,12 @@ export const draftDocument = async (
       },
     };
   }
-  if (turn.kind === 'failed') return { kind: 'failed', detail: turn.detail };
-  return { kind: 'failed', detail: 'AI did not return a document draft.' };
+  if (turn.kind === 'failed') {
+    return { kind: 'failed', failure: turn.failure, detail: turn.detail };
+  }
+  return {
+    kind: 'failed',
+    failure: 'unreadable-plan',
+    detail: 'AI did not return a document draft.',
+  };
 };

@@ -5,6 +5,7 @@ import { carriedCode, runCli } from './spawn.ts';
 import type { LlmFailureCode, LlmProvider, LlmRequest, LlmResult } from './types.ts';
 
 const ERROR_CHARS = 300;
+const CODEX_SILENCE_MS = 600_000;
 
 // What the app is asking for is one answer, not an agent loose in a repository.
 // `read-only` refuses the shell writes, `--ephemeral` leaves no session behind,
@@ -64,7 +65,7 @@ export const classifyCodex = (failure: CodexError | null): LlmFailureCode => {
 const clip = (message: string) =>
   message.length > ERROR_CHARS ? `${message.slice(0, ERROR_CHARS)}…` : message;
 
-export const createCodex = (binary = 'codex'): LlmProvider =>
+export const createCodex = (binary = 'codex', silenceMs = CODEX_SILENCE_MS): LlmProvider =>
   async function codex(request): Promise<LlmResult> {
     // The answer comes back through a file rather than out of the event stream:
     // stdout carries the whole session, and picking the reply out of it is
@@ -74,7 +75,12 @@ export const createCodex = (binary = 'codex'): LlmProvider =>
     const started = Date.now();
 
     try {
-      const ran = await runCli(binary, argsFor(request, answerPath), request, dir);
+      const ran = await runCli(
+        binary,
+        argsFor(request, answerPath),
+        { ...request, silenceMs: request.silenceMs ?? silenceMs },
+        dir,
+      );
       const failure = readCodexError(ran.stdout + ran.stderr);
       if (failure !== null) {
         return {
