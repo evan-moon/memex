@@ -1,6 +1,6 @@
 import { bodyUnder, titleOf } from './heading.ts';
 
-export type NewDocumentBuffer = { markdown: string; layer: string };
+export type NewDocumentBuffer = { markdown: string; layer: string; folder?: string | null };
 
 const layers = ['past', 'state', 'rule'];
 
@@ -13,7 +13,14 @@ const parsedBuffer = (value: unknown): NewDocumentBuffer | null => {
   const record = recordOf(value);
   if (typeof record?.markdown !== 'string') return null;
   if (typeof record.layer !== 'string' || !layers.includes(record.layer)) return null;
-  return { markdown: record.markdown, layer: record.layer };
+  if (record.folder !== undefined && record.folder !== null && typeof record.folder !== 'string') {
+    return null;
+  }
+  return {
+    markdown: record.markdown,
+    layer: record.layer,
+    ...(record.folder === undefined ? {} : { folder: record.folder }),
+  };
 };
 
 export const encodeNewDocument = (buffer: NewDocumentBuffer): string =>

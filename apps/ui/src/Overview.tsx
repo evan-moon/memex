@@ -1,14 +1,18 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Overview as Data, type Home, type Topic } from './api.ts';
+import { DraftRecovery } from './DraftRecovery.tsx';
+import { recoverableDraft } from './draft-recovery.ts';
 import { useT } from './i18n.ts';
 import { Review as Deck } from './Review.tsx';
 import { ago } from './time.ts';
 import { useAsync } from './useAsync.ts';
 
-const EmptyVault = () => {
+const EmptyVault = ({ recovery }: { recovery: React.ReactNode }) => {
   const t = useT();
   return (
     <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
+      {recovery}
       <h1 className="font-semibold text-xl tracking-tight">{t.overview.emptyTitle}</h1>
       <p className="mt-2 max-w-prose text-muted text-sm">{t.overview.emptyLead}</p>
       <Link
@@ -74,13 +78,37 @@ const Recent = ({ home }: { home: Home }) => {
   );
 };
 
+const Recovering = () => {
+  const t = useT();
+  const { data } = useAsync(() => api.buffers(), 'document-buffers');
+  const [discarded, setDiscarded] = useState<string[]>([]);
+  const [failed, setFailed] = useState(false);
+  const drafts = (data ?? [])
+    .filter((buffer) => !discarded.includes(buffer.draftKey))
+    .map(recoverableDraft);
+  const discard = (draftKey: string) => {
+    setFailed(false);
+    api
+      .dropBuffer(draftKey)
+      .then(() => setDiscarded((current) => [...current, draftKey]))
+      .catch(() => setFailed(true));
+  };
+  return (
+    <>
+      <DraftRecovery drafts={drafts} onDiscard={discard} />
+      {failed ? <p className="mb-6 text-xs text-negative">{t.home.discardFailed}</p> : null}
+    </>
+  );
+};
+
 export const Overview = ({ data, topics }: { data: Data; topics: Topic[] }) => {
   const t = useT();
   const { data: home } = useAsync<Home>(() => api.home(), 'home');
-  if (data.notes === 0) return <EmptyVault />;
+  if (data.notes === 0) return <EmptyVault recovery={<Recovering />} />;
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-6 sm:px-7">
+      <Recovering />
       {home === null ? null : (
         <>
           <Continuing home={home} />

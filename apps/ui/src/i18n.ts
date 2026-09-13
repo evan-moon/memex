@@ -543,6 +543,11 @@ const en = {
     continuing: 'Where you left off',
     keepWriting: 'Keep writing',
     recent: 'Recently edited',
+    unsavedDrafts: 'Unsaved drafts',
+    untitled: 'Untitled',
+    discardDraft: 'Discard',
+    resumeDraft: 'Resume',
+    discardFailed: 'Could not discard the draft.',
   },
   library: {
     title: 'Library',
@@ -1344,6 +1349,11 @@ const ko: typeof en = {
     continuing: '이어서 작업하기',
     keepWriting: '계속 쓰기',
     recent: '최근 수정한 문서',
+    unsavedDrafts: '저장되지 않은 초안',
+    untitled: '제목 없음',
+    discardDraft: '버리기',
+    resumeDraft: '이어 쓰기',
+    discardFailed: '초안을 버리지 못했어요.',
   },
   library: {
     title: '라이브러리',

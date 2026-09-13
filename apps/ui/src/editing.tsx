@@ -331,21 +331,21 @@ export const Composer = ({
       sequence.current = next;
       api
         .keepBuffer(draftKey, {
-          content: encodeNewDocument({ markdown: body, layer }),
+          content: encodeNewDocument({ markdown: body, layer, folder: into.folder }),
           sequence: next,
         })
         .then(() => setBufferFailure(null))
         .catch((cause: unknown) => setBufferFailure(toFailure(cause)));
     }, 500);
     return () => clearTimeout(timer);
-  }, [body, layer, draftKey, bufferReady]);
+  }, [body, layer, draftKey, bufferReady, into.folder]);
 
   const { failure, busy, submit } = useWriter<void>(async () => {
     if (draftKey !== undefined) {
       const next = sequence.current + 1;
       sequence.current = next;
       await api.keepBuffer(draftKey, {
-        content: encodeNewDocument({ markdown: body, layer }),
+        content: encodeNewDocument({ markdown: body, layer, folder: into.folder }),
         sequence: next,
       });
     }

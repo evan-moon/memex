@@ -819,6 +819,7 @@ export const api = {
   restoreRevision: (id: number, revision: string, expectedRevision: string | null) =>
     post<NoteDetail>(`/api/note/${id}/restore`, { revision, expectedRevision }),
   buffer: (key: string) => request<DocumentBuffer | null>(`/api/buffer/${encodeURIComponent(key)}`),
+  buffers: () => request<DocumentBuffer[]>('/api/buffers'),
   keepBuffer: (
     key: string,
     input: { content: string; sequence: number; documentId?: number; baseRevision?: string | null },
