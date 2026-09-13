@@ -31,4 +31,12 @@ describe('the model picker, closed', () => {
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain(t.chat.searchModels);
   });
+
+  it('can be locked while a request is using its choice', () => {
+    const html = renderToStaticMarkup(
+      <ModelSelect choice={DEFAULT_CHOICE} onPick={() => {}} label={t.chat.model} disabled />,
+    );
+
+    expect(html).toContain('disabled=""');
+  });
 });

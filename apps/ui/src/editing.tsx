@@ -13,7 +13,8 @@ import type { Draft } from './drafts.ts';
 import { MarkdownEditor } from './editor/index.ts';
 import { bodyUnder, isUntouched, titleOf, withTitle } from './heading.ts';
 import { useT } from './i18n.ts';
-import { useCatalog } from './models.ts';
+import { ModelSelect } from './ModelSelect.tsx';
+import { type Choice, useCatalog } from './models.ts';
 import {
   type AuthoringMode,
   decodeNewDocument,
@@ -278,6 +279,8 @@ export const Composer = ({
   const titles = useVaultTitles();
   const templates = useTemplates();
   const catalog = useCatalog();
+  const [pickedModel, setPickedModel] = useState<Choice | null>(null);
+  const draftModel = pickedModel ?? catalog.jobs.draft;
   const [body, setBody] = useState(withTitle(draft.title, draft.body));
   const [layer, setLayer] = useState(draft.layer);
   const [mode, setMode] = useState<AuthoringMode>('human');
@@ -391,7 +394,7 @@ export const Composer = ({
     setGenerationFailure(null);
     setGenerationSteps([]);
     api
-      .authoringDraft(`${request}${current}`, operationId, catalog.jobs.draft, {
+      .authoringDraft(`${request}${current}`, operationId, draftModel, {
         targetId: null,
         referenceIds: [],
         instructionIds: [],
@@ -511,9 +514,13 @@ export const Composer = ({
                 className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted"
               />
               <div className="mt-2 flex items-center justify-between gap-3 border-glass-line border-t pt-2">
-                <span className="truncate text-[11px] text-muted">
-                  {catalog.jobs.draft.provider} · {catalog.jobs.draft.model}
-                </span>
+                <ModelSelect
+                  choice={draftModel}
+                  onPick={setPickedModel}
+                  label={t.edit.draftModel}
+                  disabled={generation !== null}
+                  className="flex min-w-0 items-center gap-1 text-[11px] text-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
+                />
                 <Button
                   tone="primary"
                   disabled={generation !== null || brief.trim() === ''}

@@ -91,12 +91,14 @@ export const ModelSelect = ({
   label,
   className,
   placement = 'down',
+  disabled = false,
 }: {
   choice: Choice;
   onPick: (next: Choice) => void;
   label: string;
   className?: string;
   placement?: 'up' | 'down';
+  disabled?: boolean;
 }) => {
   const t = useT();
   const catalog = useCatalog();
@@ -152,11 +154,13 @@ export const ModelSelect = ({
     <div ref={box} className="relative">
       <button
         type="button"
+        disabled={disabled}
         onClick={() => (open ? close() : setOpen(true))}
         aria-label={label}
         aria-expanded={open}
         className={
-          className ?? 'flex items-center gap-1 text-[10px] text-muted hover:text-foreground'
+          className ??
+          'flex items-center gap-1 text-[10px] text-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-60'
         }
       >
         {current}
