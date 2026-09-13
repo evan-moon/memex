@@ -108,6 +108,7 @@ export const App = () => {
   // file moved, a folder made or gone — so what is drawn from it catches up
   // without the window being thrown away and rebuilt.
   const revision = useVaultRevision();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the vault change signal that reloads these snapshots
   useEffect(() => {
     Promise.all([api.sidebar(), api.topics(), api.overview()]).then(([s, t, o]) => {
       setSidebar(s);
@@ -214,7 +215,7 @@ export const App = () => {
             it is collapsed the header inherits that job, or the first control
             ends up underneath them. */}
         <header
-          className={`drag flex items-center gap-2 border-b border-glass-line bg-surface/40 px-3 py-2 backdrop-blur-xl sm:px-5 ${
+          className={`drag flex items-center gap-2 border-b border-glass-line bg-reading px-3 py-2 sm:px-5 ${
             rail ? '' : 'pl-20 sm:pl-20'
           }`}
         >

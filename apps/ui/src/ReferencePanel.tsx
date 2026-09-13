@@ -42,8 +42,8 @@ export const ReferencePanel = ({
     }
   };
 
-  const drop = async (sourceId: number) => {
-    const next = await api.dropReference(documentId, sourceId).catch(() => null);
+  const drop = async (referenceId: number) => {
+    const next = await api.dropReference(documentId, referenceId).catch(() => null);
     if (next !== null) onChanged(next);
   };
 
@@ -98,7 +98,7 @@ export const ReferencePanel = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => drop(reference.sourceDocumentId)}
+                    onClick={() => drop(reference.id)}
                     className="shrink-0 text-[11px] text-muted hover:text-foreground"
                   >
                     {t.references.remove}

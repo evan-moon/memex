@@ -46,9 +46,7 @@ describe('document references', () => {
     ).toMatchObject({ content: 'body' });
   });
 
-  // Finding the same passage again is finding the same thing. A list that grew a
-  // row every time is a list nobody reads.
-  it('is one reference however many times the same source is added', () => {
+  it('keeps distinct passages from the same source', () => {
     const owner = addNote('원고');
     const source = addNote('인터뷰 메모');
 
@@ -56,8 +54,17 @@ describe('document references', () => {
     addReference(client, { ownerDocumentId: owner, sourceDocumentId: source, quote: '나중' });
 
     const refs = referencesFor(client, owner);
-    expect(refs).toHaveLength(1);
-    expect(refs[0].quote).toBe('나중');
+    expect(refs.map(({ quote }) => quote)).toEqual(['나중', '처음']);
+  });
+
+  it('does not duplicate the same passage', () => {
+    const owner = addNote('원고');
+    const source = addNote('인터뷰 메모');
+
+    addReference(client, { ownerDocumentId: owner, sourceDocumentId: source, quote: '같은 구절' });
+    addReference(client, { ownerDocumentId: owner, sourceDocumentId: source, quote: '같은 구절' });
+
+    expect(referencesFor(client, owner)).toHaveLength(1);
   });
 
   it('remembers the version it was quoting', () => {
@@ -103,9 +110,14 @@ describe('document references', () => {
   it('lets go of one', () => {
     const owner = addNote('원고');
     const source = addNote('인터뷰 메모');
-    addReference(client, { ownerDocumentId: owner, sourceDocumentId: source });
 
-    dropReference(client, owner, source);
+    const reference = addReference(client, {
+      ownerDocumentId: owner,
+      sourceDocumentId: source,
+      quote: '지울 구절',
+    });
+
+    dropReference(client, owner, reference.id);
 
     expect(referencesFor(client, owner)).toEqual([]);
   });

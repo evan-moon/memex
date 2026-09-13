@@ -5,7 +5,7 @@ import { tags as t } from '@lezer/highlight';
 // Sizes rather than colours do most of the work: a heading reads as a heading
 // because it is bigger, the way it does in the note screen next door.
 export const editorTheme = EditorView.theme({
-  '&': { color: 'var(--foreground)', backgroundColor: 'transparent', fontSize: '15px' },
+  '&': { color: 'var(--foreground)', backgroundColor: 'transparent', fontSize: '16px' },
   '.cm-content': {
     fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif",
     lineHeight: '1.75',
@@ -77,8 +77,18 @@ export const editorTheme = EditorView.theme({
   '.cm-tooltip': {
     background: 'var(--reading)',
     border: '1px solid var(--border)',
-    borderRadius: '0.6rem',
+    borderRadius: '0.5rem',
     overflow: 'hidden',
+    boxShadow: 'var(--glass-shadow)',
+  },
+  '.cm-tooltip-autocomplete ul': {
+    minWidth: '18rem',
+    padding: '0.35rem',
+    fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif",
+  },
+  '.cm-tooltip-autocomplete ul li': {
+    borderRadius: '0.3rem',
+    padding: '0.45rem 0.55rem',
   },
   '.cm-tooltip-autocomplete ul li[aria-selected]': {
     background: 'var(--accent-soft)',

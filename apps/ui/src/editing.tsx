@@ -136,14 +136,14 @@ export const NoteEditor = ({
   }, [flush]);
 
   return (
-    <div>
+    <div className="authoring-page">
       {/* The title is the document's first line, not a labelled field. A note's
           filename is its title here, so typing in it renames the file — which is
           what it looks like it should do. */}
       <input
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        className="w-full border-none bg-transparent p-0 text-2xl font-semibold leading-snug tracking-tight text-foreground outline-none"
+        className="w-full border-none bg-transparent p-0 text-4xl font-bold leading-tight tracking-[-0.03em] text-foreground outline-none placeholder:text-muted"
       />
 
       <button
@@ -182,7 +182,7 @@ export const NoteEditor = ({
         </p>
       ) : null}
 
-      <div className="mt-5">
+      <div className="mt-7">
         <MarkdownEditor value={body} onChange={setBody} titles={titles} />
       </div>
 

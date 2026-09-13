@@ -7,6 +7,7 @@ import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/v
 import { GFM } from '@lezer/markdown';
 import { useEffect, useRef } from 'react';
 import { livePreview } from './preview.ts';
+import { slashCompletion } from './slash.ts';
 import { Tag, WikiLink } from './syntax.ts';
 import { editorHighlight, editorTheme } from './theme.ts';
 
@@ -62,7 +63,9 @@ export const MarkdownEditor = ({
           editorTheme,
           editorHighlight,
           livePreview,
-          ...(titles ? [autocompletion({ override: [wikiCompletion(titles)] })] : []),
+          autocompletion({
+            override: [slashCompletion, ...(titles ? [wikiCompletion(titles)] : [])],
+          }),
           ...(placeholder === undefined ? [] : [placeholderExt(placeholder)]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) latest.current(update.state.doc.toString());

@@ -1069,9 +1069,9 @@ export const route = async (
       return json(referencesFor(client, noteId));
     }
     if (method === 'DELETE') {
-      const sourceId = positiveInt(asRecord(payload)?.sourceId);
-      if (sourceId === undefined) return bad(400, 'nothing-to-change');
-      dropReference(client, noteId, sourceId);
+      const referenceId = positiveInt(asRecord(payload)?.referenceId);
+      if (referenceId === undefined) return bad(400, 'nothing-to-change');
+      dropReference(client, noteId, referenceId);
       return json(referencesFor(client, noteId));
     }
   }

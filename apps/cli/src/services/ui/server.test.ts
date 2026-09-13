@@ -1012,14 +1012,17 @@ describe('references on a document', () => {
     expect(getNote(client, owner.id)?.content).not.toContain('인터뷰');
   });
 
-  it('is one reference however many times the same source is added', async () => {
+  it('keeps multiple passages from the same source', async () => {
     const owner = addNote('원고', 'state');
     const source = addNote('인터뷰 메모', 'past');
 
-    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
-    const twice = await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+    await post(`/api/note/${owner.id}/references`, { sourceId: source.id, quote: '처음' });
+    const twice = await post(`/api/note/${owner.id}/references`, {
+      sourceId: source.id,
+      quote: '나중',
+    });
 
-    expect(body(twice)).toHaveLength(1);
+    expect(body(twice)).toMatchObject([{ quote: '나중' }, { quote: '처음' }]);
   });
 
   it('refuses a source that is not a note', async () => {
@@ -1030,13 +1033,15 @@ describe('references on a document', () => {
   it('lets one go', async () => {
     const owner = addNote('원고', 'state');
     const source = addNote('인터뷰 메모', 'past');
-    await post(`/api/note/${owner.id}/references`, { sourceId: source.id });
+    const created = JSON.parse(
+      (await post(`/api/note/${owner.id}/references`, { sourceId: source.id })).body,
+    );
 
     const gone = await route(
       deps,
       'DELETE',
       new URL(`/api/note/${owner.id}/references`, 'http://localhost'),
-      { sourceId: source.id },
+      { referenceId: created[0].id },
     );
 
     expect(body(gone)).toEqual([]);

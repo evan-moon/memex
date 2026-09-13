@@ -57,7 +57,7 @@ const rowsFor = (client: MemexClient, ownerDocumentId: number): Row[] =>
     .prepare(
       `SELECT r.*, n.title AS title
        FROM document_references r LEFT JOIN notes n ON n.id = r.source_document_id
-       WHERE r.owner_document_id = ? ORDER BY r.at DESC`,
+       WHERE r.owner_document_id = ? ORDER BY r.at DESC, r.id DESC`,
     )
     .all(ownerDocumentId) as Row[];
 
@@ -71,19 +71,16 @@ export type NewReference = {
   heading?: string | null;
 };
 
-// Adding the same source twice is one reference, not two. Somebody who finds
-// the passage again has found the same thing, and a list that grew a row every
-// time would be a list nobody reads.
 export const addReference = (client: MemexClient, input: NewReference): DocumentReference => {
   const revision = currentRevision(client, input.sourceDocumentId)?.revisionId ?? null;
+  const quote = input.quote ?? '';
   client.sqlite
     .prepare(
       `INSERT INTO document_references
          (owner_document_id, source_document_id, source_revision, quote, heading, at)
        VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(owner_document_id, source_document_id) DO UPDATE SET
+       ON CONFLICT(owner_document_id, source_document_id, quote) DO UPDATE SET
          source_revision = excluded.source_revision,
-         quote = excluded.quote,
          heading = excluded.heading,
          at = excluded.at`,
     )
@@ -91,13 +88,14 @@ export const addReference = (client: MemexClient, input: NewReference): Document
       input.ownerDocumentId,
       input.sourceDocumentId,
       revision,
-      input.quote ?? '',
+      quote,
       input.heading ?? null,
       Date.now(),
     );
 
   const row = rowsFor(client, input.ownerDocumentId).find(
-    (candidate) => candidate.source_document_id === input.sourceDocumentId,
+    (candidate) =>
+      candidate.source_document_id === input.sourceDocumentId && candidate.quote === quote,
   );
   if (row === undefined) throw new Error('the reference did not survive being written');
   return asReference(client, row);
@@ -106,11 +104,9 @@ export const addReference = (client: MemexClient, input: NewReference): Document
 export const dropReference = (
   client: MemexClient,
   ownerDocumentId: number,
-  sourceDocumentId: number,
+  referenceId: number,
 ) => {
   client.sqlite
-    .prepare(
-      'DELETE FROM document_references WHERE owner_document_id = ? AND source_document_id = ?',
-    )
-    .run(ownerDocumentId, sourceDocumentId);
+    .prepare('DELETE FROM document_references WHERE owner_document_id = ? AND id = ?')
+    .run(ownerDocumentId, referenceId);
 };

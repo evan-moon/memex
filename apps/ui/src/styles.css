@@ -11,24 +11,24 @@
 :root {
   color-scheme: light;
   --radius: 0.5rem;
-  --background: #f2f3f8;
-  --surface: rgb(255 255 255 / 0.66);
-  --surface-muted: rgb(24 28 48 / 0.06);
-  --foreground: #2b2c33;
-  --muted-foreground: #646773;
-  --border: #e1e4ee;
-  --border-accent: #cfd3e0;
+  --background: #f7f7f5;
+  --surface: #ffffff;
+  --surface-muted: rgb(55 53 47 / 0.08);
+  --foreground: #37352f;
+  --muted-foreground: #787774;
+  --border: rgb(55 53 47 / 0.16);
+  --border-accent: rgb(55 53 47 / 0.28);
   --track: #8a8d95;
   --primary: #2a62ad;
 
   /* Glass. `--background` stays opaque because two places use it as a text
      colour on a filled button; the translucent panel fill is `--pane`. */
-  --pane: rgb(244 246 252 / 0.62);
-  --reading: #fbfbfe;
-  --glass-line: rgb(255 255 255 / 0.65);
-  --glass-shadow: 0 10px 30px rgb(20 24 40 / 0.10);
-  --glass-blur: 22px;
-  --accent-soft: #dbe4f6;
+  --pane: #ffffff;
+  --reading: #ffffff;
+  --glass-line: rgb(55 53 47 / 0.12);
+  --glass-shadow: 0 8px 24px rgb(15 15 15 / 0.08);
+  --glass-blur: 0px;
+  --accent-soft: #e8f0fe;
   --positive: #166b57;
   --negative: #a83a58;
   --caution: #7f5a00;
@@ -37,22 +37,22 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --background: #15161c;
-  --surface: rgb(38 40 52 / 0.55);
-  --surface-muted: rgb(255 255 255 / 0.07);
-  --foreground: #ececee;
-  --muted-foreground: #9293a0;
-  --border: #2d2f3a;
-  --border-accent: #3b3d4a;
+  --background: #202020;
+  --surface: #252525;
+  --surface-muted: rgb(255 255 255 / 0.08);
+  --foreground: #ebebeb;
+  --muted-foreground: #9b9b9b;
+  --border: rgb(255 255 255 / 0.13);
+  --border-accent: rgb(255 255 255 / 0.24);
   --track: #61626d;
   --primary: #7aa7ec;
 
-  --pane: rgb(18 19 25 / 0.58);
-  --reading: #1c1d25;
+  --pane: #191919;
+  --reading: #191919;
   --glass-line: rgb(255 255 255 / 0.10);
   --glass-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
-  --glass-blur: 22px;
-  --accent-soft: #2b3350;
+  --glass-blur: 0px;
+  --accent-soft: #243b5a;
   --positive: #52cca6;
   --negative: #eb8a9e;
   --caution: #e8b339;
@@ -84,7 +84,7 @@ body {
   margin: 0;
   /* Transparent so the window's own material shows through the sidebar. What
      should not be see-through paints itself — see .pane. */
-  background: transparent;
+  background: var(--background);
   color: var(--foreground);
   font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -96,7 +96,6 @@ body {
    and the text on it is not sitting straight on a wallpaper. */
 .pane {
   background: var(--pane);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 
 /* Anything that floats: cards, the header, overlays. The border does the work
@@ -104,8 +103,7 @@ body {
    highlight is what stops it reading as a flat translucent rectangle. */
 .glass {
   border: 1px solid var(--glass-line);
-  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-  box-shadow: var(--glass-shadow), inset 0 1px 0 0 var(--glass-line);
+  box-shadow: var(--glass-shadow);
 }
 
 /* Long-form text does not float. A note is read for minutes at a time, and a
@@ -360,14 +358,11 @@ a { color: inherit; text-decoration: none; }
 /* The editor. CodeMirror paints its own DOM, so what belongs here is only what
    the theme cannot reach: the box the editor sits in. */
 .memex-editor {
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  background: var(--reading);
-  padding: 0.9rem 1rem;
-  min-height: 20rem;
+  background: transparent;
+  min-height: 55vh;
 }
 .memex-editor:focus-within {
-  border-color: var(--border-accent);
+  outline: none;
 }
 
 

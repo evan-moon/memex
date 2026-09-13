@@ -785,8 +785,8 @@ export const api = {
   references: (id: number) => request<DocumentReference[]>(`/api/note/${id}/references`),
   addReference: (id: number, sourceId: number, quote?: string) =>
     post<DocumentReference[]>(`/api/note/${id}/references`, { sourceId, quote }),
-  dropReference: (id: number, sourceId: number) =>
-    send<DocumentReference[]>('DELETE', `/api/note/${id}/references`, { sourceId }),
+  dropReference: (id: number, referenceId: number) =>
+    send<DocumentReference[]>('DELETE', `/api/note/${id}/references`, { referenceId }),
   writeDocument: (
     id: number,
     input: { raw: string; expectedRevision: string | null; mutationId: string },

@@ -685,6 +685,32 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 32,
+    name: 'document_references.multiple_passages',
+    up: (sqlite) => {
+      sqlite.exec(`
+        CREATE TABLE document_references_v2 (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_document_id  INTEGER NOT NULL,
+          source_document_id INTEGER NOT NULL,
+          source_revision    TEXT,
+          quote              TEXT    NOT NULL DEFAULT '',
+          heading            TEXT,
+          at                 INTEGER NOT NULL,
+          UNIQUE (owner_document_id, source_document_id, quote)
+        );
+        INSERT INTO document_references_v2
+          (id, owner_document_id, source_document_id, source_revision, quote, heading, at)
+          SELECT id, owner_document_id, source_document_id, source_revision, quote, heading, at
+          FROM document_references;
+        DROP TABLE document_references;
+        ALTER TABLE document_references_v2 RENAME TO document_references;
+        CREATE INDEX document_references_by_owner
+          ON document_references (owner_document_id, at DESC, id DESC);
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

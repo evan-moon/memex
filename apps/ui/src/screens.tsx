@@ -268,7 +268,7 @@ export const NoteScreen = () => {
           document's own first line now, so it is not repeated up here. Pinned:
           the way back to reading should not be something you scroll up to find
           in a note that runs for pages. */}
-        <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-x-2 gap-y-1 bg-pane/85 px-5 py-2 text-xs text-muted backdrop-blur sm:-mx-7 sm:px-7">
+        <div className="sticky top-0 z-10 -mx-5 flex flex-wrap items-center gap-x-2 gap-y-1 border-glass-line border-b bg-reading px-5 py-2 text-xs text-muted sm:-mx-7 sm:px-7">
           <span className="text-muted">
             {note.folder === null ? t.edit.vaultRoot : note.folder}
           </span>
@@ -339,7 +339,7 @@ export const NoteScreen = () => {
             />
           </>
         )}
-        <article className={editing ? 'mt-6' : 'reading mt-7 rounded-card p-5 sm:p-7'}>
+        <article className="mx-auto mt-8 max-w-[46rem]">
           {editing ? (
             <NoteEditor note={note} onSaved={setEdited} />
           ) : note.content.trim() ? (
