@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDevProcesses } from './dev-processes.mjs';
 
 const usage = `Run the app against your real vault, with the screen hot-reloading.
 
@@ -27,15 +28,14 @@ const port = flag === -1 ? '5173' : process.argv[flag + 1];
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const bin = (name) => join(root, 'node_modules/.bin', name);
 
-const children = [];
+const processes = createDevProcesses((code) => process.exit(code));
 
-const stop = (code) => {
-  for (const child of children) child.kill('SIGTERM');
-  process.exit(code ?? 0);
-};
-
-const run = (label, command, args, cwd, env) => {
-  const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+const run = (label, command, args, cwd, env, options) => {
+  const child = spawn(command, args, {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...env },
+  });
   const say = (chunk) => {
     for (const line of String(chunk).split('\n')) {
       if (line.trim().length > 0) console.log(`${label} ${line}`);
@@ -43,15 +43,15 @@ const run = (label, command, args, cwd, env) => {
   };
   child.stdout.on('data', say);
   child.stderr.on('data', say);
-  child.on('exit', (code) => {
-    if (code !== 0 && code !== null) stop(code);
-  });
-  children.push(child);
-  return child;
+  return processes.add(child, options);
 };
 
-process.on('SIGINT', () => stop(0));
-process.on('SIGTERM', () => stop(0));
+process.stdout.on('error', processes.handleOutputError);
+process.stderr.on('error', processes.handleOutputError);
+process.on('SIGINT', () => processes.stop(0));
+process.on('SIGTERM', () => processes.stop(0));
+process.on('SIGHUP', () => processes.stop(0));
+process.on('exit', processes.terminate);
 
 const portIsFree = (n) =>
   new Promise((resolve) => {
@@ -93,7 +93,14 @@ run('page ', bin('vite'), ['--port', port], join(root, 'apps/ui'));
 const devServer = `http://localhost:${port}`;
 if (!(await answering(devServer))) {
   console.error(`Vite never answered on ${devServer}.`);
-  stop(1);
+  processes.stop(1);
 }
 
-run('app  ', bin('electron'), [join(root, 'apps/desktop')], root, { MEMEX_DEV_SERVER: devServer });
+run(
+  'app  ',
+  bin('electron'),
+  [join(root, 'apps/desktop')],
+  root,
+  { MEMEX_DEV_SERVER: devServer },
+  { endsSession: true },
+);
