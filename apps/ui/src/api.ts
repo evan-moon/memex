@@ -655,6 +655,7 @@ export type ChatAnswer = ChatReply & { sessionId: number };
 // answers once, so this is asked for separately, under the same id the page
 // already uses to stop one.
 export type ChatStep =
+  | { kind: 'gathering' }
   | { kind: 'thinking' }
   | { kind: 'acting'; action: string }
   | { kind: 'searched'; query: string; found: number }
@@ -673,9 +674,10 @@ const chatQuery = (target: ChatTarget | null) => {
 export const api = {
   authoringDraft: (
     brief: string,
+    operationId: string,
     choice: Choice,
     context: { targetId: number | null; referenceIds: number[]; instructionIds: number[] },
-  ) => post<AuthoringDraft>('/api/authoring/draft', { brief, choice, context }),
+  ) => post<AuthoringDraft>('/api/authoring/draft', { brief, operationId, choice, context }),
   chat: (
     message: string,
     target: ChatTarget | null,

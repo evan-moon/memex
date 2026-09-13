@@ -1,6 +1,6 @@
 import type { LlmChoice } from '@memex/llm';
 import { buildContext, type ContextRequest } from '../chat/context.ts';
-import { type ChatDeps, planTurn } from '../chat/turn.ts';
+import { type ChatDeps, planTurn, type TurnRequest } from '../chat/turn.ts';
 
 export type AuthoringDraft = {
   title: string;
@@ -20,11 +20,13 @@ export const draftDocument = async (
   brief: string,
   choice: LlmChoice,
   context?: ContextRequest,
+  activity?: Pick<TurnRequest, 'signal' | 'onStep'>,
 ): Promise<AuthoringResult> => {
   const turn = await planTurn(deps, {
     message: requestFor(brief),
     choice,
     context: context === undefined ? undefined : buildContext(deps.client, context),
+    ...activity,
   });
   if (turn.kind === 'plan' && turn.plan.kind === 'new-note') {
     return {

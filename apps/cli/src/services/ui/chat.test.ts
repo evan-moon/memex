@@ -185,6 +185,7 @@ describe('what a turn is doing while it runs', () => {
     // The half-written action is not one of them: a step said before the model
     // has committed to it is a step that can turn out to be wrong.
     expect(body.steps).toEqual([
+      { kind: 'gathering' },
       { kind: 'thinking' },
       { kind: 'acting', action: 'search' },
       { kind: 'searched', query: 'opula', found: 0 },
@@ -219,6 +220,7 @@ describe('POST /api/authoring/draft', () => {
 
     const drafted = await call('/api/authoring/draft', {
       brief: 'AI와 사람이 함께 쓰는 방식을 설명해줘',
+      operationId: 'draft-1',
       choice: CHOICE,
       context: { targetId: null, referenceIds: [], instructionIds: [] },
     });
@@ -229,6 +231,36 @@ describe('POST /api/authoring/draft', () => {
     });
     expect((await get('/api/chat/sessions')).body).toEqual([]);
     expect(client.sqlite.prepare('SELECT COUNT(*) FROM notes').pluck().get()).toBe(0);
+  });
+
+  it('reports the real work while the document is being drafted', async () => {
+    const held = { release: () => {} };
+    host = deps(async ({ onPartial }) => {
+      onPartial?.('{"action":"new-note"');
+      return new Promise((resolve) => {
+        held.release = () =>
+          resolve({
+            text: '{"action":"new-note","title":"Draft","content":"Body","folder":null,"layer":"state","tags":[]}',
+            durationMs: 1,
+          });
+      });
+    });
+
+    const drafting = call('/api/authoring/draft', {
+      brief: 'write this',
+      operationId: 'draft-slow',
+      choice: CHOICE,
+      context: { targetId: null, referenceIds: [], instructionIds: [] },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect((await get('/api/chat/progress?operationId=draft-slow')).body).toEqual({
+      running: true,
+      steps: [{ kind: 'gathering' }, { kind: 'thinking' }, { kind: 'acting', action: 'new-note' }],
+    });
+
+    held.release();
+    await drafting;
   });
 });
 

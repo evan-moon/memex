@@ -63,6 +63,19 @@ export type Pending = Map<string, { plan: Plan; turnId: number }>;
 // meantime is a question of its own, and the id is already the name for it.
 export type Running = Map<string, { stopper: AbortController; steps: Step[] }>;
 
+export const runTracked = async <T>(
+  running: Running,
+  operationId: string,
+  run: (activity: { signal: AbortSignal; onStep: (step: Step) => void }) => Promise<T>,
+): Promise<T> => {
+  const stopper = new AbortController();
+  const steps: Step[] = [];
+  running.set(operationId, { stopper, steps });
+  return run({ signal: stopper.signal, onStep: (step) => steps.push(step) }).finally(() =>
+    running.delete(operationId),
+  );
+};
+
 // A turn nobody is running has no steps, which is also what an id the page
 // invented and never sent looks like. Both are the same answer: there is
 // nothing in flight under that name.
@@ -121,18 +134,16 @@ export const startChat = async (
       : startSession(deps.client, message);
   const history = asSaid(sessionTurns(deps.client, session));
 
-  const stopper = new AbortController();
-  const steps: Step[] = [];
-  state.running.set(operationId, { stopper, steps });
-  const turn = await planTurn(deps, {
-    message,
-    carried,
-    context: asked.context === undefined ? undefined : buildContext(deps.client, asked.context),
-    choice,
-    history,
-    signal: stopper.signal,
-    onStep: (step) => steps.push(step),
-  }).finally(() => state.running.delete(operationId));
+  const turn = await runTracked(state.running, operationId, (activity) =>
+    planTurn(deps, {
+      message,
+      carried,
+      context: asked.context === undefined ? undefined : buildContext(deps.client, asked.context),
+      choice,
+      history,
+      ...activity,
+    }),
+  );
 
   const record = (reply: ChatReply) =>
     recordTurn(deps.client, session, {

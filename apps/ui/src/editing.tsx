@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthoringProgress } from './AuthoringProgress.tsx';
 import { generatedDraft } from './ai-authoring.ts';
+import type { ChatStep } from './api.ts';
 import { type ApiFailure, api, type NoteDetail, type NotePatch, toFailure } from './api.ts';
 import { type SaveState, useAutosave } from './autosave.ts';
 import { Button, Card } from './bits.tsx';
@@ -282,6 +284,10 @@ export const Composer = ({
   const [brief, setBrief] = useState('');
   const [bufferReady, setBufferReady] = useState(draftKey === undefined);
   const [bufferFailure, setBufferFailure] = useState<ApiFailure | null>(null);
+  const [generation, setGeneration] = useState<{ id: string; stopping: boolean } | null>(null);
+  const [generationFailure, setGenerationFailure] = useState<ApiFailure | null>(null);
+  const [generationSteps, setGenerationSteps] = useState<ChatStep[]>([]);
+  const cancelledGenerations = useRef(new Set<string>());
   const sequence = useRef(0);
 
   useEffect(() => {
@@ -359,17 +365,62 @@ export const Composer = ({
     return () => clearTimeout(timer);
   }, [body, layer, draftKey, bufferReady, into.folder, mode, brief]);
 
-  const generated = useWriter<string>(async (request) => {
+  useEffect(() => {
+    if (generation === null) return;
+    let active = true;
+    const tick = () => {
+      api
+        .chatProgress(generation.id)
+        .then((progress) => {
+          if (active && progress.steps.length > 0) setGenerationSteps(progress.steps);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [generation]);
+
+  const makeDraft = (request: string) => {
+    const operationId = crypto.randomUUID();
     const current = hasDraftContent(body) ? `\n\n현재 문서:\n${body}` : '';
-    const reply = await api.authoringDraft(`${request}${current}`, catalog.jobs.draft, {
-      targetId: null,
-      referenceIds: [],
-      instructionIds: [],
-    });
-    const next = generatedDraft(reply);
-    setBody(next.markdown);
-    setLayer(next.layer);
-  });
+    setGeneration({ id: operationId, stopping: false });
+    setGenerationFailure(null);
+    setGenerationSteps([]);
+    api
+      .authoringDraft(`${request}${current}`, operationId, catalog.jobs.draft, {
+        targetId: null,
+        referenceIds: [],
+        instructionIds: [],
+      })
+      .then((reply) => {
+        if (cancelledGenerations.current.has(operationId)) return;
+        const next = generatedDraft(reply);
+        setBody(next.markdown);
+        setLayer(next.layer);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelledGenerations.current.has(operationId)) {
+          setGenerationFailure(toFailure(cause));
+        }
+      })
+      .finally(() => {
+        cancelledGenerations.current.delete(operationId);
+        setGeneration((currentGeneration) =>
+          currentGeneration?.id === operationId ? null : currentGeneration,
+        );
+      });
+  };
+
+  const stopDraft = () => {
+    if (generation === null) return;
+    cancelledGenerations.current.add(generation.id);
+    setGeneration({ ...generation, stopping: true });
+    api.cancelChat(generation.id).catch((cause: unknown) => setGenerationFailure(toFailure(cause)));
+  };
 
   const { failure, busy, submit } = useWriter<void>(async () => {
     if (draftKey !== undefined) {
@@ -434,6 +485,7 @@ export const Composer = ({
           <div className="inline-flex rounded-md bg-surface-muted p-1 text-xs">
             <button
               type="button"
+              disabled={generation !== null}
               className={`rounded px-3 py-1.5 ${mode === 'human' ? 'bg-background text-foreground shadow-sm' : 'text-muted'}`}
               onClick={() => setMode('human')}
             >
@@ -441,6 +493,7 @@ export const Composer = ({
             </button>
             <button
               type="button"
+              disabled={generation !== null}
               className={`flex items-center gap-1.5 rounded px-3 py-1.5 ${mode === 'ai' ? 'bg-background text-foreground shadow-sm' : 'text-muted'}`}
               onClick={() => setMode('ai')}
             >
@@ -463,13 +516,21 @@ export const Composer = ({
                 </span>
                 <Button
                   tone="primary"
-                  disabled={generated.busy || brief.trim() === ''}
-                  onClick={() => generated.submit(brief.trim())}
+                  disabled={generation !== null || brief.trim() === ''}
+                  onClick={() => makeDraft(brief.trim())}
                 >
-                  {generated.busy ? t.edit.drafting : t.edit.makeDraft}
+                  {generation !== null ? t.edit.drafting : t.edit.makeDraft}
                 </Button>
               </div>
-              <Failure failure={generated.failure} />
+              {generation === null ? null : (
+                <AuthoringProgress
+                  steps={generationSteps}
+                  stopping={generation.stopping}
+                  t={t}
+                  onCancel={stopDraft}
+                />
+              )}
+              <Failure failure={generationFailure} />
             </div>
           ) : null}
         </div>

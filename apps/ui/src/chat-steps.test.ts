@@ -28,6 +28,10 @@ describe('what a running turn says it is doing', () => {
     expect(stepLine({ kind: 'acting', action: 'rule-decision' }, t)).toBe(t.chat.thinking);
     expect(stepLine({ kind: 'thinking' }, t)).toBe(t.chat.thinking);
   });
+
+  it('names the initial memory gathering step', () => {
+    expect(stepLine({ kind: 'gathering' }, t)).toBe(t.chat.steps.gathering);
+  });
 });
 
 describe('the trail a long turn leaves', () => {

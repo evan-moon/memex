@@ -113,6 +113,7 @@ export type Lookup =
 // what it is waiting for. Nothing here is new work — these are the steps the
 // loop already took, spoken instead of kept.
 export type Step =
+  | { kind: 'gathering' }
   | { kind: 'thinking' }
   | { kind: 'acting'; action: PlanDraft['action'] }
   | { kind: 'searched'; query: string; found: number }
@@ -522,6 +523,7 @@ const notesOf = (lookup: Lookup) =>
 export const planTurn = async (deps: ChatDeps, request: TurnRequest): Promise<Turn> => {
   const { message, carried = null, choice, history = [], signal } = request;
   const report = request.onStep ?? (() => {});
+  report({ kind: 'gathering' });
   const candidates = await gatherCandidates(deps, carried, message, request.context);
   const ask = deps.ask ?? askWith(choice);
 

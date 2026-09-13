@@ -97,6 +97,7 @@ import {
   chatProgress,
   type Pending,
   type Running,
+  runTracked,
   startChat,
 } from './chat.ts';
 import { buildChores } from './chores.ts';
@@ -832,9 +833,13 @@ export const route = async (
     const asked = asRecord(payload);
     const brief = text(asked?.brief);
     if (brief === undefined) return bad(400, 'empty-message');
+    const operationId = text(asked?.operationId);
+    if (operationId === undefined) return bad(400, 'missing-operation');
     const choice = choiceFrom(asked?.choice);
     if (choice === null) return bad(400, 'unknown-provider');
-    const result = await draftDocument(deps, brief, choice, contextFrom(asked?.context));
+    const result = await runTracked(chatStateFor(deps).running, operationId, (activity) =>
+      draftDocument(deps, brief, choice, contextFrom(asked?.context), activity),
+    );
     return result.kind === 'draft' ? json(result.draft) : bad(502, 'draft-failed', result.detail);
   }
   if (method === 'GET' && url.pathname === '/api/chat/sessions') {

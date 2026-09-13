@@ -19,6 +19,7 @@ const acting = (action: string, t: Strings) => {
 };
 
 export const stepLine = (step: ChatStep, t: Strings): string => {
+  if (step.kind === 'gathering') return t.chat.steps.gathering;
   if (step.kind === 'searched') return t.chat.steps.searched(step.query, step.found);
   if (step.kind === 'skill') return t.chat.steps.skill(step.title);
   if (step.kind === 'read') return t.chat.steps.read(step.count);

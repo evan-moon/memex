@@ -267,6 +267,7 @@ const en = {
     stop: 'Stop',
     thinking: 'Reading what is on record…',
     steps: {
+      gathering: 'Finding related memories and writing rules…',
       searching: 'Looking through the vault…',
       searched: (query: string, found: number) =>
         found === 0 ? `Searched “${query}” — nothing` : `Searched “${query}” — ${found} notes`,
@@ -738,6 +739,9 @@ const en = {
     aiBriefPlaceholder: 'What should this document accomplish?',
     makeDraft: 'Create draft',
     drafting: 'Drafting…',
+    draftingHint: 'This usually takes 1–2 minutes. You can stop without changing the document.',
+    stopDraft: 'Stop',
+    stoppingDraft: 'Stopping…',
     deadLinks: (n: number) => `Points at ${n} ${n === 1 ? 'note' : 'notes'} nobody wrote`,
     deadLinksWhy: 'Each is either a note still to write, or a name that never meant one.',
     write: 'Write it',
@@ -1092,6 +1096,7 @@ const ko: typeof en = {
     stop: '그만두기',
     thinking: '기록을 읽고 있어요…',
     steps: {
+      gathering: '관련 기억과 작성 규칙을 찾고 있어요…',
       searching: '볼트를 찾아보고 있어요…',
       searched: (query: string, found: number) =>
         found === 0 ? `“${query}” 검색, 없어요` : `“${query}” 검색, ${found}개`,
@@ -1538,6 +1543,9 @@ const ko: typeof en = {
     aiBriefPlaceholder: '어떤 문서를 만들고 싶은지 적어주세요.',
     makeDraft: '초안 만들기',
     drafting: '초안 작성 중…',
+    draftingHint: '보통 1~2분 걸려요. 중단해도 지금 문서는 바뀌지 않아요.',
+    stopDraft: '중단',
+    stoppingDraft: '중단하는 중…',
     deadLinks: (n) => `아직 없는 노트 ${n}개를 가리켜요`,
     deadLinksWhy: '아직 안 쓴 노트거나, 애초에 노트를 뜻한 적 없는 이름이에요.',
     write: '쓰기',
