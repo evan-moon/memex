@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { glob } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative } from 'node:path';
 import { indexNoteVectors } from '@memex/core';
 import {
@@ -31,7 +31,7 @@ import {
 
 type Embedder = (text: string) => Promise<number[]>;
 
-type IndexStats = {
+export type IndexStats = {
   added: number;
   updated: number;
   removed: number;
@@ -223,6 +223,18 @@ const IGNORE_DIRS = [
 const isIgnoredPath = (filePath: string): boolean =>
   filePath.split('/').some((segment) => IGNORE_DIRS.includes(segment));
 
+const markdownFiles = async (dirPath: string): Promise<string[]> => {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(dirPath, entry.name);
+      if (entry.isDirectory()) return isIgnoredPath(path) ? [] : markdownFiles(path);
+      return entry.isFile() && extname(entry.name) === '.md' ? [path] : [];
+    }),
+  );
+  return nested.flat();
+};
+
 // A link lives in one note and points at another, so renaming the second one
 // breaks a row the first one owns — and the first one's file never changed, so
 // nothing above would touch it. Rebuilding the whole graph costs no embeddings
@@ -281,12 +293,7 @@ export const indexDirectory = async (
     reindexed: 0,
   };
 
-  const files: string[] = [];
-  // The exclude callback sees paths like "sub/node_modules", so match path
-  // segments — a bare-name check only prunes ignored dirs at the top level.
-  for await (const file of glob('**/*.md', { cwd: dirPath, exclude: (f) => isIgnoredPath(f) })) {
-    files.push(join(dirPath, file));
-  }
+  const files = await markdownFiles(dirPath);
 
   const CONCURRENCY = 4;
   for (let i = 0; i < files.length; i += CONCURRENCY) {

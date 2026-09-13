@@ -87,6 +87,7 @@ import { redraftInference } from '../inference-draft.ts';
 import { asChoice, isProviderId } from '../llm.ts';
 import { connectMcpClient, isMcpClientId } from '../mcp-clients/index.ts';
 import { readCatalog } from '../model-catalog.ts';
+import { createSourceFolderService, type SourceFolderService } from '../source-folders.ts';
 import { dropTags, listTags, mergeCandidates, renameTags } from '../tidy.ts';
 import { readApps } from './apps.ts';
 import { authoringFailureCode, draftDocument } from './authoring.ts';
@@ -258,6 +259,7 @@ export type ApiErrorCode =
   | 'empty-vault-path'
   | 'file-op-failed'
   | 'config-write-failed'
+  | 'source-failed'
   | 'assistant-not-installed'
   | 'unknown-assistant'
   | 'login-method-unsupported'
@@ -314,6 +316,8 @@ const KNOWN_ROUTES = [
   '/api/note/:id/proposals',
   '/api/note/:id/origin',
   '/api/sources',
+  '/api/sources/pick',
+  '/api/sources/reindex',
 ] as const;
 
 // The statuses the contract names, with what a client needs to recover: which
@@ -414,10 +418,19 @@ export type UiDeps = {
   // absent the vault screen asks for a typed path instead of offering a button
   // that cannot open anything.
   pickFolder?: () => Promise<string | null>;
+  sourceFolders?: SourceFolderService;
   model: ModelRunner;
   fillShapes?: () => Promise<void>;
   now?: () => Date;
 };
+
+const sourceFoldersFor = (deps: UiDeps) =>
+  deps.sourceFolders ??
+  createSourceFolderService({
+    client: deps.client,
+    embedder: deps.embedder,
+    vaultPath: () => deps.vaultPath,
+  });
 
 const runners = new WeakMap<UiDeps, ReturnType<typeof createLoginRunner>>();
 
@@ -1049,13 +1062,36 @@ export const route = async (
 
   // The folders memex reads, and which of them hold the person's own writing.
   if (method === 'GET' && url.pathname === '/api/sources') {
-    const config = loadConfig();
-    return json(
-      config.sources.map((source) => ({
-        path: source.path,
-        reference: source.reference === true,
-      })),
-    );
+    return json(sourceFoldersFor(deps).list());
+  }
+  if (method === 'POST' && url.pathname === '/api/sources/pick') {
+    const path = (await deps.pickFolder?.()) ?? null;
+    if (path === null) return json(sourceFoldersFor(deps).list());
+    try {
+      return json(await sourceFoldersFor(deps).add(path));
+    } catch (error) {
+      return bad(400, 'source-failed', error instanceof Error ? error.message : 'source-failed');
+    }
+  }
+  if (method === 'DELETE' && url.pathname === '/api/sources') {
+    const asked = asRecord(payload);
+    const path = text(asked?.path);
+    if (path === undefined) return bad(400, 'nothing-to-change');
+    try {
+      return json(await sourceFoldersFor(deps).remove(path));
+    } catch (error) {
+      return bad(400, 'source-failed', error instanceof Error ? error.message : 'source-failed');
+    }
+  }
+  if (method === 'POST' && url.pathname === '/api/sources/reindex') {
+    const asked = asRecord(payload);
+    const path = text(asked?.path);
+    if (path === undefined) return bad(400, 'nothing-to-change');
+    try {
+      return json(await sourceFoldersFor(deps).reindex(path));
+    } catch (error) {
+      return bad(400, 'source-failed', error instanceof Error ? error.message : 'source-failed');
+    }
   }
   if (method === 'POST' && url.pathname === '/api/sources') {
     const asked = asRecord(payload);
@@ -1063,17 +1099,14 @@ export const route = async (
     if (path === undefined || typeof asked?.reference !== 'boolean') {
       return bad(400, 'nothing-to-change');
     }
-    const config = loadConfig();
-    const sources = config.sources.map((source) =>
-      source.path === path ? { ...source, reference: asked.reference === true } : source,
-    );
-    if (!sources.some((source) => source.path === path)) {
-      return bad(404, 'not-found', 'That folder is not one memex reads.');
+    try {
+      return json(await sourceFoldersFor(deps).mark(path, asked.reference));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'source-failed';
+      return detail === 'source-not-found'
+        ? bad(404, 'not-found', 'That folder is not one memex reads.')
+        : bad(400, 'source-failed', detail);
     }
-    saveConfig({ ...config, sources });
-    return json(
-      sources.map((source) => ({ path: source.path, reference: source.reference === true })),
-    );
   }
   // What an agent offered to change, and the two things a person can do about
   // it. Above the `/api/note/*` catch-all like the rest of the specific paths.

@@ -1,43 +1,50 @@
 import { useSyncExternalStore } from 'react';
 import { api } from './api.ts';
+import {
+  type ResolvedTheme,
+  readThemePreference,
+  resolveTheme,
+  type ThemePreference,
+} from './theme-preference.ts';
 
-export type Theme = 'light' | 'dark';
+export type Theme = ThemePreference;
 
 const KEY = 'memex-theme';
 
-const systemTheme = (): Theme =>
+const systemTheme = (): ResolvedTheme =>
   window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
-const stored = () => {
-  const saved = localStorage.getItem(KEY);
-  return saved === 'light' || saved === 'dark' ? saved : null;
-};
+const stored = () => readThemePreference(localStorage.getItem(KEY));
 
-// A store rather than component state: the toggle lives on the settings page and
-// the theme has to hold whether that page is mounted or not.
 const listeners = new Set<() => void>();
-const state = { theme: stored() ?? systemTheme() };
+const state = { current: resolveTheme(stored(), systemTheme()) };
 
-// The glass behind the page belongs to the window, and the window follows the OS
-// unless told otherwise. Without this a light theme is drawn on dark material.
-const apply = (theme: Theme) => {
+const apply = (theme: ResolvedTheme) => {
   document.documentElement.dataset.theme = theme;
   api.setAppearance(theme).catch(() => {});
 };
 
-apply(state.theme);
+apply(state.current.resolved);
 
-// Follow the OS until someone states a preference of their own.
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (stored() === null) setTheme(systemTheme());
+  if (state.current.preference !== 'system') return;
+  state.current = resolveTheme('system', systemTheme());
+  apply(state.current.resolved);
+  listeners.forEach((listen) => {
+    listen();
+  });
 });
 
 export const setTheme = (theme: Theme) => {
-  if (state.theme === theme) return;
-  state.theme = theme;
+  const next = resolveTheme(theme, systemTheme());
+  if (state.current.preference === next.preference && state.current.resolved === next.resolved)
+    return;
+  state.current = next;
   localStorage.setItem(KEY, theme);
-  apply(theme);
-  for (const listen of listeners) listen();
+  apply(next.resolved);
+  listeners.forEach((listen) => {
+    listen();
+  });
 };
 
 const subscribe = (listen: () => void) => {
@@ -45,4 +52,9 @@ const subscribe = (listen: () => void) => {
   return () => listeners.delete(listen);
 };
 
-export const useTheme = () => useSyncExternalStore(subscribe, () => state.theme);
+export const useTheme = () =>
+  useSyncExternalStore(
+    subscribe,
+    () => state.current.preference,
+    () => state.current.preference,
+  );

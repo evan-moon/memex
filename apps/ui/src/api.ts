@@ -381,7 +381,21 @@ export type LibraryRow = {
   writingStatus: string | null;
 };
 
-export type SourceFolder = { path: string; reference: boolean };
+export type SourceFolder = {
+  path: string;
+  reference: boolean;
+  role: 'primary' | 'source';
+};
+
+export type SourceIndexResult = {
+  path: string;
+  added: number;
+  updated: number;
+  removed: number;
+  skipped: number;
+  relinked: number;
+  reindexed: number;
+};
 
 export type LibraryPage = { rows: LibraryRow[]; counts: Record<LibraryFilter, number> };
 
@@ -798,7 +812,12 @@ export const api = {
   setOrigin: (id: number, origin: string) =>
     post<{ origin: string }>(`/api/note/${id}/origin`, { origin }),
   sources: () => request<SourceFolder[]>('/api/sources'),
-  markSource: (path: string, mine: boolean) => post<SourceFolder[]>('/api/sources', { path, mine }),
+  markSource: (path: string, reference: boolean) =>
+    post<SourceFolder[]>('/api/sources', { path, reference }),
+  pickSource: () => post<SourceFolder[]>('/api/sources/pick'),
+  disconnectSource: (path: string) =>
+    send<{ rows: SourceFolder[]; forgotten: number }>('DELETE', '/api/sources', { path }),
+  reindexSource: (path: string) => post<SourceIndexResult>('/api/sources/reindex', { path }),
   memory: () => request<MemoryPage>('/api/memory'),
   memoryFor: (subject: string) => request<MemoryPage>(`/api/memory/${encodeURIComponent(subject)}`),
   correctMemory: (input: {

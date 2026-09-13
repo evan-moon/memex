@@ -6,6 +6,7 @@ import { CONFIG_DIR, expandPath, loadConfig, MODEL_CACHE_DIR } from '@memex/util
 import { guardEmbeddingModel } from '../embedding-guard.ts';
 import { asChoice } from '../llm.ts';
 import { getMcpBinPath } from '../mcp-clients/index.ts';
+import { createSourceFolderService } from '../source-folders.ts';
 import { createModelRunner } from './model.ts';
 import type { UiDeps } from './server.ts';
 import { createShapeFiller } from './shapes.ts';
@@ -37,7 +38,7 @@ export const createUiDeps = (): UiDeps & { client: MemexClient } => {
   // window is up, and a request answered after that should use the new one.
   const vault = { path: expandPath(loadConfig().vault_path) };
 
-  return {
+  const base = {
     client,
     // Loaded on the first search rather than now: the weights are ~282MB and the
     // window has to appear before they land.
@@ -54,5 +55,16 @@ export const createUiDeps = (): UiDeps & { client: MemexClient } => {
     model,
     fillShapes: createShapeFiller({ client, sweep: () => asChoice(loadConfig().models.sweep) })
       .fill,
+  };
+  return {
+    ...base,
+    get vaultPath() {
+      return base.vaultPath;
+    },
+    sourceFolders: createSourceFolderService({
+      client,
+      embedder: model.embed,
+      vaultPath: () => base.vaultPath,
+    }),
   };
 };

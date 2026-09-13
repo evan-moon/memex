@@ -1266,6 +1266,73 @@ describe('who wrote this one', () => {
   });
 });
 
+describe('vault folders', () => {
+  const rows = () => [
+    { path: vaultDir, reference: false, role: 'primary' as const },
+    { path: '/notes/reference', reference: true, role: 'source' as const },
+  ];
+
+  beforeEach(() => {
+    deps = {
+      ...deps,
+      pickFolder: async () => '/notes/new',
+      sourceFolders: {
+        list: rows,
+        add: async (path) => [...rows(), { path, reference: false, role: 'source' as const }],
+        remove: async (path) => ({
+          rows: rows().filter((row) => row.path !== path),
+          forgotten: 4,
+        }),
+        mark: async (path, reference) =>
+          rows().map((row) => (row.path === path ? { ...row, reference } : row)),
+        reindex: async (path) => ({
+          path,
+          added: 2,
+          updated: 1,
+          removed: 0,
+          skipped: 3,
+          relinked: 0,
+          reindexed: 0,
+        }),
+      },
+    };
+  });
+
+  it('lists the primary vault and connected folders separately', async () => {
+    const reply = await route(deps, 'GET', new URL('/api/sources', 'http://localhost'), null);
+    expect(body(reply)).toEqual(rows());
+  });
+
+  it('adds the folder selected by the desktop', async () => {
+    const reply = await post('/api/sources/pick', null);
+    expect(body(reply)).toContainEqual({
+      path: '/notes/new',
+      reference: false,
+      role: 'source',
+    });
+  });
+
+  it('disconnects a source without claiming its files were deleted', async () => {
+    const reply = await route(deps, 'DELETE', new URL('/api/sources', 'http://localhost'), {
+      path: '/notes/reference',
+    });
+    expect(body(reply)).toMatchObject({ forgotten: 4 });
+    expect(body(reply).rows).not.toContainEqual(
+      expect.objectContaining({ path: '/notes/reference' }),
+    );
+  });
+
+  it('returns the result of reindexing one selected folder', async () => {
+    const reply = await post('/api/sources/reindex', { path: '/notes/reference' });
+    expect(body(reply)).toMatchObject({
+      path: '/notes/reference',
+      added: 2,
+      updated: 1,
+      skipped: 3,
+    });
+  });
+});
+
 // The gap the redesign named and left open until now: a person could not change
 // the words in a record. Correcting the claims inside one is still a separate
 // operation; changing what it says is not.
