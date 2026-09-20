@@ -8,44 +8,12 @@ export {
 } from './backup.ts';
 export type { CardField, CardQuality, NoteCard } from './card.ts';
 export { extractCard } from './card.ts';
-export type {
-  ChangeProposal,
-  NewProposal,
-  ProposalRange,
-  ProposalStatus,
-} from './change-proposals.ts';
-export {
-  getProposal,
-  proposalsFor,
-  putProposal,
-  setProposalStatus,
-} from './change-proposals.ts';
 export {
   type ChangeKind,
   changeHead,
   hasChangeFrom,
   recordNoteChange,
 } from './changes.ts';
-export type { ChatSession, ChatTurn } from './chat.ts';
-export {
-  deleteSession,
-  listSessions,
-  recordTurn,
-  restateTurn,
-  sessionExists,
-  sessionTurns,
-  startSession,
-} from './chat.ts';
-export type { Judgement, JudgementAction } from './claim-actions.ts';
-export {
-  BINGE_LIMIT,
-  correctionsWanted,
-  dropJudgement,
-  judgementsSince,
-  lastJudgement,
-  recordJudgement,
-  startOfDay,
-} from './claim-actions.ts';
 export type { ClaimKind } from './claim-kind.ts';
 export { classifyClaim } from './claim-kind.ts';
 export type { ClaimScope, ClaimWhere, LocatedClaim } from './claim-locate.ts';
@@ -95,20 +63,6 @@ export {
   restoreDanglingFor,
 } from './dangling.ts';
 export { parseAuthoredAt } from './dates.ts';
-export type { Deferral, DeferralInput, ReviewState, Waking } from './deferrals.ts';
-export {
-  clearDeferral,
-  deferReviewItem,
-  listDeferrals,
-  wakeDeferrals,
-} from './deferrals.ts';
-export type { DocumentDraft, NewDocumentDraft } from './document-drafts.ts';
-export {
-  dropDocumentDraft,
-  getDocumentDraft,
-  putDocumentDraft,
-  unsavedDrafts,
-} from './document-drafts.ts';
 export type { LockHeld } from './document-locks.ts';
 export { DocumentBusy, lockOn, withDocumentLock } from './document-locks.ts';
 export type {
@@ -128,8 +82,6 @@ export {
   preparedMutations,
   prepareMutation,
 } from './document-mutations.ts';
-export type { DocumentReference, NewReference, SourceState } from './document-references.ts';
-export { addReference, dropReference, referencesFor } from './document-references.ts';
 export type { NewRevision, Revision, RevisionActor } from './document-revisions.ts';
 export {
   currentRevision,

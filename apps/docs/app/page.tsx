@@ -1,24 +1,13 @@
-import { NOTIFY_ENDPOINT } from '../lib/notify';
-import { latestDesktopRelease } from '../lib/release';
-import GetTheApp, { type GetTheAppCopy } from './_components/GetTheApp';
+import InstallCommand, { type InstallCommandCopy } from './_components/InstallCommand';
 
-const GET_THE_APP: GetTheAppCopy = {
-  download: 'Download for Mac',
-  requirement: 'Apple silicon · macOS 13+',
-  windowsHeading: 'memex runs on Mac today.',
-  windowsBody: 'Leave your email and you will hear from us the day the Windows build lands.',
-  emailPlaceholder: 'you@example.com',
-  notify: 'Notify me',
-  notifying: 'Sending…',
-  notified: 'You are on the list. We will write once, when it ships.',
-  notifyFailed: 'That did not go through. Try again in a moment.',
-  watchReleases: 'Watch releases on GitHub →',
+const INSTALL: InstallCommandCopy = {
+  command: 'npm i -g @evan-moon/memex',
+  requirement: 'Node 22+ · macOS, Linux',
+  copy: 'Copy',
+  copied: 'Copied',
 };
 
-export default async function Home() {
-  const release = await latestDesktopRelease();
-  const version = release?.version ?? null;
-
+export default function Home() {
   return (
     <main className="page">
       {/* ── Hero ──────────────────────────────────────────────── */}
@@ -36,7 +25,7 @@ export default async function Home() {
           cloud, no API keys.
         </p>
         <div className="hero-actions">
-          <GetTheApp copy={GET_THE_APP} version={version} notifyEndpoint={NOTIFY_ENDPOINT} />
+          <InstallCommand copy={INSTALL} />
           <a
             href="https://github.com/evan-moon/memex"
             target="_blank"
@@ -47,7 +36,7 @@ export default async function Home() {
           </a>
         </div>
 
-        {/* ── Claude Desktop mockup ─────────────────────────── */}
+        {/* ── Claude mockup ──────────────────────────────────── */}
         <div className="claude-ui" style={{ marginTop: '2.5rem' }}>
           <div className="claude-chrome">
             <span className="claude-dot" style={{ background: '#ff5f57' }} />
@@ -263,10 +252,9 @@ export default async function Home() {
           <div className="step">
             <div className="step-num">1</div>
             <div>
-              <div className="step-title">Install the app</div>
+              <div className="step-title">Install the CLI</div>
               <div className="step-desc">
-                Download it, drag it to Applications, open it. On first run, the embedding model
-                (~450MB) is downloaded once to{' '}
+                One npm install. On first run, the embedding model (~450MB) is downloaded once to{' '}
                 <code
                   style={{
                     fontFamily: 'var(--font-geist-mono)',
@@ -280,9 +268,7 @@ export default async function Home() {
                 </code>
                 .
               </div>
-              <a className="step-code step-code-link" href="/download/mac">
-                Download for Mac ↓
-              </a>
+              <code className="step-code">npm i -g @evan-moon/memex</code>
             </div>
           </div>
           <div className="step">
@@ -290,10 +276,8 @@ export default async function Home() {
             <div>
               <div className="step-title">Connect to Claude</div>
               <div className="step-desc">
-                The app registers memex as an MCP server for you. Works with both Claude Code and
-                Claude Desktop. Prefer the terminal? Install the CLI with{' '}
-                <code className="step-inline">npm i -g @evan-moon/memex</code> and run{' '}
-                <code className="step-inline">memex mcp install</code>.
+                Run <code className="step-inline">memex mcp install</code> and memex registers
+                itself as an MCP server. Works with both Claude Code and Claude Desktop.
               </div>
             </div>
           </div>

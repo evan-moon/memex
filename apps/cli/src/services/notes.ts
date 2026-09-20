@@ -1,0 +1,436 @@
+import { readFileSync } from 'node:fs';
+import { dirname, relative } from 'node:path';
+import { type Actor, amendmentSuggestion, type Capabilities, capabilitiesFor } from '@memex/core';
+import {
+  type AmendKind,
+  claimScope,
+  currentRevision,
+  type DocumentMeta,
+  evidenceFor,
+  evidenceStaleness,
+  findRelatedNotes,
+  findUnresolvedLinks,
+  getAmendments,
+  getBacklinks,
+  getDocumentMeta,
+  getNote,
+  inferencesCiting,
+  kindOfEdge,
+  listSignals,
+  locateClaims,
+  type MemexClient,
+  type NoteLayer,
+  parseTags,
+} from '@memex/db';
+import { inVault } from '@memex/utils';
+import { type NoteStatus, statusesFor } from './status.ts';
+
+export type NoteRef = {
+  id: number;
+  title: string;
+  layer: string;
+  author: string;
+  at: number;
+  status?: NoteStatus | null;
+};
+
+export type AmendedRef = NoteRef & { kind: AmendKind };
+
+export type NoteDetail = {
+  id: number;
+  title: string;
+  content: string;
+  layer: NoteLayer;
+  at: number;
+  updatedAt: number;
+  tags: string[];
+  author: string;
+  filePath: string;
+  folder: string | null;
+  writable: boolean;
+  amendment: ReturnType<typeof amendmentSuggestion> | null;
+  wikiLinks: { title: string; id: number }[];
+  deadLinks: string[];
+  evidence: {
+    id: number;
+    title: string | null;
+    changed: boolean;
+    missing: boolean;
+    amendedBy: { id: number; title: string } | null;
+  }[];
+  /** Notes this one links to that could be declared as sources. */
+  candidateSources: NoteRef[];
+  hypotheses: { id: number; title: string; status: string }[];
+  stale: { newer: NoteRef[] } | null;
+  supersededBy: AmendedRef[];
+  corrects: AmendedRef[];
+  backlinks: NoteRef[];
+  related: NoteRef[];
+  revision: string | null;
+  meta: DocumentMeta;
+  capabilities: Capabilities;
+};
+
+// Queries that select whole rows hand back snake_case keys at runtime whatever
+// the camelCase type says, so a ref built from only the camel names loses its
+// date — and a missing date is what blanked the note screen.
+type RawNote = {
+  id: number;
+  title: string;
+  layer: string;
+  author?: string;
+  authoredAt?: number | null;
+  createdAt?: number;
+  updatedAt?: number;
+  authored_at?: number | null;
+  created_at?: number;
+  updated_at?: number;
+};
+
+const toRef = (n: RawNote): NoteRef => ({
+  id: n.id,
+  title: n.title,
+  layer: n.layer,
+  author: n.author ?? 'person',
+  at: n.authoredAt ?? n.authored_at ?? n.createdAt ?? n.created_at ?? 0,
+});
+
+const toStateRef = (n: RawNote): NoteRef => ({
+  ...toRef(n),
+  at: n.updatedAt ?? n.updated_at ?? toRef(n).at,
+});
+
+// A note's stored content is the file as it sits on disk, so most of it opens
+// with YAML frontmatter and then repeats the title as an H1. Rendered as text
+// that was merely noise; rendered as Markdown it becomes a stray rule, a
+// paragraph of metadata, and the title twice. The reader wants the body.
+//
+// The two can arrive in either order. A draft a model wrote to a skill's
+// instructions puts the heading first, and Markdown then reads the block below
+// it as prose: `title:` and `tags:` show up as text and the closing `---` is
+// eaten as a setext heading. So this peels in rounds rather than assuming a
+// shape, and `recompose` puts back exactly what came off.
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/;
+const GAP = /^\s*\r?\n/;
+const HEADING = /^#[ \t]+(.+?)[ \t]*\r?\n/;
+
+const peelHead = (rest: string, title: string, head: string): { head: string; body: string } => {
+  const front = FRONTMATTER.exec(rest)?.[0];
+  if (front !== undefined) {
+    const after = GAP.exec(rest.slice(front.length))?.[0] ?? '';
+    return peelHead(rest.slice(front.length + after.length), title, `${head}${front}${after}`);
+  }
+  const heading = HEADING.exec(rest);
+  if (heading && heading[1].trim() === title.trim()) {
+    const after = GAP.exec(rest.slice(heading[0].length))?.[0] ?? '';
+    return peelHead(
+      rest.slice(heading[0].length + after.length),
+      title,
+      `${head}${heading[0]}${after}`,
+    );
+  }
+  return { head, body: rest };
+};
+
+export const bodyOf = (content: string, title: string): string => peelHead(content, title, '').body;
+
+// The inverse of bodyOf. A note's frontmatter carries fields nothing else
+// records — original date, categories, aliases — and renderNoteFile only
+// preserves them when it can still see them. Saving an edited body means
+// putting the head back on, not regenerating it from what we happen to know.
+export const recompose = (original: string, body: string, title: string): string =>
+  `${peelHead(original, title, '').head}${body}`;
+
+const outgoingWikiLinks = (client: MemexClient, id: number) =>
+  client.sqlite
+    .prepare(
+      `SELECT n.id, n.title
+       FROM note_links l JOIN notes n ON n.id = l.target_id
+       WHERE l.source_id = ? AND l.source = 'wiki'`,
+    )
+    .all(id) as { title: string; id: number }[];
+
+// Which notes have piled up since this state note was last touched. Present
+// only when a stale_state signal is still open, so the screen and the sidebar
+// warning always agree.
+const staleNewerNotes = (client: MemexClient, note: { id: number; layer: string }) => {
+  if (note.layer !== 'state') return null;
+  const signal = listSignals(client, { type: 'stale_state', status: 'new' }).find(
+    (s) => s.evidenceIds[0] === note.id,
+  );
+  if (!signal) return null;
+
+  const newer = (
+    client.sqlite
+      .prepare(
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+         FROM notes WHERE id IN (${signal.evidenceIds
+           .slice(1)
+           .map(() => '?')
+           .join(',')})
+         ORDER BY COALESCE(authored_at, created_at) DESC`,
+      )
+      .all(...signal.evidenceIds.slice(1)) as RawNote[]
+  ).map(toRef);
+  return { newer };
+};
+
+// Every list of notes says whether each one still holds, so a backlink that a
+// later note corrected does not read as current just because of where it sits.
+const withStatus = (client: MemexClient, refs: NoteRef[]): NoteRef[] => {
+  const statuses = statusesFor(
+    client,
+    refs.map((r) => r.id),
+  );
+  return refs.map((ref) => ({ ...ref, status: statuses.get(ref.id) ?? null }));
+};
+
+// Where a correction should land: beside the note it corrects, since the
+// folder convention is by subject rather than by kind of note.
+const folderOf = (filePath: string, vaultPath: string): string | null => {
+  const rel = relative(vaultPath, dirname(filePath));
+  return rel && !rel.startsWith('..') ? rel : null;
+};
+
+const FRONTMATTER_KEYS = /^(---|(?:title|date|tags|layer|aliases|categories|source)\s*:)/i;
+
+// An FTS snippet is a window of a dozen tokens wherever the match landed, and
+// the index holds the file as written — so a match near the top comes back as
+// `--- title: ... tags: [...] --- the actual sentence`. Only a window that
+// opens inside the frontmatter is cut, so a `---` rule in the middle of a note
+// keeps the prose in front of it.
+const dropFrontmatter = (text: string): string => {
+  const trimmed = text.trimStart();
+  if (!FRONTMATTER_KEYS.test(trimmed)) return text;
+  const close = trimmed.indexOf('---', trimmed.startsWith('---') ? 3 : 0);
+  return close === -1 ? trimmed : trimmed.slice(close + 3);
+};
+
+export const plainSnippet = (text: string): string =>
+  dropFrontmatter(text)
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s*/gm, '')
+    .replace(/\[\[([^\]]+)\]\]/g, (_, inner) => inner.split('|').pop().split('#')[0].trim())
+    .replace(/[`*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// What a projection could plausibly name, offered rather than assumed: a link
+// is a reference, and only some references are what a judgement rests on.
+export const candidateSources = (
+  client: MemexClient,
+  note: { id: number; layer: string },
+): NoteRef[] => {
+  if (note.layer !== 'state' || evidenceFor(client, note.id).length > 0) return [];
+  return outgoingWikiLinks(client, note.id).flatMap((link) => {
+    const row = client.sqlite
+      .prepare(
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+         FROM notes WHERE id = ?`,
+      )
+      .get(link.id) as RawNote | undefined;
+    return row ? [toRef(row)] : [];
+  });
+};
+
+// A declared projection is checked by comparison, so the panel's evidence is
+// the corrections and rewrites of what it named — not a guess at what might be
+// related.
+const declaredStaleness = (client: MemexClient, note: { id: number }) => {
+  const staleness = evidenceStaleness(client, note.id);
+  if (!staleness) return null;
+
+  const newer = [
+    ...staleness.amended.map((entry) => entry.by.id),
+    ...staleness.changed.map((edge) => edge.sourceId),
+  ];
+  if (newer.length === 0) return { newer: [] };
+
+  const rows = client.sqlite
+    .prepare(
+      `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt
+       FROM notes WHERE id IN (${newer.map(() => '?').join(',')})`,
+    )
+    .all(...newer) as RawNote[];
+  return { newer: rows.map(toRef) };
+};
+
+export const noteDetail = (
+  client: MemexClient,
+  id: number,
+  vaultPath: string,
+  // Who is looking. The capabilities a screen shows depend on it, and the host
+  // decides it from the surface the request came in on — never the request body.
+  actor: Actor = 'user',
+): NoteDetail | null => {
+  const note = getNote(client, id);
+  if (!note) return null;
+
+  const corrects = (
+    client.sqlite
+      .prepare(
+        `SELECT n.id, n.title, n.layer, n.author, n.authored_at AS authoredAt, n.created_at AS createdAt,
+                l.source AS edge
+         FROM note_links l JOIN notes n ON n.id = l.target_id
+         WHERE l.source_id = ? AND l.source IN ('amends', 'corrects', 'continues')`,
+      )
+      .all(id) as (RawNote & { edge: string })[]
+  ).map(({ edge, ...row }) => ({ ...toRef(row), kind: kindOfEdge(edge) }));
+
+  return {
+    id: note.id,
+    title: note.title,
+    content: bodyOf(note.content, note.title),
+    layer: note.layer,
+    author: note.author,
+    at: note.authoredAt ?? note.createdAt,
+    updatedAt: note.updatedAt,
+    tags: parseTags(note.tags),
+    filePath: note.filePath,
+    folder: folderOf(note.filePath, vaultPath),
+    // Borrowed files are read here and written by whatever made them. Saying so
+    // is what lets the screen leave out a pencil that could only fail.
+    writable: inVault(note.filePath, vaultPath),
+    amendment: note.layer === 'past' ? amendmentSuggestion(note) : null,
+    wikiLinks: outgoingWikiLinks(client, id),
+    deadLinks: findUnresolvedLinks(client, note.content),
+    evidence: evidenceFor(client, id).map((edge) => ({
+      id: edge.sourceId,
+      title: edge.title,
+      changed: edge.changed,
+      missing: edge.missing,
+      amendedBy: edge.amendedBy,
+    })),
+    candidateSources: candidateSources(client, note),
+    hypotheses: inferencesCiting(client, id),
+    stale: declaredStaleness(client, note) ?? staleNewerNotes(client, note),
+    // The sentences a correction retired, and whether all of them were found in
+    // this note. Without them the screen can only say "corrected", which reads
+    // as if the whole note went — and the person reading it is the one who came
+    // to find out what is still true.
+    supersededBy: getAmendments(client, id).map((a) => ({
+      id: a.id,
+      title: a.title,
+      layer: 'past' as const,
+      author: 'person' as const,
+      at: a.authoredAt,
+      kind: a.kind,
+      invalidates: a.invalidates,
+      scope: claimScope(locateClaims(a.invalidates, note.content)),
+    })),
+    corrects,
+    backlinks: withStatus(client, getBacklinks(client, id).map(toRef)),
+    related: withStatus(client, findRelatedNotes(client, id, 5).map(toRef)),
+    // What the screen needs before anybody types: which version it is editing,
+    // what kind of document this is, and whether it may write at all.
+    revision: currentRevision(client, id)?.revisionId ?? null,
+    meta: getDocumentMeta(client, id),
+    capabilities: capabilitiesFor({
+      actor,
+      meta: getDocumentMeta(client, id),
+      layer: note.layer,
+      inVault: inVault(note.filePath, vaultPath),
+    }),
+  };
+};
+
+export type NoteSource = { path: string; text: string | null };
+
+const readOrNull = (path: string) => {
+  try {
+    return readFileSync(path, 'utf-8');
+  } catch {
+    return null;
+  }
+};
+
+export const noteSource = (client: MemexClient, id: number): NoteSource | null => {
+  const note = getNote(client, id);
+  if (!note) return null;
+  return { path: note.filePath, text: readOrNull(note.filePath) };
+};
+
+// `state` is what is believed now, so its recency is the last time it was
+// touched — and that is the same clock the stale_state signal reads, so the
+// order and the warning stop disagreeing about which notes are recent. A
+// `past` note records something that happened, so it sorts by when it
+// happened, whatever date a later edit carries.
+const recencyColumn = (layer: NoteLayer) =>
+  layer === 'state' ? 'updated_at' : 'COALESCE(authored_at, created_at)';
+
+export const listByLayer = (client: MemexClient, layer: NoteLayer, limit = 5000): NoteRef[] =>
+  (
+    client.sqlite
+      .prepare(
+        `SELECT id, title, layer, author, authored_at AS authoredAt, created_at AS createdAt,
+                updated_at AS updatedAt
+         FROM notes WHERE layer = ?
+         ORDER BY ${recencyColumn(layer)} DESC LIMIT ?`,
+      )
+      .all(layer, limit) as RawNote[]
+  ).map(layer === 'state' ? toStateRef : toRef);
+
+export const layerCounts = (client: MemexClient): Record<string, number> =>
+  (
+    client.sqlite.prepare('SELECT layer, COUNT(*) AS c FROM notes GROUP BY layer').all() as {
+      layer: string;
+      c: number;
+    }[]
+  ).reduce((acc, r) => ({ ...acc, [r.layer]: r.c }), {});
+
+// A stale_state signal cites the state note first and the newer notes that
+// outdate it after — flagging all of them would put a warning on the very
+// records that prove the first one stale.
+export const staleStateIds = (client: MemexClient): number[] => {
+  const rows = client.sqlite
+    .prepare("SELECT evidence_ids FROM signals WHERE type = 'stale_state' AND status = 'new'")
+    .all() as { evidence_ids: string }[];
+  return [
+    ...new Set(
+      rows.flatMap((r) => {
+        try {
+          const [stateNote] = JSON.parse(r.evidence_ids) as number[];
+          return stateNote === undefined ? [] : [stateNote];
+        } catch {
+          return [];
+        }
+      }),
+    ),
+  ];
+};
+
+export type NoteTitle = { id: number; title: string; layer: string; author: string };
+
+// The palette matches on titles alone, so it ships titles alone — the sidebar
+// used to hand over every note in full for the same job.
+export const noteTitles = (client: MemexClient, limit: number): NoteTitle[] =>
+  client.sqlite
+    .prepare(
+      `SELECT id, title, layer, author FROM notes
+       ORDER BY COALESCE(authored_at, created_at) DESC LIMIT ?`,
+    )
+    .all(limit) as NoteTitle[];
+
+export type SearchFacets = {
+  folders: { name: string; count: number }[];
+  tags: { name: string; count: number }[];
+};
+
+const FACET_TAGS = 60;
+
+export const searchFacets = (client: MemexClient): SearchFacets => ({
+  folders: client.sqlite
+    .prepare(
+      `SELECT category AS name, COUNT(*) AS count FROM notes
+       WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC`,
+    )
+    .all() as { name: string; count: number }[],
+  tags: client.sqlite
+    .prepare(
+      `SELECT j.value AS name, COUNT(*) AS count
+       FROM notes n, json_each(n.tags) j
+       GROUP BY j.value ORDER BY count DESC LIMIT ?`,
+    )
+    .all(FACET_TAGS) as { name: string; count: number }[],
+});

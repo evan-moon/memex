@@ -7,7 +7,7 @@ import {
   type LlmProviderId,
 } from '@memex/llm';
 import type { ModelChoice } from '@memex/utils';
-import { findClaudeBinary } from './claude-code/index.ts';
+import { findClaudeBinary } from './claude-binary.ts';
 
 export const DEFAULT_CHOICE: LlmChoice = { provider: 'claude-code', model: 'sonnet' };
 

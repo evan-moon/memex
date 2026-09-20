@@ -92,6 +92,64 @@ describe('schema migrations', () => {
     second.sqlite.close();
   });
 
+  it('leaves no trace of the tables only the retired app ever wrote', () => {
+    const client = openDb(dir);
+    const tables = new Set(
+      (
+        client.sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+          name: string;
+        }[]
+      ).map((row) => row.name),
+    );
+    client.sqlite.close();
+
+    for (const gone of [
+      'chat_sessions',
+      'chat_turns',
+      'review_deferrals',
+      'document_drafts',
+      'document_references',
+      'change_proposals',
+      'claim_actions',
+    ]) {
+      expect(tables.has(gone)).toBe(false);
+    }
+  });
+
+  // A vault that ran the app carries rows in all seven. Dropping them is the
+  // point, so what this proves is that the drop reaches a database that has
+  // them rather than only a fresh one, and that the notes beside them survive.
+  it('drops those tables from a database that already had them', () => {
+    const first = openDb(dir);
+    first.sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS chat_sessions (id INTEGER PRIMARY KEY, at INTEGER);
+      CREATE TABLE IF NOT EXISTS document_drafts (draft_key TEXT PRIMARY KEY, content TEXT);
+      CREATE TABLE IF NOT EXISTS claim_actions (id INTEGER PRIMARY KEY, item_key TEXT);
+      INSERT INTO chat_sessions VALUES (1, 5);
+      INSERT INTO document_drafts VALUES ('d', 'half a paragraph');
+      INSERT INTO claim_actions VALUES (1, 'c:1');
+      INSERT INTO notes(title, content, file_path, source, created_at, updated_at)
+        VALUES ('kept', 'body', '/v/kept.md', 'manual', 1, 1);
+      DELETE FROM index_meta WHERE key = 'schema_version';
+      INSERT INTO index_meta(key, value) VALUES ('schema_version', '32');
+    `);
+    first.sqlite.close();
+
+    const second = openDb(dir);
+    const names = (
+      second.sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+        name: string;
+      }[]
+    ).map((row) => row.name);
+
+    expect(readVersion(second)).toBe(LATEST_SCHEMA_VERSION);
+    expect(names).not.toContain('chat_sessions');
+    expect(names).not.toContain('document_drafts');
+    expect(names).not.toContain('claim_actions');
+    expect(second.sqlite.prepare('SELECT COUNT(*) AS n FROM notes').get()).toEqual({ n: 1 });
+    second.sqlite.close();
+  });
+
   it('drops a sidecar row whose note never made it across', () => {
     const first = openDb(dir);
     first.sqlite.exec(`

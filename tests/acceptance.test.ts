@@ -1,21 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDocumentFailure, readDocument, restoreDocument, updateDocument } from '@memex/core';
 import {
-  buildMemory,
-  correctMemory,
-  isDocumentFailure,
-  readDocument,
-  restoreDocument,
-  updateDocument,
-} from '@memex/core';
-import { getNoteByFilePath, type MemexClient, openDb, setRegister } from '@memex/db';
+  getNoteByFilePath,
+  type MemexClient,
+  openDb,
+  readRegister,
+  registerHistory,
+  setRegister,
+} from '@memex/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { indexDirectory } from '../apps/cli/src/services/indexer.ts';
 import { copyFixtureVault, stubEmbedder, temporaryDbDir } from './fixtures/vault.ts';
 
-// The release scenarios from the handoff, run against the fixture vault rather
-// than asserted about. Each one names the ID it covers. What is not here is what
-// needs a window and a person, and the acceptance document says which.
+// The release scenarios, run against the fixture vault rather than asserted
+// about. Each one names the ID it covers. Every scenario here runs with no
+// reader present, which is the only kind memex has now.
 let vault: { path: string; dispose: () => void };
 let db: { path: string; dispose: () => void };
 let client: MemexClient;
@@ -121,27 +121,33 @@ describe('A05 — two writers on one document', () => {
 });
 
 describe('A08 — September becomes October', () => {
+  const GLOBAL = { kind: 'global' } as const;
+
+  const target = (subject: string, predicate: string) =>
+    readRegister(client, subject).find((entry) => entry.predicate === predicate);
+
   it('gives the next read the new value and keeps the old one in the history', () => {
-    setRegister(client, {
-      subject: '출시 계획',
-      predicate: '출시 목표',
-      value: '9월',
-      scope: { kind: 'global' },
-      author: 'agent',
-    });
-    const before = buildMemory(client, '출시 계획').items[0];
-    expect(before.statement).toBe('출시 목표: 9월');
+    const write = (value: string) =>
+      setRegister(client, {
+        subject: '출시 계획',
+        predicate: '출시 목표',
+        value,
+        scope: GLOBAL,
+        author: 'agent',
+      });
 
-    correctMemory(client, { target: before.id, replacement: '10월', mutationId: 'a08' });
+    write('9월');
+    expect(target('출시 계획', '출시 목표')?.heads.map((head) => head.value)).toEqual(['9월']);
 
-    expect(buildMemory(client, '출시 계획').items[0]).toMatchObject({
-      statement: '출시 목표: 10월',
-      status: 'confirmed',
-    });
-    const events = client.sqlite
-      .prepare('SELECT COUNT(*) AS n FROM register_events')
-      .get() as { n: number };
-    expect(events.n).toBe(2);
+    write('10월');
+
+    // The next read gets the new value with nothing asked of anyone: no queue to
+    // clear, no screen where a person retires the old one.
+    expect(target('출시 계획', '출시 목표')?.heads.map((head) => head.value)).toEqual(['10월']);
+    expect(registerHistory(client, '출시 계획', '출시 목표', GLOBAL)).toMatchObject([
+      { value: '10월', superseded: false },
+      { value: '9월', superseded: true },
+    ]);
   });
 });
 

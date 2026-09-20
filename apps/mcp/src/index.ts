@@ -35,8 +35,8 @@ const vaultPath = expandPath(config.vault_path);
 mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
 const client = openDb(CONFIG_DIR);
-// Same pass the app runs. Whichever process opens the vault first settles the
-// journal, and the other finds nothing left to do.
+// Whichever process opens the vault first settles the journal, and the other
+// finds nothing left to do.
 for (const write of recoverInterruptedWrites(client)) {
   console.error(
     `[memex] an interrupted write to #${write.documentId}: ${write.outcome.replace('-', ' ')}`,

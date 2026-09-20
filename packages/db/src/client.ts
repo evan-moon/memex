@@ -6,7 +6,6 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import { snapshotBeforeSchemaChange } from './backup.ts';
 import { applyMigrations, pendingMigrations } from './migrations.ts';
-import { sqliteBinding } from './native.ts';
 import * as schema from './schema.ts';
 
 export { EMBEDDING_DIM };
@@ -22,7 +21,7 @@ const countsRows = (sqlite: Database.Database, table: string): number =>
 export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient => {
   mkdirSync(dbDir, { recursive: true });
 
-  const sqlite = new Database(join(dbDir, 'memex.db'), { nativeBinding: sqliteBinding() });
+  const sqlite = new Database(join(dbDir, 'memex.db'));
   sqliteVec.load(sqlite);
 
   sqlite.exec(`
@@ -319,23 +318,6 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
     );
   `);
 
-  // A review item put off until something moves, rather than until a date. The
-  // fingerprint is the item's evidence state when it was set aside and `hits`
-  // is how often the belief had been injected by then: either moving means the
-  // deferral is over, so a memory nobody is using stays quiet and one the agent
-  // starts leaning on comes back. A woken row is kept rather than deleted,
-  // because it is the only record that the person has met this item before.
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS review_deferrals (
-      item_key    TEXT    PRIMARY KEY,
-      note_id     INTEGER NOT NULL,
-      fingerprint TEXT    NOT NULL,
-      hits        INTEGER NOT NULL,
-      at          INTEGER NOT NULL,
-      woken_at    INTEGER
-    );
-  `);
-
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS note_shape (
       note_id     INTEGER PRIMARY KEY,
@@ -363,19 +345,6 @@ export const openDb = (dbDir: string, embeddingDim = EMBEDDING_DIM): MemexClient
       kind          TEXT    NOT NULL DEFAULT 'fact',
       UNIQUE (note_id, idx)
     );
-  `);
-
-  // One row per judgement, kept so the last one can be taken back. A card wrongly
-  // waved through changes what the agent says next, so undo has to cost nothing.
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS claim_actions (
-      id       INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_key TEXT    NOT NULL,
-      action   TEXT    NOT NULL,
-      previous TEXT    NOT NULL,
-      at       INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS claim_actions_at ON claim_actions (at);
   `);
 
   sqlite.exec(`

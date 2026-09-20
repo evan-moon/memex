@@ -6,7 +6,17 @@ export const extractCategory = (folder?: string): string | null =>
 const LEADING_FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n)*/;
 const LEADING_H1 = /^#[ \t]+[^\n]*(?:\r?\n)+/;
 
+// A draft can arrive with its heading above its frontmatter, which is what a
+// model writes when it is told to produce both. Markdown says that block is
+// then body text, so the screen shows `title:` and `tags:` as prose and the
+// closing `---` disappears into a setext heading. It is metadata wherever it
+// sits, so it comes off here too — the file itself is left alone.
+const TITLE_THEN_FRONTMATTER = /^(#[ \t]+[^\n]*(?:\r?\n)+)---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n)*/;
+
 export const stripFrontmatter = (content: string): string => {
+  const reordered = content.replace(TITLE_THEN_FRONTMATTER, '$1');
+  if (reordered !== content) return stripFrontmatter(reordered);
+
   const peeled = content.replace(LEADING_FRONTMATTER, '');
   if (peeled === content) return content;
 

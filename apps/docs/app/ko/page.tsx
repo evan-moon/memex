@@ -1,24 +1,13 @@
-import { NOTIFY_ENDPOINT } from '../../lib/notify';
-import { latestDesktopRelease } from '../../lib/release';
-import GetTheApp, { type GetTheAppCopy } from '../_components/GetTheApp';
+import InstallCommand, { type InstallCommandCopy } from '../_components/InstallCommand';
 
-const GET_THE_APP: GetTheAppCopy = {
-  download: 'Mac용 다운로드',
-  requirement: 'Apple silicon · macOS 13 이상',
-  windowsHeading: '아직 Mac에서만 쓸 수 있어요.',
-  windowsBody: '이메일을 남기면 윈도우 버전이 나온 날 알려드릴게요.',
-  emailPlaceholder: 'you@example.com',
-  notify: '알림 받기',
-  notifying: '보내는 중…',
-  notified: '신청됐어요. 나오는 날 한 번만 보낼게요.',
-  notifyFailed: '전송이 안 됐어요. 잠시 후 다시 시도해 주세요.',
-  watchReleases: 'GitHub 릴리스 구독하기 →',
+const INSTALL: InstallCommandCopy = {
+  command: 'npm i -g @evan-moon/memex',
+  requirement: 'Node 22 이상 · macOS, Linux',
+  copy: '복사',
+  copied: '복사됨',
 };
 
-export default async function KoHome() {
-  const release = await latestDesktopRelease();
-  const version = release?.version ?? null;
-
+export default function KoHome() {
   return (
     <main className="page">
       {/* ── Hero ──────────────────────────────────────────────── */}
@@ -35,7 +24,7 @@ export default async function KoHome() {
           키도 필요 없습니다.
         </p>
         <div className="hero-actions">
-          <GetTheApp copy={GET_THE_APP} version={version} notifyEndpoint={NOTIFY_ENDPOINT} />
+          <InstallCommand copy={INSTALL} />
           <a
             href="https://github.com/evan-moon/memex"
             target="_blank"
@@ -46,7 +35,7 @@ export default async function KoHome() {
           </a>
         </div>
 
-        {/* ── Claude Desktop mockup ─────────────────────────── */}
+        {/* ── Claude mockup ──────────────────────────────────── */}
         <div className="claude-ui" style={{ marginTop: '2.5rem' }}>
           <div className="claude-chrome">
             <span className="claude-dot" style={{ background: '#ff5f57' }} />
@@ -257,9 +246,9 @@ export default async function KoHome() {
           <div className="step">
             <div className="step-num">1</div>
             <div>
-              <div className="step-title">앱 설치</div>
+              <div className="step-title">CLI 설치</div>
               <div className="step-desc">
-                내려받아 응용 프로그램으로 옮기고 실행하세요. 첫 실행 시 임베딩 모델(~450MB)이
+                npm으로 한 번 설치하면 끝입니다. 첫 실행 시 임베딩 모델(~450MB)이
                 <code
                   style={{
                     fontFamily: 'var(--font-geist-mono)',
@@ -273,9 +262,7 @@ export default async function KoHome() {
                 </code>
                 에 한 번만 다운로드됩니다.
               </div>
-              <a className="step-code step-code-link" href="/download/mac">
-                Mac용 다운로드 ↓
-              </a>
+              <code className="step-code">npm i -g @evan-moon/memex</code>
             </div>
           </div>
           <div className="step">
@@ -283,9 +270,8 @@ export default async function KoHome() {
             <div>
               <div className="step-title">Claude에 연결</div>
               <div className="step-desc">
-                앱이 memex를 MCP 서버로 등록해 줍니다. Claude Code와 Claude Desktop 모두 지원합니다.
-                터미널이 편하다면 <code className="step-inline">npm i -g @evan-moon/memex</code>로
-                CLI를 설치하고 <code className="step-inline">memex mcp install</code>을 실행하세요.
+                <code className="step-inline">memex mcp install</code>을 실행하면 memex가 스스로 MCP
+                서버로 등록됩니다. Claude Code와 Claude Desktop 모두 지원합니다.
               </div>
             </div>
           </div>

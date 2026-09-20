@@ -169,7 +169,7 @@ export const registerConflicts = (signals: Command) => {
             console.log(pc.dim(`  ${hit.why}`));
           }
           console.log();
-          console.log(pc.dim('Open them in `memex ui` to decide which one survives.'));
+          console.log(pc.dim('Read them with `memex show <id>` to decide which one survives.'));
         }
         const left = fresh.length - asking.length;
         if (left > 0) console.log(pc.dim(`${left} pairs still unjudged — run again to continue.`));

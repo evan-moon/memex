@@ -1,7 +1,7 @@
 {
   "name": "@evan-moon/memex",
   "mcpName": "io.github.evan-moon/memex",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Local-first second brain with semantic search. MCP server for Claude Desktop and Claude Code.",
   "homepage": "https://github.com/evan-moon/memex#readme",
@@ -18,11 +18,7 @@
     "memex-recall": "./dist/recall.js"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./host": {
-      "types": "./dist/host.d.ts",
-      "default": "./dist/host.js"
-    }
+    ".": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -31,7 +27,7 @@
   ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "yarn workspace @memex/ui build && tsup && cp ../../packages/embed/dist/index.js dist/embed.js && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
+    "build": "tsup && cp ../../packages/embed/dist/index.js dist/embed.js && yarn workspace @memex/mcp build && cp ../mcp/dist/index.js dist/mcp.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "yarn build",
     "prepack": "cp ../../README.md . && cp ../../LICENSE .",
@@ -57,7 +53,6 @@
     "@memex/llm": "workspace:*",
     "@memex/mcp": "workspace:*",
     "@memex/rerank": "workspace:^",
-    "@memex/ui": "workspace:*",
     "@memex/utils": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",

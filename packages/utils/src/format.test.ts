@@ -161,3 +161,17 @@ describe('noteProse — a heading that is not the title', () => {
     expect(noteProse('# T\n\n본문이다.', 'T')).toBe('본문이다.');
   });
 });
+
+describe('stripFrontmatter with the heading first', () => {
+  it('takes the block off even when the title got there before it', () => {
+    const raw = ['# 제목', '', '---', 'title: 제목', 'tags: [하나]', '---', '', '본문이다.'].join(
+      '\n',
+    );
+    expect(stripFrontmatter(raw)).toBe('# 제목\n\n본문이다.');
+  });
+
+  it('leaves a rule that is not frontmatter where it is', () => {
+    const raw = ['# 제목', '', '본문이다.', '', '---', '', '더 있다.'].join('\n');
+    expect(stripFrontmatter(raw)).toBe(raw);
+  });
+});

@@ -19,30 +19,21 @@ export type MemexSource = {
   reference?: boolean;
 };
 
-// Which model does which kind of work, split by who is waiting: a turn someone
-// is watching, a draft they will be asked to approve, and a sweep nobody is
-// waiting on at all.
-//
-// This lives in the config file rather than in the browser, because two of the
-// three run where a browser does not: `claim-extract` in the app host and
-// `conflicts` in the CLI.
-export type ModelJob = 'chat' | 'draft' | 'sweep';
+// Which model does which kind of work, split by who is waiting: a draft that
+// lands in the vault for an agent to find, and a sweep nobody is waiting on at
+// all.
+export type ModelJob = 'draft' | 'sweep';
 
 // Structural on purpose. Which providers exist is the LLM layer's business, and
 // utils does not depend on it; the CLI narrows this with its own guard.
 export type ModelChoice = { provider: string; model: string };
 
-export const MODEL_JOBS: readonly ModelJob[] = ['chat', 'draft', 'sweep'];
+export const MODEL_JOBS: readonly ModelJob[] = ['draft', 'sweep'];
 
 export type MemexConfig = {
   vault_path: string;
   sources: MemexSource[];
   models: Record<ModelJob, ModelChoice>;
-  // When the person finished setting the app up, not when it was installed. A
-  // missing file and a file written by the CLI both read as "not yet", which is
-  // what the app wants: the only thing that clears the door is having walked
-  // through it.
-  onboarded_at: string | null;
 };
 
 export const MODEL_CACHE_DIR = join(CONFIG_DIR, 'models');
@@ -55,7 +46,6 @@ export const expandPath = (p: string): string =>
 const DEFAULT_MODEL: ModelChoice = { provider: 'claude-code', model: 'sonnet' };
 
 const DEFAULT_MODELS: Record<ModelJob, ModelChoice> = {
-  chat: DEFAULT_MODEL,
   draft: DEFAULT_MODEL,
   sweep: DEFAULT_MODEL,
 };
@@ -64,7 +54,6 @@ const DEFAULT_CONFIG: MemexConfig = {
   vault_path: DEFAULT_VAULT_PATH,
   sources: [],
   models: DEFAULT_MODELS,
-  onboarded_at: null,
 };
 
 // An empty model would mean "whatever the CLI is set to", which memex decided

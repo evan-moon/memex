@@ -142,7 +142,7 @@ The response may include "Flashback" lines pointing to older notes from a differ
       layer: z
         .enum(['past', 'state', 'rule'])
         .describe(
-          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user approves it in the app. When in doubt, choose past.',
+          'Mutability layer. past = immutable record of what happened. state = current state/plans, freely updatable. rule = Claude behavior guide — saved as a proposal that only takes effect once the user promotes it with `memex layer <id> rule`. When in doubt, choose past.',
         ),
     },
     async ({

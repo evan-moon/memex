@@ -711,6 +711,28 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    // The desktop app is gone, and these six tables were only ever written by
+    // it: an in-app chat and its turns, a review item put off until something
+    // moved, the editor's unsaved keystrokes, the reference panel's pointers,
+    // and the edits an agent offered for a person to accept in a panel. Nothing
+    // reads them now, so they are dropped rather than left to be mistaken for
+    // state the engine keeps. The rows go with them; they described a session
+    // that can no longer be resumed.
+    version: 33,
+    name: 'drop_app_only_tables',
+    up: (sqlite) => {
+      sqlite.exec(`
+        DROP TABLE IF EXISTS chat_turns;
+        DROP TABLE IF EXISTS chat_sessions;
+        DROP TABLE IF EXISTS review_deferrals;
+        DROP TABLE IF EXISTS document_drafts;
+        DROP TABLE IF EXISTS document_references;
+        DROP TABLE IF EXISTS change_proposals;
+        DROP TABLE IF EXISTS claim_actions;
+      `);
+    },
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

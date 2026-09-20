@@ -50,7 +50,9 @@ export const registerSetRegister = (server: McpServer, client: MemexClient) => {
         .number()
         .int()
         .optional()
-        .describe('The note this value came from, when there is one, so the app can show why.'),
+        .describe(
+          'The note this value came from, when there is one, so the value can be traced back to it.',
+        ),
     },
     async ({ subject, predicate, value, scope, period_start, period_end, note_id }) => {
       const asked: RegisterScope =

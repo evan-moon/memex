@@ -24,7 +24,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-code, pre, .install, .cmd {
+code, pre, .cmd {
   font-family: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
@@ -127,18 +127,7 @@ a { color: inherit; text-decoration: none; }
 
 .hero-ext-link:hover { color: var(--fg); }
 
-.install {
-  display: inline-flex;
-  align-items: center;
-  background: var(--code-bg);
-  color: var(--code-fg);
-  padding: 0.6rem 1rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  border: 1px solid var(--accent);
-}
-
-/* ── Get the app ──────────────────────────── */
+/* ── Install command ──────────────────────── */
 
 .get-app {
   display: flex;
@@ -147,114 +136,42 @@ a { color: inherit; text-decoration: none; }
   gap: 0.6rem;
 }
 
-.download {
+.install {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   background: var(--accent);
   color: #0a0a0a;
+  font-family: inherit;
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   padding: 0.8rem 1.5rem;
+  border: none;
   border-radius: 10px;
+  cursor: pointer;
   transition: filter 0.15s, transform 0.15s;
 }
 
-.download:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.install:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.install code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.9rem;
+}
+
+.install-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
 
 .download-meta {
   font-size: 0.8rem;
   color: var(--muted);
 }
 
-.notify {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 1.15rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--subtle);
-  max-width: 440px;
-}
-
-.notify-heading {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--fg);
-}
-
-.notify-body {
-  font-size: 0.85rem;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.notify-form {
-  display: flex;
-  gap: 0.5rem;
-  width: 100%;
-  margin-top: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.notify-input {
-  flex: 1 1 12rem;
-  min-width: 0;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 0.85rem;
-}
-
-.notify-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.notify-input::placeholder { color: var(--muted); }
-
-.notify-submit {
-  background: var(--accent);
-  color: #0a0a0a;
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1.1rem;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: filter 0.15s;
-}
-
-.notify-submit:hover { filter: brightness(1.08); }
-.notify-submit:disabled { opacity: 0.6; cursor: default; }
-
-.notify-done {
-  font-size: 0.85rem;
-  color: var(--accent);
-  margin-top: 0.35rem;
-}
-
-.notify-error {
-  font-size: 0.8rem;
-  color: #f87171;
-}
-
-.notify-fallback {
-  font-size: 0.85rem;
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  margin-top: 0.35rem;
-}
-
-/* ── Claude Desktop UI mockup ─────────────── */
+/* ── Claude UI mockup ─────────────────────── */
 
 @keyframes card-in {
   from { opacity: 0; transform: translateY(8px); }

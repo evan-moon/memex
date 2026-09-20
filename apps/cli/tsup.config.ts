@@ -8,8 +8,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 export default defineConfig({
   ...baseConfig,
-  entry: ['src/index.ts', 'src/recall.ts', 'src/host.ts'],
+  entry: ['src/index.ts', 'src/recall.ts'],
   noExternal: [/@memex/],
-  dts: { entry: ['src/host.ts'] },
   define: { __MEMEX_VERSION__: JSON.stringify(pkg.version) },
 });

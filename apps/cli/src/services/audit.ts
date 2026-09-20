@@ -1,6 +1,6 @@
 import { getCorpusStats, type MemexClient } from '@memex/db';
+import { buildChores } from './chores.ts';
 import { listTags } from './tidy.ts';
-import { buildChores } from './ui/chores.ts';
 
 export const AXIS_WEIGHTS = {
   grounded: 30,

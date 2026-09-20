@@ -9,7 +9,7 @@ import {
 } from '@memex/db';
 import type { LlmChoice } from '@memex/llm';
 import { draftStateUpdate } from './draft.ts';
-import { bodyOf } from './ui/notes.ts';
+import { bodyOf } from './notes.ts';
 
 export type Prepared = {
   drafted: number[];

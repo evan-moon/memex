@@ -8,7 +8,7 @@ Evan's memory engine — semantic search over personal notes, powered by SQLite 
 apps/
 ├── cli/   # memex CLI — the safety net (see surface policy below)
 ├── docs/  # memex.sh — the marketing and documentation site (Next.js)
-└── mcp/   # MCP server — exposes memex tools to Claude
+└── mcp/   # MCP server — exposes memex tools to Codex
 packages/
 ├── core/   # Note service shared by cli/mcp (save/edit/search/delete)
 ├── db/     # SQLite client, schema, repository (drizzle + sqlite-vec)

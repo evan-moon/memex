@@ -16,7 +16,7 @@ const stamp = (at: Date): string =>
 export const backupName = (at: Date): string => `memex.db.bak-${stamp(at)}`;
 
 // `VACUUM INTO` rather than copying the file: the database runs in WAL mode with
-// the app, the MCP server and the CLI all attached, and a copy taken through the
+// the MCP server and the CLI both attached, and a copy taken through the
 // filesystem can be torn halfway through someone else's transaction. This is a
 // consistent snapshot taken by SQLite itself, and it compacts on the way out.
 export const backupDb = (

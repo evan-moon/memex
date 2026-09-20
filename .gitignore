@@ -11,6 +11,3 @@ dist
 .worktrees/
 *.tsbuildinfo
 next-env.d.ts
-
-# Electron packaging output
-apps/desktop/release/

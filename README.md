@@ -68,7 +68,7 @@ Connect your apps:
 memex mcp install
 ```
 
-This registers memex with every MCP client on this machine — Claude, Claude Code, Codex, Cursor — by writing each one's own config file. Restart the clients afterwards. The same thing is one button in the app: run `memex ui` and open **Connect**, which also shows which apps can already reach memex.
+This registers memex with every MCP client on this machine — Claude, Claude Code, Codex, Cursor — by writing each one's own config file. Restart the clients afterwards.
 
 That's it. On first run, the embedding model (~450MB) downloads once to `~/.memex/models/`.
 
@@ -95,7 +95,6 @@ Cost: ~200MB resident while warm, plus up to 3 note titles of context per prompt
 - **Date filter**, narrow search to a time range with `--from` / `--to`
 - **Note layers**, every note is `past` (immutable record), `state` (mutable plan), or `rule` (Claude behaviour guide). Past notes refuse updates; rule notes auto-inject into Claude's system prompt
 - **Flashback**, save and search automatically surface older notes from a *different folder* that are semantically related, "you wrote about this 124 days ago in a different context"
-- **Desktop app**, an Electron window that opens the vault by topic and splits each one into what still stands and what has gone out of date — corrected by a later note, or a plan with newer records piled up behind it. There is no `memex ui` command any more: the app is the screen
 - **Inference engine**, deterministic *signals* surface un-synthesized patterns (cross-year arcs, stale state notes, tag revivals); you promote good ones into *inferences* (hypotheses with provenance) that auto-invalidate when their source notes change. No LLM in the core
 - **MCP server**, Claude searches and saves automatically. No extra CLAUDE.md setup needed
 - **Auto-recall**, opt-in hook that searches your notes on every prompt and injects the hits before Claude answers, so recall never depends on Claude remembering to look
@@ -185,9 +184,7 @@ memex mcp path                               # print MCP binary path
 memex mcp install
 ```
 
-Or from the app: `memex ui`, then **Connect**.
-
-Both write each client's own config file and leave the servers already in it alone. If a client still runs an older copy of memex, both repoint it. `memex mcp path` prints the server path for a client memex does not know about yet.
+It writes each client's own config file and leaves the servers already in it alone. If a client still runs an older copy of memex, it gets repointed. `memex mcp path` prints the server path for a client memex does not know about yet.
 
 ### Available tools
 
@@ -324,26 +321,32 @@ You reach them through Claude Desktop, Claude Code, Cursor, or any other MCP cli
 
 ## Where this is going
 
-memex today is what the list above describes: an AI's memory, with a desktop
-window for supervising it. The direction being built now is a **personal second
-brain you also read and write in directly** — the same vault, used by a person
-writing from their own material and by an AI working from the same shelf.
+memex is a memory engine, not a place to read. There is no window, no editor,
+and no screen to keep up with. Everything a person would have supervised by
+hand — what is still true, what a later note corrected, which notes answer a
+question nobody phrased the way they were written — has to be settled by the
+retrieval path itself, at the moment an agent asks.
 
-Design is in [`docs/plans/2026-09-08-second-brain-product-redesign.md`](docs/plans/2026-09-08-second-brain-product-redesign.md)
-and the two documents it links. **None of the following is built yet**, and this
-section exists so the feature list above stays honest about what ships today:
+The reasoning behind dropping the desktop app: a document an LLM wrote is a
+document nobody reads. A vault that needs curating is a vault that rots. So the
+target is a structure that retrieves correctly **without being read and without
+being maintained**:
 
 | Goal | Status |
 |---|---|
-| Write and edit documents without an AI or embedding model ready | in progress |
-| Version history for every document, without needing git in the vault | in progress |
-| Editing the text of a `past` note (its claims are still corrected, not rewritten) | not started |
-| Reference panel — read your own sources beside what you are writing | not started |
-| A memory screen where a wrong value is corrected in place | not started |
-| `update_note` with `expected_revision` so two writers cannot silently overwrite | not started |
+| Retrieval that answers the question, not the phrasing (hybrid + rerank + chunking) | shipped |
+| A correction reaching every surface that returns the note it corrected | shipped |
+| Signals and inferences that name what went stale, deterministically | shipped |
+| Layers and templates that make a note's lifetime explicit at write time | shipped |
+| Staleness settled at read time rather than by a person clearing a queue | in progress |
+| Evidence (`derives_from`) required, so a claim can be rechecked without guessing | in progress |
 
-Out of scope for this direction: sync, collaboration, publishing, a plugin
-system, and a graph canvas.
+Out of scope: a GUI, sync, collaboration, publishing, a plugin system, and a
+graph canvas.
+
+The design record is in [`docs/plans/`](docs/plans). Those documents are a
+history of decisions, not a roadmap, and the ones written for the desktop app
+have been removed.
 
 ---
 
